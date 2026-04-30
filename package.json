@@ -34,11 +34,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zcj0808/react-native-debug-toolkit"
+    "url": "https://github.com/superzcj/react-native-debug-toolkit"
   },
-  "homepage": "https://github.com/zcj0808/react-native-debug-toolkit#readme",
+  "homepage": "https://github.com/superzcj/react-native-debug-toolkit#readme",
   "bugs": {
-    "url": "https://github.com/zcj0808/react-native-debug-toolkit/issues"
+    "url": "https://github.com/superzcj/react-native-debug-toolkit/issues"
   },
   "peerDependencies": {
     "@react-native-clipboard/clipboard": ">=1.0.0",
