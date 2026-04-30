@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Build output
+lib/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Demo
+Demo/node_modules/
+Demo/.yarn/*
+!Demo/.yarn/patches
+!Demo/.yarn/plugins
+!Demo/.yarn/releases
+!Demo/.yarn/sdks
+!Demo/.yarn/versions
+Demo/ios/Pods/
+Demo/ios/build/
+Demo/ios/DerivedData/
+Demo/ios/xcuserdata/
+Demo/ios/*.xcuserstate
+Demo/ios/**/*.xcuserdata/
+Demo/ios/**/*.xcuserstate
+Demo/ios/**/*.xcode.env.local
+Demo/ios/**/*.hmap
+Demo/ios/**/*.ipa
+Demo/android/.gradle/
+Demo/android/build/
+Demo/android/app/build/
+Demo/android/local.properties
+Demo/android/*.iml
+Demo/android/**/*.hprof
+Demo/android/.cxx/
+Demo/android/**/.cxx/
+Demo/android/.kotlin/
+Demo/ios/*.xcuserdata
+Demo/ios/*.xcuserstate
+Demo/vendor/bundle/
+Demo/**/fastlane/report.xml
+Demo/**/fastlane/Preview.html
+Demo/**/fastlane/screenshots
+Demo/**/fastlane/test_output
+Demo/.metro-health-check*
+Demo/coverage/
+Demo/**/*.jsbundle
+Demo/npm-debug.log
+Demo/yarn-error.log
+
+# Local tooling
+.claude/
+.superset/
+
+# Misc
+*.log
+coverage/

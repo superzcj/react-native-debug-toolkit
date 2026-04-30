@@ -1,0 +1,35 @@
+# Demo
+Demo/
+demo/
+
+# Development
+.git/
+.vscode/
+.idea/
+.claude/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Config
+.eslintrc.*
+.prettierrc*
+tsconfig.json
+babel.config.js
+jest.config.*
+
+# Docs (keep README.md and LICENSE)
+docs/
+*.md
+!README.md
+!LICENSE
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test
+__tests__/
+__mocks__/
+__fixtures__/
+coverage/

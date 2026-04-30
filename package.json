@@ -1,0 +1,86 @@
+{
+  "name": "react-native-debug-toolkit",
+  "version": "2.2.0",
+  "description": "A dev-only floating debug panel for React Native with network, console, Zustand, navigation, and event logs",
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/src/index.d.ts",
+  "files": [
+    "src",
+    "lib",
+    "README.md",
+    "LICENSE",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "typescript": "npm run typecheck",
+    "test": "jest",
+    "build": "bob build",
+    "lint": "eslint \"src/**/*.{js,ts,tsx}\"",
+    "prepare": "bob build"
+  },
+  "keywords": [
+    "react-native",
+    "debug",
+    "toolkit",
+    "http-inspector",
+    "development-tools",
+    "floating-panel"
+  ],
+  "author": "zcj",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zcj0808/react-native-debug-toolkit"
+  },
+  "homepage": "https://github.com/zcj0808/react-native-debug-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/zcj0808/react-native-debug-toolkit/issues"
+  },
+  "peerDependencies": {
+    "@react-native-clipboard/clipboard": ">=1.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.72.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-native-clipboard/clipboard": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@react-native/babel-preset": "^0.76.0",
+    "@react-native/eslint-config": "^0.76.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^18.3.1",
+    "eslint": "^8.57.0",
+    "jest": "^30.3.0",
+    "prettier": "^3.3.0",
+    "react": "^18.3.1",
+    "react-native": "^0.76.6",
+    "react-native-builder-bob": "^0.30.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "^5.5.0"
+  },
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      "commonjs",
+      "module",
+      [
+        "typescript",
+        {
+          "project": "tsconfig.json"
+        }
+      ]
+    ]
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.29.2"
+  }
+}
