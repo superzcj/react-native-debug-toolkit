@@ -9,8 +9,7 @@ import {
   startXMLHttpRequest,
   resetInterceptors,
 } from './networkInterceptor';
-
-type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
+import type { NetworkLogPayload } from './networkInterceptor';
 
 // ─── Utilities ────────────────────────────────────────
 

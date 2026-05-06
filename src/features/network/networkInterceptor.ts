@@ -3,6 +3,8 @@ import { urlRewriter } from '../../utils/urlRewriterRegistry';
 
 type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
 
+export type { NetworkLogPayload };
+
 // Intercepts React Native's XMLHttpRequest transport layer.
 // RN fetch and axios (default adapter) both go through XHR — one hook captures everything.
 

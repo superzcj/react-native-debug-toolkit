@@ -4,8 +4,6 @@ import {
   Text,
   StyleSheet,
   Animated,
-  PanResponder,
-  Easing,
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
@@ -13,6 +11,7 @@ import { FloatIcon } from '../floating/FloatIcon';
 import { DebugPanel } from './DebugPanel';
 import { FeatureTabBar } from './FeatureTabBar';
 import type { TabItem } from './FeatureTabBar';
+import { useTabAnimation } from './useTabAnimation';
 
 // ─── Error Boundary ────────────────────────────────────
 interface ErrorBoundaryState {
@@ -66,34 +65,14 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     return () => { mounted = false; };
   }, []);
 
-  // Content slide animation
-  const contentOpacity = useRef(new Animated.Value(1)).current;
-  const contentTranslateX = useRef(new Animated.Value(0)).current;
-  const isSwitchingTab = useRef(false);
-
-  // Refs to avoid stale closures in PanResponder
-  const activeTabRef = useRef(0);
-  activeTabRef.current = activeTab;
-  const featuresLengthRef = useRef(features.length);
-  featuresLengthRef.current = features.length;
-  const switchTabRef = useRef<(index: number) => void>(() => {});
-
-  // Swipe-to-switch responder
-  const swipeResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gs) => {
-        if (isSwitchingTab.current) return false;
-        return Math.abs(gs.dx) > 25 && Math.abs(gs.dx) > Math.abs(gs.dy) * 2.5;
-      },
-      onPanResponderRelease: (_, gs) => {
-        const tab = activeTabRef.current;
-        if (gs.dx < -40 && tab < featuresLengthRef.current - 1) switchTabRef.current(tab + 1);
-        else if (gs.dx > 40 && tab > 0) switchTabRef.current(tab - 1);
-      },
-      onPanResponderTerminationRequest: () => true,
-    }),
-  ).current;
+  const { contentOpacity, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
+    activeTab,
+    tabCount: features.length,
+    onTabChange: useCallback((index: number) => {
+      setActiveTab(index);
+      setPreference(KEYS.lastTab, String(index));
+    }, []),
+  });
 
   // Feature subscription → re-render on data changes
   const [, setTick] = useState(0);
@@ -121,43 +100,6 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
       setPreference(KEYS.lastTab, '0');
     }
   }, [features.length, activeTab]);
-
-  // Tab switching with content animation
-  const switchTab = useCallback(
-    (index: number) => {
-      if (isSwitchingTab.current || index === activeTabRef.current) return;
-      isSwitchingTab.current = true;
-      const direction = index > activeTabRef.current ? 1 : -1;
-
-      Animated.parallel([
-        Animated.timing(contentOpacity, { toValue: 0, duration: 80, useNativeDriver: true }),
-        Animated.timing(contentTranslateX, {
-          toValue: -direction * 40,
-          duration: 80,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setActiveTab(index);
-        setPreference(KEYS.lastTab, String(index));
-        contentTranslateX.setValue(direction * 40);
-        Animated.parallel([
-          Animated.timing(contentOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-          Animated.timing(contentTranslateX, {
-            toValue: 0,
-            duration: 200,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          isSwitchingTab.current = false;
-        });
-      });
-    },
-    [contentOpacity, contentTranslateX],
-  );
-
-  // Keep ref in sync
-  switchTabRef.current = switchTab;
 
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
@@ -195,7 +137,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                 styles.contentContainer,
                 { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] },
               ]}
-              {...swipeResponder.panHandlers}
+              {...panHandlers}
             >
               {renderFeatureContent()}
             </Animated.View>
