@@ -11,7 +11,7 @@
 ![demo](demo.gif)
 ## 功能
 
-- **Network** — 自动拦截 fetch；axios 通过 `axiosInstance` 配置，查看请求与响应，复制为 cURL
+- **Network** — 自动拦截 React Native XHR 传输层，默认覆盖 fetch 和使用默认 adapter 的 axios，可查看请求与响应并复制为 cURL
 - **Console** — 捕获 `console.log / info / warn / error`
 - **Zustand** — 通过中间件记录状态变化
 - **Navigation** — 追踪路由切换
@@ -56,7 +56,7 @@ function App() {
 
 开发模式下出现浮动调试按钮。点击打开面板，点击 × 或下滑关闭。
 
-网络（fetch）、控制台、导航、Zustand、埋点和剪贴板默认启用。如需捕获 axios 请求，通过 `axiosInstance` 配置项传入你的 axios 实例。
+网络、控制台、导航、Zustand、埋点和剪贴板默认启用。Network 会拦截 React Native 的 XHR 传输层，因此使用默认 adapter 的 fetch 和 axios 请求会自动被捕获。
 
 禁用特定功能：
 
@@ -122,19 +122,16 @@ import { addTrackLog } from 'react-native-debug-toolkit';
 addTrackLog({ eventName: 'button_click', buttonId: 'submit' });
 ```
 
-### 网络黑名单 & Axios
+### 网络配置
+
+React Native fetch 和 axios 流量会通过 XHR 传输层自动捕获。
 
 ```tsx
-import axios from 'axios';
-
-const api = axios.create({ baseURL: 'https://api.example.com' });
-
 <DebugView
   features={{
     network: {
       maxLogs: 100,
       blacklist: ['/analytics', /\/healthcheck$/],
-      axiosInstance: api,
     },
   }}
 >

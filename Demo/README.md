@@ -9,13 +9,15 @@ Metro resolves `react-native-debug-toolkit` directly to the repository `src/` di
 - Presents a small realistic shopping-style app instead of a generator screen
 - Lets you browse products, open details, add to cart, switch tabs, and open profile pages
 - Triggers `Network`, `Console`, `Zustand`, `Navigation`, and `Track` logs through normal page interactions
+- Includes a `Profile` -> `Dev Tools` -> `XHR GET` action that sends a raw `XMLHttpRequest` for validating the default Network capture path
 
 ## How To Use It
 
 1. Start the demo app in development mode.
 2. Browse the product list, open a product detail page, add it to cart, and switch between `Explore`, `Cart`, and `Profile`.
-3. Tap the floating `DBG` button on the screen edge.
-4. Open the `Network`, `Console`, `Zustand`, `Navigation`, and `Track` tabs to inspect the logs created by those page interactions.
+3. On `Profile`, tap `XHR GET` in `Dev Tools` to verify raw XHR request and response capture.
+4. Tap the floating `DBG` button on the screen edge.
+5. Open the `Network`, `Console`, `Zustand`, `Navigation`, and `Track` tabs to inspect the logs created by those page interactions.
 
 ## Setup
 

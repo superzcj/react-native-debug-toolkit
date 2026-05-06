@@ -3,26 +3,8 @@ import { urlRewriter } from '../../utils/urlRewriterRegistry';
 
 type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
 
-// Intercepts fetch requests and optionally axios via interceptors.
-// Axios response data is captured directly through interceptor callbacks,
-// avoiding the unreliable XHR response interception in React Native.
-
-// ─── Minimal axios interface (no hard dependency) ──────
-
-export interface AxiosInstanceLike {
-  interceptors: {
-    request: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      use(onFulfilled?: (config: any) => any, onRejected?: (error: any) => any): number;
-      eject(id: number): void;
-    };
-    response: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      use(onFulfilled?: (response: any) => any, onRejected?: (error: any) => any): number;
-      eject(id: number): void;
-    };
-  };
-}
+// Intercepts React Native's XMLHttpRequest transport layer.
+// RN fetch and axios (default adapter) both go through XHR — one hook captures everything.
 
 // ─── Shared helpers ────────────────────────────────────
 
@@ -38,47 +20,31 @@ function rewriteUrl(url: string): string {
   }
 }
 
-function headersToObject(
-  headers: Record<string, string> | Headers | undefined,
-): Record<string, string> {
-  const result: Record<string, string> = {};
-  if (!headers) {
-    return result;
-  }
-  if (typeof (headers as Headers).forEach === 'function') {
-    (headers as Headers).forEach((value: string, key: string) => {
-      result[key] = value;
-    });
-    return result;
-  }
-  Object.keys(headers).forEach((key) => {
-    result[key] = (headers as Record<string, string>)[key]!;
-  });
-  return result;
-}
-
-function getRequestSnapshot(
-  input: unknown,
-  init?: RequestInit,
-): NetworkLogEntry['request'] {
-  const request = input instanceof Request ? input : null;
-  return {
-    url: typeof input === 'string' ? input : request?.url ?? String(input),
-    method: (init?.method || request?.method || 'GET').toUpperCase(),
-    headers: init?.headers
-      ? headersToObject(init.headers as Record<string, string> | Headers)
-      : request?.headers
-        ? headersToObject(request.headers)
-        : undefined,
-    body: init?.body,
-  };
-}
-
-async function parseResponseBody(response: Response): Promise<unknown> {
-  const raw = await response.clone().text();
-  if (!raw) {
+function parseRawHeaders(rawHeaders: string | null | undefined): Record<string, string> | undefined {
+  if (!rawHeaders) {
     return undefined;
   }
+
+  const headers: Record<string, string> = {};
+  rawHeaders
+    .trim()
+    .split(/[\r\n]+/)
+    .forEach((line) => {
+      const separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) {
+        return;
+      }
+      const key = line.slice(0, separatorIndex).trim();
+      const value = line.slice(separatorIndex + 1).trim();
+      if (key) {
+        headers[key] = value;
+      }
+    });
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function parseBodyText(raw: string): unknown {
+  if (!raw) return undefined;
   try {
     return JSON.parse(raw);
   } catch {
@@ -86,226 +52,235 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-function normalizeAxiosHeaders(
-  headers: unknown,
-): Record<string, string> | undefined {
-  if (!headers || typeof headers !== 'object') {
+function normalizeXhrResponseBody(xhr: XMLHttpRequestLike): unknown {
+  const text = safeRead(() => xhr.responseText);
+  if (typeof text === 'string' && text) {
+    return parseBodyText(text);
+  }
+
+  const response = safeRead(() => xhr.response);
+  if (response != null) {
+    return response;
+  }
+
+  return undefined;
+}
+
+// ─── XMLHttpRequest interceptor ───────────────────────
+
+interface XMLHttpRequestLike {
+  readyState: number;
+  DONE?: number;
+  status: number;
+  statusText?: string;
+  responseHeaders?: Record<string, string> | null;
+  responseType?: string;
+  response?: unknown;
+  responseText?: string;
+  responseURL?: string;
+  open(method: string, url: string, ...args: unknown[]): void;
+  send(body?: unknown): void;
+  setRequestHeader(header: string, value: string): void;
+  getAllResponseHeaders?(): string | null;
+  addEventListener(type: string, listener: () => void): void;
+  removeEventListener(type: string, listener: () => void): void;
+}
+
+type XMLHttpRequestConstructorLike = new () => XMLHttpRequestLike;
+
+type XhrState = {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: unknown;
+  timestamp: number;
+  error?: string;
+  completed?: boolean;
+};
+
+let originalXMLHttpRequest: XMLHttpRequestConstructorLike | null = null;
+let originalXhrOpen: XMLHttpRequestLike['open'] | null = null;
+let originalXhrSend: XMLHttpRequestLike['send'] | null = null;
+let originalXhrSetRequestHeader: XMLHttpRequestLike['setRequestHeader'] | null = null;
+let xhrRefCount = 0;
+const pendingXhrRequests = new WeakMap<XMLHttpRequestLike, XhrState>();
+
+function safeRead<T>(read: () => T): T | undefined {
+  try {
+    return read();
+  } catch {
     return undefined;
   }
-  // AxiosHeaders instance
-  if (typeof (headers as Record<string, unknown>).forEach === 'function') {
-    const result: Record<string, string> = {};
-    (headers as { forEach(fn: (value: string, key: string) => void): void }).forEach(
-      (value, key) => {
-        result[key] = value;
-      },
-    );
-    return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function getGlobalXMLHttpRequest(): XMLHttpRequestConstructorLike | undefined {
+  return (globalThis as { XMLHttpRequest?: XMLHttpRequestConstructorLike }).XMLHttpRequest;
+}
+
+function getXhrResponseHeaders(xhr: XMLHttpRequestLike): Record<string, string> | undefined {
+  const rawHeaders = safeRead(() => xhr.getAllResponseHeaders?.());
+  const parsedHeaders = parseRawHeaders(rawHeaders);
+  if (parsedHeaders) {
+    return parsedHeaders;
   }
-  // Plain object
-  const result: Record<string, string> = {};
-  const obj = headers as Record<string, unknown>;
-  for (const key of Object.keys(obj)) {
-    const val = obj[key];
-    if (typeof val === 'string') {
-      result[key] = val;
+
+  const headers = xhr.responseHeaders;
+  if (!headers) {
+    return undefined;
+  }
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function stopXMLHttpRequest(): void {
+  xhrRefCount = Math.max(0, xhrRefCount - 1);
+  if (xhrRefCount > 0 || !originalXMLHttpRequest) {
+    return;
+  }
+
+  const CurrentXMLHttpRequest = getGlobalXMLHttpRequest();
+  if (CurrentXMLHttpRequest) {
+    if (originalXhrOpen) {
+      CurrentXMLHttpRequest.prototype.open = originalXhrOpen;
+    }
+    if (originalXhrSend) {
+      CurrentXMLHttpRequest.prototype.send = originalXhrSend;
+    }
+    if (originalXhrSetRequestHeader) {
+      CurrentXMLHttpRequest.prototype.setRequestHeader = originalXhrSetRequestHeader;
     }
   }
-  return Object.keys(result).length > 0 ? result : undefined;
+
+  originalXMLHttpRequest = null;
+  originalXhrOpen = null;
+  originalXhrSend = null;
+  originalXhrSetRequestHeader = null;
 }
 
-function buildFullUrl(config: {
-  baseURL?: string;
-  url?: string;
-}): string {
-  const base = config.baseURL ?? '';
-  const url = config.url ?? '';
-  if (!base || url.startsWith('http')) {
-    return url;
+export function startXMLHttpRequest(
+  emit: (entry: NetworkLogPayload) => void,
+): () => void {
+  const CurrentXMLHttpRequest = getGlobalXMLHttpRequest();
+  if (!CurrentXMLHttpRequest) {
+    return () => {};
   }
-  return base.replace(/\/$/, '') + '/' + url.replace(/^\//, '');
-}
 
-// ─── Fetch interceptor ─────────────────────────────────
-
-let originalFetch: typeof globalThis.fetch | null = null;
-let fetchRefCount = 0;
-
-function stopFetch(): void {
-  fetchRefCount = Math.max(0, fetchRefCount - 1);
-  if (fetchRefCount === 0 && originalFetch) {
-    globalThis.fetch = originalFetch;
-    originalFetch = null;
-  }
-}
-
-export function startFetch(emit: (entry: NetworkLogPayload) => void): () => void {
-  fetchRefCount += 1;
-  if (originalFetch) {
+  xhrRefCount += 1;
+  if (originalXMLHttpRequest) {
     return () => {
-      stopFetch();
+      stopXMLHttpRequest();
     };
   }
 
-  originalFetch = globalThis.fetch;
+  originalXMLHttpRequest = CurrentXMLHttpRequest;
+  originalXhrOpen = CurrentXMLHttpRequest.prototype.open;
+  originalXhrSend = CurrentXMLHttpRequest.prototype.send;
+  originalXhrSetRequestHeader = CurrentXMLHttpRequest.prototype.setRequestHeader;
 
-  globalThis.fetch = async function interceptedFetch(
-    input: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1],
+  CurrentXMLHttpRequest.prototype.open = function interceptedOpen(
+    this: XMLHttpRequestLike,
+    method: string,
+    url: string,
+    ...args: unknown[]
   ) {
-    const startTime = Date.now();
-
-    let rewrittenInput: typeof input = input;
-    if (urlRewriter.get()) {
-      if (typeof input === 'string') {
-        rewrittenInput = rewriteUrl(input);
-      } else if (input instanceof Request) {
-        rewrittenInput = new Request(rewriteUrl(input.url), input as RequestInit);
-      }
-    }
-
-    const request = getRequestSnapshot(rewrittenInput, init);
-
-    try {
-      const response = await originalFetch!.call(globalThis, rewrittenInput, init);
-      const duration = Date.now() - startTime;
-
-      try {
-        const data = await parseResponseBody(response);
-        emit({
-          timestamp: startTime,
-          duration,
-          request,
-          response: { status: response.status, statusText: response.statusText, data },
-        });
-      } catch {
-        emit({
-          timestamp: startTime,
-          duration,
-          request,
-          response: { status: response.status, statusText: response.statusText },
-        });
-      }
-
-      return response;
-    } catch (error) {
-      emit({
-        timestamp: startTime,
-        duration: Date.now() - startTime,
-        request,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+    const rewrittenUrl = urlRewriter.get() ? rewriteUrl(url) : url;
+    pendingXhrRequests.set(this, {
+      method: (method || 'GET').toUpperCase(),
+      url: rewrittenUrl,
+      headers: {},
+      timestamp: Date.now(),
+    });
+    return originalXhrOpen!.call(this, method, rewrittenUrl, ...args);
   };
 
-  return () => {
-    stopFetch();
+  CurrentXMLHttpRequest.prototype.setRequestHeader = function interceptedSetRequestHeader(
+    this: XMLHttpRequestLike,
+    header: string,
+    value: string,
+  ) {
+    const state = pendingXhrRequests.get(this);
+    if (state) {
+      state.headers[header] = value;
+    }
+    return originalXhrSetRequestHeader!.call(this, header, value);
   };
-}
 
-// ─── Axios interceptor ─────────────────────────────────
+  CurrentXMLHttpRequest.prototype.send = function interceptedSend(
+    this: XMLHttpRequestLike,
+    body?: unknown,
+  ) {
+    const that = this;
+    const state = pendingXhrRequests.get(that) ?? {
+      method: 'GET',
+      url: '',
+      headers: {},
+      timestamp: Date.now(),
+    };
+    state.body = body;
+    state.timestamp = Date.now();
+    pendingXhrRequests.set(that, state);
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pendingAxiosRequests = new WeakMap<any, { startTime: number; timestamp: number }>();
-
-export function startAxios(
-  axiosInstance: AxiosInstanceLike,
-  emit: (entry: NetworkLogPayload) => void,
-): () => void {
-  const requestInterceptorId = axiosInstance.interceptors.request.use(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (config: any) => {
-      const now = Date.now();
-      pendingAxiosRequests.set(config, { startTime: now, timestamp: now });
-
-      if (urlRewriter.get() && config.url) {
-        const fullUrl = buildFullUrl(config);
-        const rewritten = rewriteUrl(fullUrl);
-        if (rewritten !== fullUrl) {
-          config.url = rewritten;
-          if (config.baseURL) {
-            config.baseURL = undefined;
-          }
-        }
+    const complete = () => {
+      const currentState = pendingXhrRequests.get(that);
+      if (!currentState || currentState.completed) {
+        return;
       }
+      currentState.completed = true;
 
-      return config;
-    },
-  );
-
-  const responseInterceptorId = axiosInstance.interceptors.response.use(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (response: any) => {
-      const config = response.config;
-      const pending = config ? pendingAxiosRequests.get(config) : undefined;
-      const startTime = pending?.timestamp ?? Date.now();
-
+      const headers = getXhrResponseHeaders(that);
       emit({
-        timestamp: startTime,
-        duration: Date.now() - startTime,
+        timestamp: currentState.timestamp,
+        duration: Date.now() - currentState.timestamp,
         request: {
-          url: buildFullUrl(config),
-          method: (config?.method ?? 'GET').toUpperCase(),
-          headers: normalizeAxiosHeaders(config?.headers),
-          body: config?.data,
+          url: currentState.url,
+          method: currentState.method,
+          headers: Object.keys(currentState.headers).length > 0
+            ? currentState.headers
+            : undefined,
+          body: currentState.body,
         },
         response: {
-          status: response.status,
-          statusText: response.statusText,
-          headers: normalizeAxiosHeaders(response.headers),
-          data: response.data,
-          success: response.status >= 200 && response.status < 300,
+          status: that.status,
+          statusText: that.statusText,
+          headers,
+          data: normalizeXhrResponseBody(that),
+          success: that.status >= 200 && that.status < 300,
         },
+        error: currentState.error,
       });
+    };
 
-      return response;
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (error: any) => {
-      const config = error.config;
-      const pending = config ? pendingAxiosRequests.get(config) : undefined;
-      const startTime = pending?.timestamp ?? Date.now();
-
-      if (config) {
-        emit({
-          timestamp: startTime,
-          duration: Date.now() - startTime,
-          request: {
-            url: buildFullUrl(config),
-            method: (config.method ?? 'GET').toUpperCase(),
-            headers: normalizeAxiosHeaders(config.headers),
-            body: config.data,
-          },
-          response: error.response
-            ? {
-                status: error.response.status,
-                statusText: error.response.statusText,
-                headers: normalizeAxiosHeaders(error.response.headers),
-                data: error.response.data,
-                success: false,
-              }
-            : undefined,
-          error: error.message ?? String(error),
-        });
+    const markError = (message: string) => {
+      const currentState = pendingXhrRequests.get(that);
+      if (currentState) {
+        currentState.error = message;
       }
+    };
 
-      return Promise.reject(error);
-    },
-  );
+    that.addEventListener('error', () => {
+      markError('Network Error');
+    });
+    that.addEventListener('timeout', () => {
+      markError('Timeout');
+    });
+    that.addEventListener('abort', () => {
+      markError('Aborted');
+    });
+    that.addEventListener('loadend', complete);
+
+    return originalXhrSend!.call(that, body);
+  };
 
   return () => {
-    axiosInstance.interceptors.request.eject(requestInterceptorId);
-    axiosInstance.interceptors.response.eject(responseInterceptorId);
+    stopXMLHttpRequest();
   };
 }
 
 // ─── Cleanup ───────────────────────────────────────────
 
 export function resetInterceptors(): void {
-  if (originalFetch) {
-    globalThis.fetch = originalFetch;
-    originalFetch = null;
+  if (originalXMLHttpRequest) {
+    xhrRefCount = 1;
+    stopXMLHttpRequest();
   }
-  fetchRefCount = 0;
+  xhrRefCount = 0;
 }

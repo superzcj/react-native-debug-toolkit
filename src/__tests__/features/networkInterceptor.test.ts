@@ -1,261 +1,207 @@
 import {
   resetInterceptors,
-  startAxios,
+  startXMLHttpRequest,
 } from '../../features/network/networkInterceptor';
 import { _resetNetworkForTesting, createNetworkFeature } from '../../features/network';
 
-function createFakeAxios() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let requestInterceptor: ((config: any) => any) | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let responseInterceptor: ((response: any) => any) | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let errorInterceptor: ((error: any) => any) | undefined;
+type FakeXhrHandler = (xhr: FakeXMLHttpRequest) => void;
 
-  const ejectRequest = jest.fn();
-  const ejectResponse = jest.fn();
+class FakeXMLHttpRequest {
+  static latest: FakeXMLHttpRequest | undefined;
+  static handler: FakeXhrHandler | undefined;
 
-  return {
-    interceptors: {
-      request: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        use(onFulfilled?: (config: any) => any) {
-          requestInterceptor = onFulfilled;
-          return 1;
-        },
-        eject: ejectRequest,
-      },
-      response: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        use(onFulfilled?: (response: any) => any, onRejected?: (error: any) => any) {
-          responseInterceptor = onFulfilled;
-          errorInterceptor = onRejected;
-          return 2;
-        },
-        eject: ejectResponse,
-      },
-    },
-    simulateRequest(config: Record<string, unknown>) {
-      return requestInterceptor!(config);
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    simulateResponse(response: any) {
-      return responseInterceptor!(response);
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    simulateError(error: any) {
-      return errorInterceptor!(error);
-    },
-    ejectRequest,
-    ejectResponse,
-  };
+  readonly UNSENT = 0;
+  readonly OPENED = 1;
+  readonly HEADERS_RECEIVED = 2;
+  readonly LOADING = 3;
+  readonly DONE = 4;
+
+  readyState = this.UNSENT;
+  status = 0;
+  statusText = '';
+  responseHeaders: Record<string, string> = {};
+  responseType = '';
+  response: unknown = '';
+  responseText = '';
+  responseURL = '';
+  timeout = 0;
+
+  onreadystatechange: (() => void) | null = null;
+  onloadend: (() => void) | null = null;
+
+  method = '';
+  url = '';
+  body: unknown;
+  requestHeaders: Record<string, string> = {};
+
+  private listeners: Record<string, Array<() => void>> = {};
+
+  constructor() {
+    FakeXMLHttpRequest.latest = this;
+  }
+
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+    this.readyState = this.OPENED;
+  }
+
+  setRequestHeader(header: string, value: string) {
+    this.requestHeaders[header] = value;
+  }
+
+  send(body?: unknown) {
+    this.body = body;
+    FakeXMLHttpRequest.handler?.(this);
+  }
+
+  addEventListener(type: string, listener: () => void) {
+    this.listeners[type] = this.listeners[type] ?? [];
+    this.listeners[type]!.push(listener);
+  }
+
+  removeEventListener(type: string, listener: () => void) {
+    this.listeners[type] = (this.listeners[type] ?? []).filter((item) => item !== listener);
+  }
+
+  getAllResponseHeaders() {
+    return Object.entries(this.responseHeaders)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\r\n');
+  }
+
+  respond({
+    status,
+    statusText = 'OK',
+    headers = {},
+    body,
+    responseType = '',
+  }: {
+    status: number;
+    statusText?: string;
+    headers?: Record<string, string>;
+    body: unknown;
+    responseType?: string;
+  }) {
+    this.status = status;
+    this.statusText = statusText;
+    this.responseHeaders = headers;
+    this.responseType = responseType;
+    this.responseURL = this.url;
+    this.response = body;
+    this.responseText = typeof body === 'string' ? body : '';
+    this.readyState = this.DONE;
+    this.onreadystatechange?.();
+    this.listeners.loadend?.forEach((listener) => listener());
+    this.onloadend?.();
+  }
 }
 
-describe('networkInterceptor axios setup', () => {
-  afterEach(() => {
-    resetInterceptors();
+async function flushNetworkLog() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe('networkInterceptor XMLHttpRequest setup', () => {
+  let originalXMLHttpRequest: typeof globalThis.XMLHttpRequest | undefined;
+  let originalFetch: typeof globalThis.fetch | undefined;
+
+  beforeEach(() => {
+    originalXMLHttpRequest = globalThis.XMLHttpRequest;
+    originalFetch = globalThis.fetch;
+    FakeXMLHttpRequest.latest = undefined;
+    FakeXMLHttpRequest.handler = undefined;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
   });
 
-  it('captures axios requests and responses', () => {
+  afterEach(() => {
+    resetInterceptors();
+    if (originalXMLHttpRequest) {
+      globalThis.XMLHttpRequest = originalXMLHttpRequest;
+    } else {
+      delete (globalThis as { XMLHttpRequest?: unknown }).XMLHttpRequest;
+    }
+    if (originalFetch) {
+      globalThis.fetch = originalFetch;
+    } else {
+      delete (globalThis as { fetch?: unknown }).fetch;
+    }
+  });
+
+  it('captures XMLHttpRequest request and JSON response data', async () => {
     const emit = jest.fn();
-    const fakeAxios = createFakeAxios();
+    startXMLHttpRequest(emit);
 
-    startAxios(fakeAxios as any, emit);
+    FakeXMLHttpRequest.handler = (xhr) => {
+      xhr.respond({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: '{"ok":true}',
+      });
+    };
 
-    const config = fakeAxios.simulateRequest({
-      method: 'post',
-      url: 'https://api.example.com/users',
-      headers: { 'Content-Type': 'application/json' },
-      data: { name: 'test' },
-    });
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://api.example.com/items');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send('{"name":"demo"}');
 
-    fakeAxios.simulateResponse({
-      status: 201,
-      statusText: 'Created',
-      headers: { 'content-type': 'application/json' },
-      data: { id: 1, name: 'test' },
-      config,
-    });
+    await flushNetworkLog();
 
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit.mock.calls[0][0]).toMatchObject({
       request: {
-        url: 'https://api.example.com/users',
+        url: 'https://api.example.com/items',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: { name: 'test' },
+        body: '{"name":"demo"}',
       },
       response: {
-        status: 201,
-        statusText: 'Created',
-        data: { id: 1, name: 'test' },
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        data: { ok: true },
         success: true,
       },
     });
   });
 
-  it('captures axios errors with response', async () => {
-    const emit = jest.fn();
-    const fakeAxios = createFakeAxios();
+  it('uses XMLHttpRequest as the default network capture path', async () => {
+    const feature = createNetworkFeature();
+    globalThis.fetch = jest.fn();
 
-    startAxios(fakeAxios as any, emit);
+    feature.setup();
 
-    const config = fakeAxios.simulateRequest({
-      method: 'get',
-      url: 'https://api.example.com/not-found',
-    });
+    FakeXMLHttpRequest.handler = (xhr) => {
+      xhr.respond({
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+        body: 'ok',
+      });
+    };
 
-    await expect(
-      fakeAxios.simulateError({
-        message: 'Request failed with status code 404',
-        config,
-        response: {
-          status: 404,
-          statusText: 'Not Found',
-          data: { error: 'Not found' },
-        },
-      }),
-    ).rejects.toBeDefined();
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://api.example.com/default');
+    xhr.send();
 
-    expect(emit).toHaveBeenCalledTimes(1);
-    expect(emit.mock.calls[0][0]).toMatchObject({
-      request: {
-        url: 'https://api.example.com/not-found',
-        method: 'GET',
-      },
-      response: {
-        status: 404,
-        statusText: 'Not Found',
-        data: { error: 'Not found' },
-        success: false,
-      },
-      error: 'Request failed with status code 404',
-    });
-  });
+    await flushNetworkLog();
 
-  it('captures axios network errors without response', async () => {
-    const emit = jest.fn();
-    const fakeAxios = createFakeAxios();
+    expect(feature.getSnapshot()).toHaveLength(1);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
 
-    startAxios(fakeAxios as any, emit);
-
-    const config = fakeAxios.simulateRequest({
-      method: 'get',
-      url: 'https://api.example.com/timeout',
-    });
-
-    await expect(
-      fakeAxios.simulateError({
-        message: 'Network Error',
-        config,
-      }),
-    ).rejects.toBeDefined();
-
-    expect(emit).toHaveBeenCalledTimes(1);
-    expect(emit.mock.calls[0][0]).toMatchObject({
-      request: {
-        url: 'https://api.example.com/timeout',
-        method: 'GET',
-      },
-      response: undefined,
-      error: 'Network Error',
-    });
-  });
-
-  it('combines baseURL with url', () => {
-    const emit = jest.fn();
-    const fakeAxios = createFakeAxios();
-
-    startAxios(fakeAxios as any, emit);
-
-    const config = fakeAxios.simulateRequest({
-      method: 'get',
-      baseURL: 'https://api.example.com',
-      url: '/users',
-    });
-
-    fakeAxios.simulateResponse({
-      status: 200,
-      statusText: 'OK',
-      data: [],
-      config,
-    });
-
-    expect(emit.mock.calls[0][0].request.url).toBe(
-      'https://api.example.com/users',
-    );
-  });
-
-  it('ejects interceptors on stop', () => {
-    const emit = jest.fn();
-    const fakeAxios = createFakeAxios();
-
-    const stop = startAxios(fakeAxios as any, emit);
-    stop();
-
-    expect(fakeAxios.ejectRequest).toHaveBeenCalledWith(1);
-    expect(fakeAxios.ejectResponse).toHaveBeenCalledWith(2);
+    feature.cleanup();
   });
 });
 
-describe('NetworkFeature axios integration', () => {
+describe('NetworkFeature setup and cleanup', () => {
   afterEach(() => {
     _resetNetworkForTesting();
   });
 
-  it('intercepts axios when axiosInstance is provided', () => {
-    const fakeAxios = createFakeAxios();
-    const feature = createNetworkFeature({
-      axiosInstance: fakeAxios as any,
-    });
-    feature.setup();
-
-    const config = fakeAxios.simulateRequest({
-      method: 'get',
-      url: 'https://api.example.com/data',
-    });
-
-    fakeAxios.simulateResponse({
-      status: 200,
-      statusText: 'OK',
-      data: { result: true },
-      config,
-    });
-
-    expect(feature.getSnapshot()).toHaveLength(1);
-    expect(feature.getSnapshot()[0]).toMatchObject({
-      request: {
-        url: 'https://api.example.com/data',
-        method: 'GET',
-      },
-      response: {
-        status: 200,
-        data: { result: true },
-        success: true,
-      },
-    });
-
-    feature.cleanup();
-  });
-
-  it('does not intercept axios when axiosInstance is not provided', () => {
+  it('captures requests via XHR without axiosInstance', () => {
     const feature = createNetworkFeature();
     feature.setup();
 
     expect(feature.getSnapshot()).toHaveLength(0);
 
     feature.cleanup();
-  });
-
-  it('cleans up axios interceptors on cleanup', () => {
-    const fakeAxios = createFakeAxios();
-    const feature = createNetworkFeature({
-      axiosInstance: fakeAxios as any,
-    });
-    feature.setup();
-    feature.cleanup();
-
-    expect(fakeAxios.ejectRequest).toHaveBeenCalledWith(1);
-    expect(fakeAxios.ejectResponse).toHaveBeenCalledWith(2);
   });
 });

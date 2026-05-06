@@ -11,7 +11,7 @@ A dev-only floating debug panel for React Native — inspect network, console, s
 ![demo](demo.gif)
 ## Features
 
-- **Network** — Auto-intercepts fetch; axios via `axiosInstance` config, inspect requests & responses, copy as cURL
+- **Network** — Auto-intercepts React Native XHR transport, including fetch and axios in the default adapter, inspect requests & responses, copy as cURL
 - **Console** — Capture `console.log / info / warn / error`
 - **Zustand** — Log state transitions via middleware
 - **Navigation** — Track route changes
@@ -56,7 +56,7 @@ function App() {
 
 A floating debug button appears in dev mode. Tap to open the panel, tap × or swipe down to close.
 
-Network (fetch), console, navigation, zustand, track, and clipboard are enabled by default. To capture axios requests, pass your axios instance via the `axiosInstance` config option.
+Network, console, navigation, zustand, track, and clipboard are enabled by default. Network capture hooks React Native's XHR transport, so fetch and axios requests using the default adapter are captured automatically.
 
 Disable specific features:
 
@@ -122,19 +122,16 @@ import { addTrackLog } from 'react-native-debug-toolkit';
 addTrackLog({ eventName: 'button_click', buttonId: 'submit' });
 ```
 
-### Network Blacklist & Axios
+### Network Options
+
+React Native fetch and axios traffic is captured automatically through the XHR transport layer.
 
 ```tsx
-import axios from 'axios';
-
-const api = axios.create({ baseURL: 'https://api.example.com' });
-
 <DebugView
   features={{
     network: {
       maxLogs: 100,
       blacklist: ['/analytics', /\/healthcheck$/],
-      axiosInstance: api,
     },
   }}
 >

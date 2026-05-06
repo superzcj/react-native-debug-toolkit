@@ -541,8 +541,8 @@ function App(): React.JSX.Element {
       </View>
 
       <View style={styles.cartSummaryRow}>
-        <MetricCard label="Items" value={String(cartCount)} theme={theme} />
-        <MetricCard label="Total" value={formatPrice(cartTotal)} theme={theme} />
+        <MetricCard label="Items" value={String(cartCount)} />
+        <MetricCard label="Total" value={formatPrice(cartTotal)} />
       </View>
 
       {storeState.cartItems.length === 0 ? (
@@ -1112,13 +1112,16 @@ const styles = StyleSheet.create({
   },
   devToolsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
   },
   devToolBtn: {
     borderRadius: 10,
+    minWidth: 84,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    alignItems: 'center',
   },
   devToolBtnText: {
     color: '#FFF',

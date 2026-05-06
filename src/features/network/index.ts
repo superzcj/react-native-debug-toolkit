@@ -1,15 +1,12 @@
 import { NetworkLogTab } from './NetworkLogTab';
 
-export type { AxiosInstanceLike } from './networkInterceptor';
 import type { DebugFeature, NetworkLogEntry } from '../../types';
 import { createEventChannel } from '../../utils/createEventChannel';
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
 import { KEYS } from '../../utils/debugPreferences';
 import { urlRewriter } from '../../utils/urlRewriterRegistry';
-import type { AxiosInstanceLike } from './networkInterceptor';
 import {
-  startFetch,
-  startAxios,
+  startXMLHttpRequest,
   resetInterceptors,
 } from './networkInterceptor';
 
@@ -46,8 +43,6 @@ export interface NetworkFeatureConfig {
   maxLogs?: number;
   /** URLs to filter out from logging */
   blacklist?: Array<string | RegExp>;
-  /** Axios instance to intercept. Pass your axios.create() instance to capture axios requests. */
-  axiosInstance?: AxiosInstanceLike;
 }
 
 export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeature<NetworkLogEntry[]> => {
@@ -59,8 +54,7 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeatur
   });
   let initialized = false;
   let unsubscribeLogs: (() => void) | null = null;
-  let stopFetchFn: (() => void) | null = null;
-  let stopAxiosFn: (() => void) | null = null;
+  let stopXhrFn: (() => void) | null = null;
 
   const handleLog = (entry: NetworkLogPayload) => {
     if (isUrlBlacklisted(entry.request.url, blacklist)) {
@@ -78,10 +72,7 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeatur
         return;
       }
       unsubscribeLogs = networkChannel.subscribe(handleLog);
-      stopFetchFn = startFetch(emitNetworkLog);
-      if (config?.axiosInstance) {
-        stopAxiosFn = startAxios(config.axiosInstance, emitNetworkLog);
-      }
+      stopXhrFn = startXMLHttpRequest(emitNetworkLog);
       initialized = true;
     },
     getSnapshot: () => logStore.getData(),
@@ -95,10 +86,8 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeatur
       urlRewriter.set(null);
       unsubscribeLogs?.();
       unsubscribeLogs = null;
-      stopFetchFn?.();
-      stopFetchFn = null;
-      stopAxiosFn?.();
-      stopAxiosFn = null;
+      stopXhrFn?.();
+      stopXhrFn = null;
       logStore.clear();
       initialized = false;
     },

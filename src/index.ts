@@ -8,7 +8,7 @@ export type { InitializeOptions, FeatureConfigs } from './core/initialize';
 
 // Feature factories
 export { createNetworkFeature } from './features/network';
-export type { NetworkFeatureConfig, AxiosInstanceLike } from './features/network';
+export type { NetworkFeatureConfig } from './features/network';
 export { createConsoleLogFeature } from './features/console';
 export type { ConsoleFeatureConfig } from './features/console';
 export { createZustandLogFeature, zustandLogMiddleware, addZustandLog } from './features/zustand';
