@@ -1,64 +1,52 @@
 # Demo App
 
-This folder contains the local demo app for `react-native-debug-toolkit`.
+Demo for local development. Metro resolves package imports to repository `src/`.
 
-Metro resolves `react-native-debug-toolkit` directly to the repository `src/` directory, so any library change can be verified in the demo without publishing a package first.
+## Covers
 
-## What This Demo Does
+- shopping flow: list, detail, cart, profile
+- Network / Console / Zustand / Navigation / Track logs
+- raw XHR test: `Profile` -> `Dev Tools` -> `XHR GET`
+- Desktop Logs: `Send Once` / `Start Live Sync`
 
-- Presents a small realistic shopping-style app instead of a generator screen
-- Lets you browse products, open details, add to cart, switch tabs, and open profile pages
-- Triggers `Network`, `Console`, `Zustand`, `Navigation`, and `Track` logs through normal page interactions
-- Includes a `Profile` -> `Dev Tools` -> `XHR GET` action that sends a raw `XMLHttpRequest` for validating the default Network capture path
-
-## How To Use It
-
-1. Start the demo app in development mode.
-2. Browse the product list, open a product detail page, add it to cart, and switch between `Explore`, `Cart`, and `Profile`.
-3. On `Profile`, tap `XHR GET` in `Dev Tools` to verify raw XHR request and response capture.
-4. Tap the floating `DBG` button on the screen edge.
-5. Open the `Network`, `Console`, `Zustand`, `Navigation`, and `Track` tabs to inspect the logs created by those page interactions.
-
-## Setup
-
-Install dependencies in both places:
+## Run
 
 ```sh
-# library root
 npm install
-
-# demo app
 cd Demo
 npm install
+npm start
 ```
 
-For iOS, install pods inside `Demo/ios`:
+Then:
 
 ```sh
+npm run ios
+npm run android
+```
+
+iOS pods:
+
+```sh
+cd Demo/ios
 bundle install
 bundle exec pod install
 ```
 
-## Run The Demo
+## Test Desktop Logs
 
-From `Demo/`:
-
-```sh
-npm start
-```
-
-In another terminal:
+From repository root:
 
 ```sh
-# Android
-npm run android
-
-# iOS
-npm run ios
+node bin/debug-toolkit.js --daemon-only
 ```
 
-## Notes
+Open:
 
-- The floating button is shown only in development builds.
-- You do not need to build the library before running the demo.
-- The UI is intentionally simple so the logging flow is easy to understand at a glance.
+```text
+http://127.0.0.1:3799/console
+```
+
+In app: `DBG` -> gear -> `Send Once` or `Start Live Sync`.
+
+Real device: phone browser must open `http://<mac-ip>:3799/health`.

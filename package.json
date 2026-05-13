@@ -1,7 +1,7 @@
 {
   "name": "react-native-debug-toolkit",
   "version": "3.0.0",
-  "description": "A dev-only floating debug panel for React Native with network, console, Zustand, navigation, and event logs",
+  "description": "A local-first React Native debugging bridge with in-app logs, desktop daemon, Web Console, HTTP API, and MCP support",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
