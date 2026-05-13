@@ -1,6 +1,6 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "A dev-only floating debug panel for React Native with network, console, Zustand, navigation, and event logs",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -8,6 +8,8 @@
   "files": [
     "src",
     "lib",
+    "bin",
+    "node",
     "README.md",
     "LICENSE",
     "!**/__tests__",
@@ -19,8 +21,11 @@
     "typescript": "npm run typecheck",
     "test": "jest",
     "build": "bob build",
-    "lint": "eslint \"src/**/*.{js,ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"node/**/*.js\" \"bin/**/*.js\"",
     "prepare": "bob build"
+  },
+  "bin": {
+    "debug-toolkit": "bin/debug-toolkit.js"
   },
   "keywords": [
     "react-native",

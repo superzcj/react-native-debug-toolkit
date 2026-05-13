@@ -395,6 +395,21 @@ function App(): React.JSX.Element {
     }
   };
 
+  const runRawXhrSmoke = () => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://jsonplaceholder.typicode.com/todos/1');
+    xhr.onloadend = () => {
+      console.info('[Demo] XHR GET completed', {
+        status: xhr.status,
+        url: 'https://jsonplaceholder.typicode.com/todos/1',
+      });
+    };
+    xhr.onerror = () => {
+      console.error('[Demo] XHR GET failed');
+    };
+    xhr.send();
+  };
+
   const resetDemo = () => {
     DebugToolkit.clearAll();
     routeRef.current = { screen: 'Explore' };
@@ -685,6 +700,13 @@ function App(): React.JSX.Element {
             activeOpacity={0.8}
           >
             <Text style={styles.devToolBtnText}>DELETE</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.devToolBtn, { backgroundColor: T.primary }]}
+            onPress={runRawXhrSmoke}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.devToolBtnText}>XHR GET</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -28,6 +28,20 @@ export { useNavigationLogger } from './features/navigation/useNavigationLogger';
 export { safeStringify } from './utils/safeStringify';
 export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
 export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
+export { createDebugSessionReport } from './utils/sessionReport';
+export type { DebugSessionReport, DebugSessionReportOptions } from './utils/sessionReport';
+export { getDefaultDaemonEndpoint, reportDebugSessionToDaemon } from './utils/reportToDaemon';
+export type { ReportResult, ReportToDaemonOptions } from './utils/reportToDaemon';
+export { checkDaemonConnection } from './utils/daemonConnection';
+export type {
+  DaemonConnectionFailureReason,
+  DaemonConnectionOptions,
+  DaemonConnectionResult,
+} from './utils/daemonConnection';
+export { startStreaming, stopStreaming, isStreaming } from './utils/streamToDaemon';
+export type { StreamStatus, StreamToDaemonOptions } from './utils/streamToDaemon';
+export { autoDetectDaemonIp, getMetroHost } from './utils/autoDetectDaemon';
+export type { AutoDetectOptions, AutoDetectResult } from './utils/autoDetectDaemon';
 
 // Types
 export type {

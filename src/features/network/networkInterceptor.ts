@@ -3,6 +3,8 @@ import { urlRewriter } from '../../utils/urlRewriterRegistry';
 
 type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
 
+export type { NetworkLogPayload };
+
 // Intercepts React Native's XMLHttpRequest transport layer.
 // RN fetch and axios (default adapter) both go through XHR — one hook captures everything.
 
@@ -113,6 +115,15 @@ function safeRead<T>(read: () => T): T | undefined {
   }
 }
 
+// URLs matching these patterns are skipped (Metro dev server internals).
+const IGNORED_URL_PATTERNS = [
+  /\/symbolicate$/,
+];
+
+function shouldIgnoreUrl(url: string): boolean {
+  return IGNORED_URL_PATTERNS.some((p) => p.test(url));
+}
+
 function getGlobalXMLHttpRequest(): XMLHttpRequestConstructorLike | undefined {
   return (globalThis as { XMLHttpRequest?: XMLHttpRequestConstructorLike }).XMLHttpRequest;
 }
@@ -183,6 +194,9 @@ export function startXMLHttpRequest(
     ...args: unknown[]
   ) {
     const rewrittenUrl = urlRewriter.get() ? rewriteUrl(url) : url;
+    if (shouldIgnoreUrl(rewrittenUrl)) {
+      return originalXhrOpen!.call(this, method, rewrittenUrl, ...args);
+    }
     pendingXhrRequests.set(this, {
       method: (method || 'GET').toUpperCase(),
       url: rewrittenUrl,
@@ -209,12 +223,11 @@ export function startXMLHttpRequest(
     body?: unknown,
   ) {
     const that = this;
-    const state = pendingXhrRequests.get(that) ?? {
-      method: 'GET',
-      url: '',
-      headers: {},
-      timestamp: Date.now(),
-    };
+    const existingState = pendingXhrRequests.get(that);
+    if (!existingState) {
+      return originalXhrSend!.call(that, body);
+    }
+    const state = existingState;
     state.body = body;
     state.timestamp = Date.now();
     pendingXhrRequests.set(that, state);

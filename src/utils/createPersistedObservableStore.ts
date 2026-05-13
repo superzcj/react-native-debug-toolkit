@@ -9,8 +9,9 @@ export interface PersistedStoreOptions<T> {
 }
 
 export interface PersistedObservableStore<T> extends ObservableStore<T> {
-  /** Returns the next auto-incrementing ID and advances the counter. */
   nextId: () => string;
+  ready: Promise<void>;
+  destroy: () => void;
 }
 
 export function createPersistedObservableStore<T extends { id?: string }>(
@@ -20,13 +21,15 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   const store = createObservableStore<T>();
   let writeTimer: ReturnType<typeof setTimeout> | null = null;
   let idCounter = 0;
+  let resolveReady: () => void;
+  const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
 
   // Restore from storage (single notify via pushBatch)
   getPreference(storageKey).then((raw) => {
-    if (!raw) return;
+    if (!raw) { resolveReady(); return; }
     try {
       const entries = JSON.parse(raw) as T[];
-      if (!Array.isArray(entries)) return;
+      if (!Array.isArray(entries)) { resolveReady(); return; }
       const restored = entries.slice(-maxPersist);
       store.pushBatch(restored);
       // Fix ID counter to avoid collision with restored entries
@@ -39,6 +42,7 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     } catch {
       // ignore corrupt data
     }
+    resolveReady();
   });
 
   function scheduleWrite(): void {
@@ -72,5 +76,14 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     },
     subscribe: store.subscribe,
     nextId: () => String(idCounter++),
+    ready,
+    destroy: () => {
+      if (writeTimer !== null) {
+        clearTimeout(writeTimer);
+        writeTimer = null;
+      }
+      store.clear();
+      setPreference(storageKey, '[]');
+    },
   };
 }

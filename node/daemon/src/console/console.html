@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debug Toolkit Console</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080c16;--bg2:#0d1220;--surface:#111827;--surface2:#1a2236;--surface3:#222d44;
+  --border:#1e2d4a;--border2:#2a3f66;
+  --text:#e2e8f0;--text2:#8899b4;--text3:#5a6e8a;
+  --cyan:#00e5ff;--cyan-dim:rgba(0,229,255,.12);--cyan-mid:rgba(0,229,255,.25);
+  --green:#00e676;--green-dim:rgba(0,230,118,.12);
+  --red:#ff1744;--red-dim:rgba(255,23,68,.12);
+  --amber:#ffab00;--amber-dim:rgba(255,171,0,.12);
+  --orange:#ff6e40;--orange-dim:rgba(255,110,64,.12);
+	  --font-mono:'SF Mono',Monaco,Consolas,monospace;
+	  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --radius:6px;
+}
+
+html{scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+body{
+  font-family:var(--font-sans);background:var(--bg);color:var(--text);
+  line-height:1.6;min-height:100vh;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,.012) 2px,rgba(0,229,255,.012) 4px);
+}
+
+/* Scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent 0px,transparent 1px,rgba(0,0,0,.03) 1px,rgba(0,0,0,.03) 2px);
+}
+
+a{color:var(--cyan);text-decoration:none;transition:color .15s}
+a:hover{color:#fff}
+
+/* Header */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:56px;
+  background:linear-gradient(180deg,var(--bg2) 0%,rgba(13,18,32,.95) 100%);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.header-left{display:flex;align-items:center;gap:14px}
+.pulse{
+  width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0;
+  box-shadow:0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+header h1{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+header h1 span{color:var(--text3);font-weight:400}
+.header-right{display:flex;align-items:center;gap:10px}
+.header-meta{font-size:11px;font-family:var(--font-mono);color:var(--text3)}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 14px;font-size:12px;font-weight:500;
+  border:1px solid var(--border2);border-radius:var(--radius);
+  background:var(--surface2);color:var(--text2);cursor:pointer;
+  font-family:var(--font-sans);transition:all .15s;letter-spacing:.01em;
+}
+.btn:hover{background:var(--surface3);color:var(--text);border-color:var(--cyan-mid)}
+.btn:active{transform:scale(.97)}
+.btn-icon{padding:6px 10px;font-size:14px}
+
+/* Container */
+.container{max-width:1160px;margin:0 auto;padding:28px 24px}
+
+/* Empty state */
+.empty{text-align:center;padding:80px 20px;color:var(--text3)}
+.empty-icon{font-size:40px;margin-bottom:16px;opacity:.3;font-family:var(--font-mono)}
+.empty p{font-size:14px;line-height:1.8}
+.empty code{
+  font-family:var(--font-mono);font-size:12px;
+  background:var(--surface);padding:2px 8px;border-radius:3px;
+  border:1px solid var(--border);color:var(--cyan);
+}
+
+/* Session list */
+.section-title{
+  font-size:13px;font-weight:600;color:var(--text2);
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.session-grid{display:flex;flex-direction:column;gap:6px}
+.session-card{
+  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:16px;
+  padding:14px 18px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;
+}
+.session-card:hover{
+  background:var(--surface2);border-color:var(--border2);
+  transform:translateX(3px);
+  box-shadow:0 0 0 1px var(--cyan-dim),0 4px 16px rgba(0,0,0,.3);
+}
+.session-id{font-family:var(--font-mono);font-size:12px;color:var(--text);font-weight:500}
+.session-time{font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:2px}
+.session-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:500;
+  padding:2px 8px;border-radius:3px;
+  background:var(--cyan-dim);color:var(--cyan);
+  border:1px solid rgba(0,229,255,.1);
+}
+.tag-network{background:var(--cyan-dim);color:var(--cyan);border-color:rgba(0,229,255,.1)}
+.tag-console{background:var(--green-dim);color:var(--green);border-color:rgba(0,230,118,.1)}
+.tag-error{background:var(--red-dim);color:var(--red);border-color:rgba(255,23,68,.1)}
+.tag-warn{background:var(--amber-dim);color:var(--amber);border-color:rgba(255,171,0,.1)}
+.tag-track{background:var(--orange-dim);color:var(--orange);border-color:rgba(255,110,64,.1)}
+.session-arrow{color:var(--text3);font-size:16px;transition:color .15s}
+.session-card:hover .session-arrow{color:var(--cyan)}
+
+/* Detail view */
+.back-link{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;color:var(--text3);margin-bottom:20px;
+  padding:6px 0;transition:color .15s;
+}
+.back-link:hover{color:var(--cyan)}
+.back-link svg{width:14px;height:14px}
+
+.detail-header{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 24px;margin-bottom:20px;
+  border-left:3px solid var(--cyan);
+}
+.detail-id{font-family:var(--font-mono);font-size:13px;color:var(--cyan);font-weight:500}
+.detail-meta{
+  display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;
+}
+.detail-meta-item{font-size:11px;color:var(--text3);font-family:var(--font-mono)}
+.detail-meta-item strong{color:var(--text2);font-weight:500}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;margin-bottom:18px;padding:3px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);overflow-x:auto}
+.tab{
+  padding:7px 16px;font-size:12px;font-weight:500;
+  border:none;border-radius:4px;background:transparent;
+  color:var(--text3);cursor:pointer;font-family:var(--font-sans);
+  transition:all .15s;white-space:nowrap;letter-spacing:.01em;
+}
+.tab:hover{color:var(--text2);background:var(--surface)}
+.tab.active{
+  background:var(--cyan);color:var(--bg);font-weight:600;
+  box-shadow:0 0 12px rgba(0,229,255,.25);
+}
+.tab .count{font-weight:400;opacity:.7;margin-left:3px;font-size:11px}
+
+/* Toolbar */
+.toolbar{
+  display:flex;align-items:center;gap:14px;margin-bottom:18px;
+  padding:10px 16px;background:var(--bg2);border-radius:var(--radius);
+  border:1px solid var(--border);flex-wrap:wrap;
+}
+.toolbar label{
+  font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;
+  font-family:var(--font-mono);cursor:pointer;
+}
+.toolbar input[type=number]{
+  width:56px;padding:4px 8px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:4px;
+  color:var(--text);font-size:11px;font-family:var(--font-mono);
+}
+.toolbar input[type=number]:focus{outline:none;border-color:var(--cyan)}
+.toggle{
+  position:relative;width:32px;height:18px;
+  background:var(--surface3);border-radius:9px;cursor:pointer;
+  transition:background .15s;border:1px solid var(--border2);
+}
+.toggle.on{background:var(--red);border-color:var(--red)}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:12px;height:12px;border-radius:50%;background:#fff;
+  transition:transform .15s;
+}
+.toggle.on::after{transform:translateX(14px)}
+
+/* Log entries */
+.log-list{display:flex;flex-direction:column;gap:2px}
+.log-entry{
+  display:grid;grid-template-columns:80px 1fr 90px 30px;
+  align-items:center;gap:0;
+  background:var(--surface);border:1px solid transparent;border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;overflow:hidden;
+  animation:fadeSlideIn .3s ease-out both;
+}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.log-entry:hover{
+  background:var(--surface2);border-color:var(--border2);
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.log-entry.expanded{border-color:var(--cyan-mid);background:var(--surface2)}
+.log-type{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:0 14px;height:42px;display:flex;align-items:center;
+  border-right:1px solid var(--border);
+}
+.log-type-network{color:var(--cyan)}
+.log-type-console{color:var(--green)}
+.log-type-navigation{color:#7c4dff}
+.log-type-track{color:var(--orange)}
+.log-type-zustand{color:#e040fb}
+.log-type-unknown{color:var(--text3)}
+.log-summary{
+  padding:0 14px;height:42px;display:flex;align-items:center;
+  font-family:var(--font-mono);font-size:12px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.log-status{
+  padding:0 10px;height:42px;display:flex;align-items:center;justify-content:center;
+}
+.badge{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  padding:2px 8px;border-radius:3px;letter-spacing:.02em;
+}
+.badge-ok{background:var(--green-dim);color:var(--green)}
+.badge-error{background:var(--red-dim);color:var(--red)}
+.badge-warn{background:var(--amber-dim);color:var(--amber)}
+.badge-info{background:var(--cyan-dim);color:var(--cyan)}
+.log-expand{
+  padding:0 8px;height:42px;display:flex;align-items:center;justify-content:center;
+  color:var(--text3);font-size:10px;transition:color .15s;
+}
+.log-entry:hover .log-expand{color:var(--cyan)}
+.log-json{
+  grid-column:1/-1;
+  border-top:1px solid var(--border);
+  overflow:hidden;
+  max-height:0;transition:max-height .3s ease-out;
+}
+.log-json.open{max-height:400px}
+.log-json pre{
+  padding:14px 18px;font-family:var(--font-mono);font-size:11px;
+  line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-all;
+  overflow:auto;max-height:400px;
+}
+
+/* Actions bar */
+.actions{
+  display:flex;gap:8px;margin-top:20px;padding-top:16px;
+  border-top:1px solid var(--border);
+}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  padding:10px 20px;
+  background:var(--cyan);color:var(--bg);
+  border-radius:var(--radius);font-size:13px;font-weight:600;
+  font-family:var(--font-sans);
+  box-shadow:0 4px 20px rgba(0,229,255,.3);
+  transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.2,.9,.3,1);
+  z-index:1000;
+}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* Stagger animations */
+.log-entry:nth-child(1){animation-delay:.0s}
+.log-entry:nth-child(2){animation-delay:.02s}
+.log-entry:nth-child(3){animation-delay:.04s}
+.log-entry:nth-child(4){animation-delay:.06s}
+.log-entry:nth-child(5){animation-delay:.08s}
+.log-entry:nth-child(n+6){animation-delay:.1s}
+
+/* Device info */
+.device-info{
+  display:flex;gap:16px;align-items:center;flex-wrap:wrap;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--border);
+}
+.device-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--font-mono);font-size:11px;
+  padding:3px 10px;border-radius:4px;
+  background:var(--surface2);color:var(--text2);
+  border:1px solid var(--border);
+}
+.device-badge.platform-ios{border-color:rgba(255,255,255,.2);color:#fff}
+.device-badge.platform-android{border-color:rgba(0,230,118,.2);color:var(--green)}
+.live-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--font-mono);font-size:11px;
+  padding:3px 10px;border-radius:4px;
+  background:var(--cyan-dim);color:var(--cyan);
+  border:1px solid rgba(0,229,255,.15);
+  animation:livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}
+.live-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+
+/* Responsive */
+@media(max-width:640px){
+  .container{padding:16px}
+  .session-card{grid-template-columns:1fr;gap:8px}
+  .log-entry{grid-template-columns:60px 1fr 70px 24px}
+  .detail-header{padding:14px 16px}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <div class="pulse" id="pulseDot"></div>
+    <h1>Debug Toolkit <span>Console</span></h1>
+  </div>
+  <div class="header-right">
+    <span class="header-meta" id="status"></span>
+    <button class="btn" onclick="refresh()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      Refresh
+    </button>
+  </div>
+</header>
+<div class="container" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var app = document.getElementById('app');
+  var statusEl = document.getElementById('status');
+  var toastEl = document.getElementById('toast');
+	  var pulseDot = document.getElementById('pulseDot');
+	  var currentSession = null;
+	  var expandedRows = {};
+	  var authToken = null;
+
+	  try {
+	    var params = new URLSearchParams(location.search);
+	    authToken = params.get('token') || sessionStorage.getItem('debugToolkitToken');
+	    if (authToken) sessionStorage.setItem('debugToolkitToken', authToken);
+	  } catch {
+	    authToken = null;
+	  }
+
+	  function withAuth(path) {
+	    if (!authToken) return path;
+	    var join = path.indexOf('?') >= 0 ? '&' : '?';
+	    return path + join + 'token=' + encodeURIComponent(authToken);
+	  }
+
+	  function api(path) {
+	    return fetch(withAuth(path)).then(function(r) { return r.json(); });
+	  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(function() { toastEl.classList.remove('show'); }, 2000);
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '-';
+    try {
+      var d = new Date(iso);
+      var pad = function(n) { return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+        ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    } catch { return iso; }
+  }
+
+  function formatTimeShort(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      return d.toLocaleTimeString();
+    } catch { return iso; }
+  }
+
+  function statusBadge(entry) {
+    if (!entry || typeof entry !== 'object') return '<span class="badge badge-info">-</span>';
+    if (entry.error) return '<span class="badge badge-error">ERR</span>';
+    if (entry.response) {
+      var s = entry.response.status;
+      if (s >= 500) return '<span class="badge badge-error">' + s + '</span>';
+      if (s >= 400) return '<span class="badge badge-warn">' + s + '</span>';
+      if (s >= 200 && s < 300) return '<span class="badge badge-ok">' + s + '</span>';
+      return '<span class="badge badge-info">' + s + '</span>';
+    }
+    if (entry.level === 'error') return '<span class="badge badge-error">ERR</span>';
+    if (entry.level === 'warn') return '<span class="badge badge-warn">WRN</span>';
+    return '<span class="badge badge-ok">OK</span>';
+  }
+
+  function summarize(entry) {
+    if (!entry || typeof entry !== 'object') return escapeHtml(String(entry));
+    if (entry.method && entry.url) return escapeHtml(entry.method + ' ' + entry.url);
+    if (entry.level && entry.data) return escapeHtml((Array.isArray(entry.data) ? entry.data.join(' ') : String(entry.data)).substring(0, 120));
+    if (entry.path) return escapeHtml(entry.path);
+    if (entry.event) return escapeHtml(entry.event);
+    if (entry.action) return escapeHtml(entry.action);
+    return escapeHtml(JSON.stringify(entry).substring(0, 120));
+  }
+
+  function getLogType(entry) {
+    if (!entry || typeof entry !== 'object') return 'unknown';
+    if (entry.method && entry.url) return 'network';
+    if (entry.level && entry.data !== undefined) return 'console';
+    if (entry.path) return 'navigation';
+    if (entry.event) return 'track';
+    if (entry.action) return 'zustand';
+    return 'unknown';
+  }
+
+  function toKeyPart(value) {
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  }
+
+  function stringifyForKey(value) {
+    try {
+      return JSON.stringify(value).slice(0, 80);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function getLogEntryKey(entry, type, index) {
+    var logType = toKeyPart(type || getLogType(entry));
+    if (entry && typeof entry === 'object') {
+      if (entry.id !== undefined && entry.id !== null) {
+        return logType + '-id-' + toKeyPart(entry.id);
+      }
+      if (entry.timestamp !== undefined && entry.timestamp !== null) {
+        return logType + '-ts-' + toKeyPart(entry.timestamp) + '-' + index;
+      }
+      if (entry.request && typeof entry.request === 'object' && entry.request.url) {
+        return logType + '-req-' + toKeyPart((entry.request.method || '') + '-' + entry.request.url + '-' + index);
+      }
+    }
+    return logType + '-fallback-' + index + '-' + toKeyPart(stringifyForKey(entry));
+  }
+
+  // --- Views ---
+
+  function renderList() {
+    currentSession = null;
+    expandedRows = {};
+    pulseDot.style.background = 'var(--text3)';
+    pulseDot.style.boxShadow = 'none';
+    statusEl.textContent = 'fetching...';
+    api('/sessions').then(function(data) {
+      statusEl.textContent = '';
+      pulseDot.style.background = 'var(--cyan)';
+      pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
+      var sessions = data.sessions || [];
+      if (!sessions.length) {
+        app.innerHTML =
+          '<div class="empty">' +
+          '<div class="empty-icon">_</div>' +
+          '<p>No sessions received yet.</p>' +
+          '<p style="margin-top:12px;font-size:13px">POST a report to <code>/report</code> to see data here.</p>' +
+          '</div>';
+        return;
+      }
+      var html = '<div class="section-title">Sessions <span style="color:var(--text3);font-weight:400">(' + sessions.length + ')</span></div>';
+      html += '<div class="session-grid">';
+      sessions.forEach(function(s, i) {
+        var lc = s.logCount || {};
+        html += '<div class="session-card" data-sid="' + escapeHtml(s.sessionId) + '" style="animation-delay:' + (i * 40) + 'ms" onclick="location.hash=\'session/' + encodeURIComponent(s.sessionId) + '\'">';
+        html += '<div><div class="session-id">' + escapeHtml(s.sessionId) + '</div>';
+        html += '<div class="session-time">' + formatTime(s.receivedAt) + '</div></div>';
+        html += '<div class="session-tags">' + renderSessionTags(lc) + '</div>';
+        html += '<div class="session-arrow">&rsaquo;</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      app.innerHTML = html;
+    }).catch(function(err) {
+      statusEl.textContent = '';
+      pulseDot.style.background = 'var(--red)';
+      pulseDot.style.boxShadow = '0 0 8px var(--red)';
+      app.innerHTML = '<div class="empty" style="color:var(--red)">Connection failed: ' + escapeHtml(err.message) + '</div>';
+    });
+  }
+
+  function renderDetail(sessionId) {
+    expandedRows = {};
+    statusEl.textContent = 'loading...';
+    api('/sessions/' + encodeURIComponent(sessionId)).then(function(data) {
+      statusEl.textContent = '';
+      pulseDot.style.background = 'var(--cyan)';
+      pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
+      currentSession = data;
+      var report = data.report || {};
+      var logs = report.logs || {};
+      var logTypes = Object.keys(logs);
+
+      var html = '';
+
+      // Back link
+      html += '<a href="#" class="back-link" onclick="location.hash=\'\';return false">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>';
+      html += 'All sessions</a>';
+
+      // Session header card
+      html += '<div class="detail-header">';
+      html += '<div class="detail-id">' + escapeHtml(data.sessionId) + '</div>';
+      html += '<div class="detail-meta">';
+      html += '<span class="detail-meta-item"><strong>Received</strong> ' + formatTime(data.receivedAt) + '</span>';
+      var totalLogs = Object.values(data.logCount || {}).reduce(function(a, b) { return a + b; }, 0);
+      html += '<span class="detail-meta-item" data-type="Entries"><strong>Entries</strong> ' + totalLogs + '</span>';
+      Object.entries(data.logCount || {}).forEach(function(e) {
+        html += '<span class="detail-meta-item" data-type="' + e[0] + '"><strong>' + e[0] + '</strong> ' + e[1] + '</span>';
+      });
+      html += '</div>';
+
+      // Device info
+      var device = report.device;
+      if (device && typeof device === 'object') {
+        html += '<div class="device-info">';
+        var pClass = device.platform === 'ios' ? 'platform-ios' : device.platform === 'android' ? 'platform-android' : '';
+        html += '<span class="device-badge ' + pClass + '">' + escapeHtml((device.platform || 'unknown').toUpperCase()) + '</span>';
+        if (device.model) html += '<span class="device-badge">' + escapeHtml(device.model) + '</span>';
+        if (device.osVersion) html += '<span class="device-badge">OS ' + escapeHtml(device.osVersion) + '</span>';
+        if (device.appVersion) html += '<span class="device-badge">v' + escapeHtml(device.appVersion) + '</span>';
+        if (sseConnected) html += '<span class="live-badge"><span class="live-badge-dot"></span>LIVE</span>';
+        html += '</div>';
+      } else if (sseConnected) {
+        html += '<div class="device-info"><span class="live-badge"><span class="live-badge-dot"></span>LIVE</span></div>';
+      }
+
+      html += '</div>';
+
+      // Tabs
+      html += '<div class="tabs">';
+      html += '<button class="tab active" data-type="" onclick="filterType(this,\'\')">All<span class="count">' + totalLogs + '</span></button>';
+      logTypes.forEach(function(t) {
+        var count = logs[t] ? logs[t].length : 0;
+        html += '<button class="tab" data-type="' + t + '" onclick="filterType(this,\'' + t + '\')">' + escapeHtml(t) + '<span class="count">' + count + '</span></button>';
+      });
+      html += '</div>';
+
+      // Toolbar
+      html += '<div class="toolbar">';
+      html += '<label>Failed only <div class="toggle" id="failedToggle" onclick="toggleFailed()"></div></label>';
+      html += '<label>Limit <input type="number" id="limitInput" value="50" min="1" max="500"></label>';
+      html += '</div>';
+
+      // Log container
+      html += '<div id="logsContainer"></div>';
+
+      // Actions
+      html += '<div class="actions">';
+      html += '<button class="btn" onclick="copyJSON()">';
+      html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      html += 'Copy JSON</button>';
+      html += '</div>';
+
+      app.innerHTML = html;
+      document.getElementById('limitInput').addEventListener('change', applyFilters);
+      renderLogs(logs, '', 50, false);
+    }).catch(function(err) {
+      statusEl.textContent = '';
+      app.innerHTML = '<div class="empty" style="color:var(--red)">Failed to load: ' + escapeHtml(err.message) + '</div>';
+    });
+  }
+
+  function renderLogs(logs, type, limit, failedOnly) {
+    var entries = [];
+    if (type && logs[type]) {
+      entries = Array.isArray(logs[type])
+        ? logs[type].map(function(entry) { return { type: type, entry: entry }; })
+        : [];
+    } else {
+      Object.entries(logs).forEach(function(logGroup) {
+        var logType = logGroup[0];
+        var value = logGroup[1];
+        if (Array.isArray(value)) {
+          value.forEach(function(entry) {
+            entries.push({ type: logType, entry: entry });
+          });
+        }
+      });
+    }
+
+    if (failedOnly) {
+      entries = entries.filter(function(item) { return isFailedEntry(item.entry); });
+    }
+
+    entries = entries.slice(-limit);
+
+    var container = document.getElementById('logsContainer');
+    if (!entries.length) {
+      container.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p style="font-size:13px">No logs match filters.</p></div>';
+      return;
+    }
+
+    var html = '<div class="log-list">';
+    entries.forEach(function(item, i) {
+      var entry = item.entry;
+      var rowId = getLogEntryKey(entry, item.type, i);
+      var lt = item.type || getLogType(entry);
+      var typeClass = toKeyPart(lt);
+      var isExpanded = expandedRows[rowId];
+      html += '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" onclick="toggleRow(\'' + rowId + '\')">';
+      html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(lt.substring(0,4)) + '</div>';
+      html += '<div class="log-summary">' + summarize(entry) + '</div>';
+      html += '<div class="log-status">' + statusBadge(entry) + '</div>';
+      html += '<div class="log-expand">' + (isExpanded ? '&#9660;' : '&#9654;') + '</div>';
+      html += '<div class="log-json' + (isExpanded ? ' open' : '') + '" id="json-' + rowId + '"><pre>' + escapeHtml(JSON.stringify(entry, null, 2)) + '</pre></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // --- Global handlers ---
+
+  function readVisibleLogOptions() {
+    return {
+      type: window._currentFilterType || '',
+      failedOnly: window._failedOnly || false,
+      limit: document.getElementById('limitInput') ? parseInt(document.getElementById('limitInput').value, 10) || 50 : 50,
+    };
+  }
+
+  function rerenderVisibleLogs() {
+    if (!currentSession) return;
+    var logs = currentSession.report ? currentSession.report.logs : {};
+    var options = readVisibleLogOptions();
+    renderLogs(logs, options.type, options.limit, options.failedOnly);
+  }
+
+  function refreshCurrentSession() {
+    if (!currentSession) {
+      renderList();
+      return Promise.resolve();
+    }
+
+    statusEl.textContent = 'refreshing...';
+    return api('/sessions/' + encodeURIComponent(currentSession.sessionId)).then(function(data) {
+      statusEl.textContent = '';
+      if (!data) return;
+      currentSession.report = data.report;
+      currentSession.logCount = data.logCount;
+      currentSession.receivedAt = data.receivedAt;
+      rerenderVisibleLogs();
+      updateTabCounts();
+    }).catch(function(err) {
+      statusEl.textContent = '';
+      showToast('Refresh failed: ' + err.message);
+    });
+  }
+
+  function refreshCurrentView() {
+    return refreshCurrentSession();
+  }
+
+  window.refresh = function() { refreshCurrentView(); };
+
+  window.filterType = function(btn, type) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+    window._currentFilterType = type;
+    applyFilters();
+  };
+
+  window.toggleFailed = function() {
+    var el = document.getElementById('failedToggle');
+    window._failedOnly = !window._failedOnly;
+    if (window._failedOnly) { el.classList.add('on'); } else { el.classList.remove('on'); }
+    applyFilters();
+  };
+
+  window.applyFilters = function() {
+    if (!currentSession) return;
+    expandedRows = {};
+    rerenderVisibleLogs();
+  };
+
+  window.toggleRow = function(rowId) {
+    var entry = document.getElementById('entry-' + rowId);
+    var json = document.getElementById('json-' + rowId);
+    var expand = entry ? entry.querySelector('.log-expand') : null;
+    if (!entry || !json) return;
+    expandedRows[rowId] = !expandedRows[rowId];
+    if (expandedRows[rowId]) {
+      entry.classList.add('expanded');
+      json.classList.add('open');
+      if (expand) expand.innerHTML = '&#9660;';
+    } else {
+      entry.classList.remove('expanded');
+      json.classList.remove('open');
+      if (expand) expand.innerHTML = '&#9654;';
+    }
+  };
+
+  window.copyJSON = function() {
+    if (!currentSession) return;
+    var text = JSON.stringify(currentSession.report, null, 2);
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Copied to clipboard');
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copied to clipboard');
+    });
+  };
+
+  // --- Routing ---
+
+  window._currentFilterType = '';
+  window._failedOnly = false;
+
+  function route() {
+    var hash = location.hash.replace('#', '');
+    if (hash.startsWith('session/')) {
+      renderDetail(decodeURIComponent(hash.substring(8)));
+    } else {
+      renderList();
+    }
+  }
+
+  // --- Incremental DOM updates ---
+
+	  function isFailedEntry(e) {
+	    return e && typeof e === 'object' && (
+	      Boolean(e.error) ||
+	      e.level === 'error' ||
+	      (e.response && (e.response.success === false || e.response.status >= 400))
+	    );
+	  }
+
+	  function renderSessionTags(logCount) {
+	    var html = '';
+	    Object.entries(logCount || {}).forEach(function(e) {
+	      var type = String(e[0]);
+	      html += '<span class="tag tag-' + toKeyPart(type) + '">' + escapeHtml(type.substring(0,3)) + ' ' + escapeHtml(String(e[1])) + '</span>';
+	    });
+	    return html;
+	  }
+
+	  function appendSessionCard(payload) {
+    var grid = document.querySelector('.session-grid');
+    if (!grid) { renderList(); return; }
+
+	    var sid = payload.sessionId;
+	    var existing = grid.querySelector('[data-sid="' + CSS.escape(sid) + '"]');
+	    if (existing) {
+	      var tags = existing.querySelector('.session-tags');
+	      if (tags) tags.innerHTML = renderSessionTags(payload.logCount || {});
+	      return;
+	    }
+
+	    var lc = payload.logCount || {};
+    var card = document.createElement('div');
+    card.className = 'session-card';
+    card.setAttribute('data-sid', sid);
+    card.setAttribute('onclick', "location.hash='session/" + encodeURIComponent(sid) + "'");
+    var html = '<div><div class="session-id">' + escapeHtml(sid) + '</div>';
+    html += '<div class="session-time">just now</div></div>';
+	    html += '<div class="session-tags">' + renderSessionTags(lc) + '</div>';
+    html += '<div class="session-arrow">&rsaquo;</div>';
+    card.innerHTML = html;
+    grid.prepend(card);
+
+    // Update session count
+    var titleEl = document.querySelector('.section-title');
+    if (titleEl) {
+      var count = grid.querySelectorAll('.session-card').length;
+      titleEl.innerHTML = 'Sessions <span style="color:var(--text3);font-weight:400">(' + count + ')</span>';
+    }
+  }
+
+  function buildLogEntryHtml(entry, rowId, type) {
+    var lt = type || getLogType(entry);
+    var typeClass = toKeyPart(lt);
+    var html = '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(lt.substring(0,4)) + '</div>';
+    html += '<div class="log-summary">' + summarize(entry) + '</div>';
+    html += '<div class="log-status">' + statusBadge(entry) + '</div>';
+    html += '<div class="log-expand">&#9654;</div>';
+    html += '<div class="log-json" id="json-' + rowId + '"><pre>' + escapeHtml(JSON.stringify(entry, null, 2)) + '</pre></div>';
+    return html;
+  }
+
+  function appendDeltaLogs(deltaLogs) {
+    var container = document.getElementById('logsContainer');
+    if (!container) return;
+
+    var list = container.querySelector('.log-list');
+    if (!list) {
+      applyFilters();
+      return;
+    }
+
+    var type = window._currentFilterType || '';
+    var failedOnly = window._failedOnly || false;
+    var limit = document.getElementById('limitInput') ? parseInt(document.getElementById('limitInput').value, 10) || 50 : 50;
+    var allNewEntries = [];
+
+    Object.entries(deltaLogs).forEach(function(entry) {
+      var t = entry[0];
+      var entries = entry[1];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (failedOnly && !isFailedEntry(e)) return;
+        if (type && t !== type) return;
+        allNewEntries.push({ type: t, entry: e });
+      });
+    });
+
+    var count = list.querySelectorAll('.log-entry').length;
+    allNewEntries.forEach(function(item) {
+      var entry = item.entry;
+      var rowId = getLogEntryKey(entry, item.type, count++);
+      var div = document.createElement('div');
+      div.className = 'log-entry';
+      div.id = 'entry-' + rowId;
+      div.setAttribute('onclick', "toggleRow('" + rowId + "')");
+      div.innerHTML = buildLogEntryHtml(entry, rowId, item.type);
+      list.appendChild(div);
+    });
+
+    // Trim from top if over limit, skip expanded entries
+    var entries = list.querySelectorAll('.log-entry');
+    while (entries.length > limit) {
+      var first = entries[0];
+      if (first && first.classList.contains('expanded')) break;
+      list.removeChild(first);
+      entries = list.querySelectorAll('.log-entry');
+    }
+  }
+
+  function updateTabCounts() {
+    if (!currentSession) return;
+    var logs = currentSession.report ? currentSession.report.logs : {};
+    var totalLogs = Object.values(logs).reduce(function(a, v) { return a + (Array.isArray(v) ? v.length : 0); }, 0);
+
+    document.querySelectorAll('.tab').forEach(function(tab) {
+      var t = tab.getAttribute('data-type') || '';
+      var countEl = tab.querySelector('.count');
+      var c = t ? (logs[t] ? logs[t].length : 0) : totalLogs;
+      if (countEl) countEl.textContent = c;
+    });
+
+    document.querySelectorAll('.detail-meta-item[data-type]').forEach(function(el) {
+      var t = el.getAttribute('data-type');
+      var strong = el.querySelector('strong');
+      if (!strong) return;
+      var c = t === 'Entries' ? totalLogs : (logs[t] ? logs[t].length : 0);
+      el.innerHTML = '<strong>' + strong.textContent + '</strong> ' + c;
+    });
+  }
+
+  // --- SSE ---
+
+  var sseConnected = false;
+  var eventSource = null;
+
+  function connectSSE() {
+    if (eventSource) { try { eventSource.close(); } catch {} }
+	    eventSource = new EventSource(withAuth('/events'));
+
+    eventSource.addEventListener('logs', function(e) {
+      try {
+        var payload = JSON.parse(e.data);
+        sseConnected = true;
+        pulseDot.style.background = 'var(--cyan)';
+        pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
+
+        // Session list page — append new session card
+        if (!currentSession) {
+          appendSessionCard(payload);
+          return;
+        }
+
+        // Detail page — merge delta if same session
+        if (payload.sessionId === currentSession.sessionId) {
+          if (payload.type === 'delta' && payload.delta) {
+            var deltaLogs = payload.delta.logs || {};
+            var report = currentSession.report || { version: 2, logs: {} };
+            if (!report.logs) report.logs = {};
+
+            Object.entries(deltaLogs).forEach(function(entry) {
+              var type = entry[0];
+              var entries = entry[1];
+              if (!Array.isArray(entries)) return;
+              if (!report.logs[type]) report.logs[type] = [];
+              report.logs[type] = report.logs[type].concat(entries);
+            });
+
+            currentSession.report = report;
+            if (payload.logCount) currentSession.logCount = payload.logCount;
+            appendDeltaLogs(deltaLogs);
+            updateTabCounts();
+          } else if (payload.type === 'full') {
+            refreshCurrentSession();
+          }
+        } else if (!location.hash.startsWith('session/')) {
+          appendSessionCard(payload);
+        }
+      } catch {}
+    });
+
+    eventSource.onerror = function() {
+      sseConnected = false;
+      pulseDot.style.background = 'var(--amber)';
+      pulseDot.style.boxShadow = '0 0 8px var(--amber)';
+    };
+  }
+
+  window.addEventListener('hashchange', route);
+  connectSSE();
+  route();
+})();
+</script>
+</body>
+</html>

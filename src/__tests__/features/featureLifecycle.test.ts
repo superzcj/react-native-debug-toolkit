@@ -34,6 +34,10 @@ function testFeatureLifecycle<TEntry>(
       feature = createFeature();
     });
 
+    afterEach(() => {
+      feature.cleanup();
+    });
+
     it('starts with empty data', () => {
       expect(feature.getSnapshot()).toEqual([]);
     });
@@ -134,6 +138,7 @@ describe('feature isolation via reset', () => {
     const f1 = createTrackFeature();
     f1.setup();
     addTrackLog({ eventName: 'e1' });
+    f1.cleanup();
     _resetTrackForTesting();
 
     const f2 = createTrackFeature();
@@ -142,17 +147,20 @@ describe('feature isolation via reset', () => {
     // f2 only sees its own event
     expect(f2.getSnapshot().length).toBe(1);
     expect((f2.getSnapshot()[0] as { eventName: string }).eventName).toBe('e2');
+    f2.cleanup();
   });
 
   it('navigation reset isolates feature instances', () => {
     const f1 = createNavigationLogFeature();
     f1.setup();
     addNavigationLog('navigate', 'A', 'B');
+    f1.cleanup();
     _resetNavigationForTesting();
 
     const f2 = createNavigationLogFeature();
     f2.setup();
     addNavigationLog('navigate', 'C', 'D');
     expect(f2.getSnapshot().length).toBe(1);
+    f2.cleanup();
   });
 });
