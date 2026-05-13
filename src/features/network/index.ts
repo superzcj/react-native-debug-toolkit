@@ -36,6 +36,7 @@ function emitNetworkLog(entry: NetworkLogPayload): void {
 // ─── Feature factory ──────────────────────────────────
 
 const DEFAULT_MAX_LOGS = 200;
+const daemonEndpointBlacklist: Array<string | RegExp> = [];
 
 export interface NetworkFeatureConfig {
   /** Maximum number of network logs to keep (default: 200) */
@@ -56,7 +57,7 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeatur
   let stopXhrFn: (() => void) | null = null;
 
   const handleLog = (entry: NetworkLogPayload) => {
-    if (isUrlBlacklisted(entry.request.url, blacklist)) {
+    if (isUrlBlacklisted(entry.request.url, [...blacklist, ...daemonEndpointBlacklist])) {
       return;
     }
     logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
@@ -94,8 +95,35 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeatur
   };
 };
 
+function normalizeDaemonEndpoint(endpoint: string): string {
+  const trimmed = endpoint.trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    return `${url.origin}${url.pathname === '/' ? '' : url.pathname}`;
+  } catch {
+    return trimmed;
+  }
+}
+
+export function _addDaemonEndpointToNetworkBlacklist(endpoint: string): void {
+  const normalized = normalizeDaemonEndpoint(endpoint);
+  if (!normalized || daemonEndpointBlacklist.includes(normalized)) {
+    return;
+  }
+  daemonEndpointBlacklist.push(normalized);
+}
+
+export function _isNetworkUrlBlacklistedForTesting(url: string): boolean {
+  return isUrlBlacklisted(url, daemonEndpointBlacklist);
+}
+
 /** Reset module-level state for testing */
 export function _resetNetworkForTesting(): void {
   networkChannel = createEventChannel<NetworkLogPayload>();
+  daemonEndpointBlacklist.splice(0, daemonEndpointBlacklist.length);
   resetInterceptors();
 }

@@ -2,6 +2,9 @@
 module.exports = {
   NativeModules: {},
   Platform: { OS: 'ios' },
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
   Dimensions: {
     get: () => ({ width: 390, height: 844 }),
   },

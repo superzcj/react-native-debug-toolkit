@@ -44,12 +44,15 @@ const animation = () => ({
 
 module.exports = {
   View: createComponent('View'),
+  KeyboardAvoidingView: createComponent('KeyboardAvoidingView'),
   Text: createComponent('Text'),
   ScrollView: createComponent('ScrollView'),
   StatusBar: createComponent('StatusBar'),
   TouchableOpacity: createComponent('TouchableOpacity'),
   Pressable: createComponent('Pressable'),
   TextInput: createComponent('TextInput'),
+  Modal: createComponent('Modal'),
+  Switch: createComponent('Switch'),
   FlatList: ({ data = [], renderItem, keyExtractor }) =>
     React.createElement(
       'FlatList',
