@@ -1,51 +1,46 @@
 # React Native Debug Toolkit
 
-[中文文档](README.zh-CN.md)
+[中文](README.zh-CN.md)
 
-A dev-only floating debug panel for React Native — inspect network, console, state, navigation and more, right on your device.
+Dev-only React Native inspector with a local log bridge.
 
-> Zero impact on production builds (`__DEV__` only).
+It shows app logs on device, then can send the same session to a local daemon for browser, curl, scripts, or MCP.
 
-## Preview
+## Model
 
-![demo](demo.gif)
-## Features
+```text
+RN App logs -> Debug Panel -> local daemon -> Web Console / HTTP / MCP
+```
 
-- **Network** — Auto-intercepts React Native XHR transport, including fetch and axios in the default adapter, inspect requests & responses, copy as cURL
-- **Console** — Capture `console.log / info / warn / error`
-- **Zustand** — Log state transitions via middleware
-- **Navigation** — Track route changes
-- **Track** — Record custom analytics events
-- **Environment** — Switch API hosts on the fly
-- **Clipboard** — Paste text and copy to computer
-- **Log Persistence** — Network, Console, Track logs survive app restarts (requires AsyncStorage)
+Captured logs:
 
-## Installation
+- Network
+- Console
+- Navigation
+- Track
+- Zustand
+
+The daemon stores sessions in memory. Restarting it clears logs.
+
+## Install
 
 ```bash
 npm install react-native-debug-toolkit
 ```
 
-Optional — clipboard copy support:
+Optional:
 
 ```bash
 npm install @react-native-clipboard/clipboard
-```
-
-Optional — FAB position & last tab persistence:
-
-```bash
 npm install @react-native-async-storage/async-storage
 ```
 
-Without AsyncStorage these features degrade gracefully to in-memory state.
-
-## Quick Start
+## App Usage
 
 ```tsx
 import { DebugView } from 'react-native-debug-toolkit';
 
-function App() {
+export function App() {
   return (
     <DebugView>
       <AppContent />
@@ -54,11 +49,9 @@ function App() {
 }
 ```
 
-A floating debug button appears in dev mode. Tap to open the panel, tap × or swipe down to close.
+Open app in dev mode. Tap `DBG`.
 
-Network, console, navigation, zustand, track, and clipboard are enabled by default. Network capture hooks React Native's XHR transport, so fetch and axios requests using the default adapter are captured automatically.
-
-Disable specific features:
+Disable features:
 
 ```tsx
 <DebugView features={{ clipboard: false, zustand: false }}>
@@ -66,102 +59,113 @@ Disable specific features:
 </DebugView>
 ```
 
-## Common Patterns
-
-### Navigation Tracking
+Navigation tracking:
 
 ```tsx
-import { useRef } from 'react';
-import { DebugView } from 'react-native-debug-toolkit';
-import { NavigationContainer } from '@react-navigation/native';
-
-function App() {
-  const navRef = useRef(null);
-  return (
-    <DebugView navigationRef={navRef}>
-      <NavigationContainer ref={navRef}>
-        <AppContent />
-      </NavigationContainer>
-    </DebugView>
-  );
-}
-```
-
-### Environment Switching
-
-```tsx
-<DebugView
-  environments={[
-    { id: 'dev',  label: 'Dev',  host: 'dev-api.example.com', color: '#34C759' },
-    { id: 'prod', label: 'Prod', host: 'api.example.com',     color: '#FF3B30' },
-  ]}
->
-  <AppContent />
+<DebugView navigationRef={navigationRef}>
+  <NavigationContainer ref={navigationRef}>
+    <AppContent />
+  </NavigationContainer>
 </DebugView>
 ```
 
-### Zustand Middleware
+Zustand:
 
 ```tsx
 import { zustandLogMiddleware } from 'react-native-debug-toolkit';
-
-const useStore = create(
-  zustandLogMiddleware((set) => ({
-    count: 0,
-    increment: () => set((s) => ({ count: s.count + 1 }), false, 'increment'),
-    //                          ↑ merge  ↑ action name (shown in debug panel)
-  }))
-);
 ```
 
-### Custom Events
+Track:
 
 ```tsx
 import { addTrackLog } from 'react-native-debug-toolkit';
 
-addTrackLog({ eventName: 'button_click', buttonId: 'submit' });
+addTrackLog({ eventName: 'button_click' });
 ```
 
-### Network Options
+## Desktop Logs
 
-React Native fetch and axios traffic is captured automatically through the XHR transport layer.
+Start daemon:
 
-```tsx
-<DebugView
-  features={{
-    network: {
-      maxLogs: 100,
-      blacklist: ['/analytics', /\/healthcheck$/],
-    },
-  }}
->
-  <AppContent />
-</DebugView>
+```bash
+npx debug-toolkit --daemon-only
 ```
 
-## Imperative API
+Open:
 
-For programmatic control outside React (notifications, deep links, dev-only buttons):
-
-```tsx
-import { DebugToolkit } from 'react-native-debug-toolkit';
-
-DebugToolkit.openPanel();
-DebugToolkit.clearAll();
-DebugToolkit.showLauncher();
-DebugToolkit.hideLauncher();
+```text
+http://127.0.0.1:3799/console
 ```
 
-Full API: `DebugToolkit` is a singleton with `openPanel`, `closePanel`, `togglePanel`, `clearAll`, `showLauncher`, `hideLauncher`, `addFeature`, `removeFeature`, `destroy`, `features`, `panelOpen`. See TypeScript types for details.
+In app: Debug Panel -> gear -> `Send Once` or `Start Live Sync`.
 
-## Peer Dependencies
+Endpoints:
 
-| Package | Version | Required |
-|---------|---------|----------|
-| react | >= 18.0.0 | Yes |
-| react-native | >= 0.72.0 | Yes |
-| @react-native-clipboard/clipboard | >= 1.0.0 | No |
-| @react-native-async-storage/async-storage | >= 1.0.0 | No |
+| Runtime | Endpoint |
+| --- | --- |
+| iOS simulator | `http://localhost:3799` |
+| Android emulator | `http://10.0.2.2:3799` |
+| Real device | `http://<mac-ip>:3799` |
+
+Real device rule: phone browser must open `http://<mac-ip>:3799/health`. If not, check firewall, Wi-Fi isolation, VPN, and cleartext HTTP.
+
+## HTTP
+
+```bash
+curl http://127.0.0.1:3799/health
+curl http://127.0.0.1:3799/sessions
+curl http://127.0.0.1:3799/sessions/latest
+curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=true&limit=50'
+```
+
+Main endpoints:
+
+```text
+GET    /health
+POST   /report
+POST   /ingest
+GET    /sessions
+GET    /sessions/latest
+GET    /sessions/:sessionId/logs
+DELETE /sessions
+GET    /events
+GET    /console
+```
+
+## MCP
+
+```bash
+claude mcp add debug-toolkit -- npx debug-toolkit
+```
+
+Tools:
+
+- `list_app_sessions`
+- `get_app_logs`
+
+Use curl when shell is available.
+
+## Exports
+
+- `DebugView`
+- `DebugToolkit`
+- `initializeDebugToolkit`
+- `createDebugSessionReport`
+- `checkDaemonConnection`
+- `reportDebugSessionToDaemon`
+- `startStreaming`
+- `stopStreaming`
+- `isStreaming`
+- `autoDetectDaemonIp`
+- feature factories and types
+
+## Boundaries
+
+- Dev tool, not production monitoring.
+- Local daemon, not cloud replay.
+- Network logs are observed traffic, not auth/token analysis.
+- No default redaction.
+- Not a React Native DevTools replacement.
 
 ## License
 
