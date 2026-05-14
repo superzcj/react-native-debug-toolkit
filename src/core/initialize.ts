@@ -11,10 +11,15 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
-import { restoreDaemonStreaming } from '../utils/daemonStreaming';
+import { daemonClient, restoreDaemonStreaming } from '../utils/DaemonClient';
+import { _addDaemonEndpointToNetworkBlacklist } from '../features/network';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 
 const isDebugMode = __DEV__;
+
+daemonClient.setEndpointDetector((url) => {
+  _addDaemonEndpointToNetworkBlacklist(url);
+});
 
 /** Feature-specific configuration map */
 export interface FeatureConfigs {

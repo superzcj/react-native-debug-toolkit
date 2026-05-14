@@ -30,18 +30,26 @@ export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
 export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
 export { createDebugDeviceReport } from './utils/deviceReport';
 export type { DebugDeviceReport, DebugDeviceReportOptions } from './utils/deviceReport';
-export { getDefaultDaemonEndpoint, reportDebugDeviceToDaemon } from './utils/reportToDaemon';
-export type { ReportResult, ReportToDaemonOptions } from './utils/reportToDaemon';
-export { checkDaemonConnection } from './utils/daemonConnection';
+export { DaemonClient, daemonClient } from './utils/DaemonClient';
 export type {
+  DaemonSettings,
+  DaemonConnectionMode,
   DaemonConnectionFailureReason,
   DaemonConnectionOptions,
   DaemonConnectionResult,
-} from './utils/daemonConnection';
-export { startStreaming, stopStreaming, isStreaming } from './utils/streamToDaemon';
-export type { StreamStatus, StreamToDaemonOptions } from './utils/streamToDaemon';
-export { autoDetectDaemonIp, getMetroHost } from './utils/autoDetectDaemon';
-export type { AutoDetectOptions, AutoDetectResult } from './utils/autoDetectDaemon';
+  StreamStatus,
+  StreamToDaemonOptions,
+  ReportResult,
+  ReportToDaemonOptions,
+} from './utils/DaemonClient';
+export {
+  getDefaultDaemonEndpoint,
+  reportDebugDeviceToDaemon,
+  checkDaemonConnection,
+  startStreaming,
+  stopStreaming,
+  isStreaming,
+} from './utils/DaemonClient';
 
 // Types
 export type {

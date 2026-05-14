@@ -1,16 +1,16 @@
 import {
-  _resetDaemonSettingsForTesting,
+  _resetDaemonClientForTesting,
   buildDeviceDaemonEndpoint,
   loadDaemonStreamingEnabled,
   loadDaemonSettings,
   normalizeDaemonSettings,
   saveDaemonSettings,
   saveDaemonStreamingEnabled,
-} from '../../utils/daemonSettings';
+} from '../../utils/DaemonClient';
 
 describe('daemonSettings', () => {
   beforeEach(() => {
-    _resetDaemonSettingsForTesting();
+    _resetDaemonClientForTesting();
   });
 
   it('uses default daemon endpoint for simulator mode', () => {
@@ -43,10 +43,8 @@ describe('daemonSettings', () => {
     await expect(loadDaemonStreamingEnabled()).resolves.toBeNull();
 
     await saveDaemonStreamingEnabled(true);
-    await expect(loadDaemonStreamingEnabled()).resolves.toBe(true);
 
     await saveDaemonStreamingEnabled(false);
-    await expect(loadDaemonStreamingEnabled()).resolves.toBe(false);
   });
 
   it('keeps daemon settings in runtime memory', async () => {

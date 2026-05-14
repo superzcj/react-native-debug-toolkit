@@ -199,6 +199,127 @@ function broadcastSSE(clients, eventType, deviceLog, delta) {
   });
 }
 
+// --- Route Handlers ---
+
+function handleHealth(req, res, ctx) {
+  sendJson(res, 200, {
+    ok: true,
+    name: DAEMON_NAME,
+    version: DAEMON_VERSION,
+    protocolVersion: REPORT_PROTOCOL_VERSION,
+    ips: getLanIPs(),
+    deviceStore: ctx.options.deviceStorePath || null,
+  });
+}
+
+async function handleReport(req, res, ctx) {
+  if (!authorizeRequest(req, res, req.url, ctx.token)) return;
+
+  try {
+    const report = await readJsonBody(req);
+    if (!isValidReport(report)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: `Report must include version ${REPORT_PROTOCOL_VERSION} and logs object`,
+      });
+      return;
+    }
+
+    const deviceLog = ctx.store.saveReport(report, { source: getRequestSource(req) });
+    sendJson(res, 200, {
+      ok: true,
+      deviceId: deviceLog.deviceId,
+      receivedAt: deviceLog.receivedAt,
+      logCount: deviceLog.logCount,
+    });
+  } catch (error) {
+    sendJson(res, error.statusCode || 500, {
+      ok: false,
+      error: error.message || 'Failed to read report',
+    });
+  }
+}
+
+async function handleIngest(req, res, ctx) {
+  if (!authorizeRequest(req, res, req.url, ctx.token)) return;
+
+  try {
+    const body = await readJsonBody(req);
+    if (!body || typeof body.deviceId !== 'string' || !body.delta) {
+      sendJson(res, 400, { ok: false, error: 'Must include deviceId and delta' });
+      return;
+    }
+
+    const deviceLog = ctx.store.appendLogs(body.deviceId, body.delta);
+    if (!deviceLog) {
+      sendJson(res, 404, { ok: false, error: 'Device not found' });
+      return;
+    }
+
+    sendJson(res, 200, { ok: true, deviceId: deviceLog.deviceId, logCount: deviceLog.logCount });
+  } catch (error) {
+    sendJson(res, error.statusCode || 500, {
+      ok: false,
+      error: error.message || 'Failed to ingest',
+    });
+  }
+}
+
+function handleLatestDevice(req, res, ctx) {
+  if (!authorizeRequest(req, res, req.url, ctx.token)) return;
+
+  const deviceLog = ctx.store.getLatestDevice();
+  if (!deviceLog) {
+    sendJson(res, 404, { ok: false, error: 'No device logs have been received' });
+    return;
+  }
+
+  sendJson(res, 200, {
+    ok: true,
+    ...toDevicePayload(deviceLog),
+  });
+}
+
+function handleDevicesList(req, res, ctx) {
+  if (!authorizeRequest(req, res, req.url, ctx.token)) return;
+
+  sendJson(res, 200, { ok: true, devices: ctx.store.listDevices() });
+}
+
+function handleDevicesClear(req, res, ctx) {
+  if (!authorizeRequest(req, res, req.url, ctx.token)) return;
+
+  ctx.store.clear();
+  sendJson(res, 200, { ok: true });
+}
+
+function handleDeviceMatch(req, res, ctx, url, deviceMatch) {
+  if (!authorizeRequest(req, res, url, ctx.token)) return;
+
+  const deviceLog = ctx.store.getDevice(decodeURIComponent(deviceMatch[1]));
+  if (!deviceLog) {
+    sendJson(res, 404, { ok: false, error: 'Device not found' });
+    return;
+  }
+
+  if (url.pathname.endsWith('/logs')) {
+    sendJson(res, 200, {
+      ok: true,
+      deviceId: deviceLog.deviceId,
+      receivedAt: deviceLog.receivedAt,
+      logs: selectLogs(deviceLog, url.searchParams),
+    });
+    return;
+  }
+
+  sendJson(res, 200, {
+    ok: true,
+    ...toDevicePayload(deviceLog),
+  });
+}
+
+// --- Server Factory ---
+
 function createDaemonServer(options = {}) {
   const sseClients = new Set();
   const maxSseClients = options.maxSseClients || MAX_SSE_CLIENTS;
@@ -215,9 +336,12 @@ function createDaemonServer(options = {}) {
     authorize: (req, res, url) => authorizeRequest(req, res, url, token),
   });
 
+  const ctx = { store, token, options };
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
     const method = req.method || 'GET';
+    req.url = url;
 
     if (handleConsole(req, res, url, method)) return;
 
@@ -265,128 +389,32 @@ function createDaemonServer(options = {}) {
     }
 
     if (method === 'GET' && url.pathname === '/health') {
-      sendJson(res, 200, {
-        ok: true,
-        name: DAEMON_NAME,
-        version: DAEMON_VERSION,
-        protocolVersion: REPORT_PROTOCOL_VERSION,
-        ips: getLanIPs(),
-        deviceStore: options.deviceStorePath || null,
-      });
-      return;
+      return handleHealth(req, res, ctx);
     }
 
     if (method === 'POST' && url.pathname === '/report') {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      try {
-        const report = await readJsonBody(req);
-        if (!isValidReport(report)) {
-          sendJson(res, 400, {
-            ok: false,
-            error: `Report must include version ${REPORT_PROTOCOL_VERSION} and logs object`,
-          });
-          return;
-        }
-
-        const deviceLog = store.saveReport(report, { source: getRequestSource(req) });
-        sendJson(res, 200, {
-          ok: true,
-          deviceId: deviceLog.deviceId,
-          receivedAt: deviceLog.receivedAt,
-          logCount: deviceLog.logCount,
-        });
-      } catch (error) {
-        sendJson(res, error.statusCode || 500, {
-          ok: false,
-          error: error.message || 'Failed to read report',
-        });
-      }
-      return;
+      return await handleReport(req, res, ctx);
     }
 
     if (method === 'POST' && url.pathname === '/ingest') {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      try {
-        const body = await readJsonBody(req);
-        if (!body || typeof body.deviceId !== 'string' || !body.delta) {
-          sendJson(res, 400, { ok: false, error: 'Must include deviceId and delta' });
-          return;
-        }
-
-        const deviceLog = store.appendLogs(body.deviceId, body.delta);
-        if (!deviceLog) {
-          sendJson(res, 404, { ok: false, error: 'Device not found' });
-          return;
-        }
-
-        sendJson(res, 200, { ok: true, deviceId: deviceLog.deviceId, logCount: deviceLog.logCount });
-      } catch (error) {
-        sendJson(res, error.statusCode || 500, {
-          ok: false,
-          error: error.message || 'Failed to ingest',
-        });
-      }
-      return;
+      return await handleIngest(req, res, ctx);
     }
 
     if (method === 'GET' && url.pathname === '/devices/latest') {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      const deviceLog = store.getLatestDevice();
-      if (!deviceLog) {
-        sendJson(res, 404, { ok: false, error: 'No device logs have been received' });
-        return;
-      }
-
-      sendJson(res, 200, {
-        ok: true,
-        ...toDevicePayload(deviceLog),
-      });
-      return;
+      return handleLatestDevice(req, res, ctx);
     }
 
     if (method === 'GET' && url.pathname === '/devices') {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      sendJson(res, 200, { ok: true, devices: store.listDevices() });
-      return;
+      return handleDevicesList(req, res, ctx);
     }
 
     if (method === 'DELETE' && url.pathname === '/devices') {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      store.clear();
-      sendJson(res, 200, { ok: true });
-      return;
+      return handleDevicesClear(req, res, ctx);
     }
 
     const deviceMatch = url.pathname.match(/^\/devices\/([^/]+)(?:\/logs)?$/);
     if (method === 'GET' && deviceMatch) {
-      if (!authorizeRequest(req, res, url, token)) return;
-
-      const deviceLog = store.getDevice(decodeURIComponent(deviceMatch[1]));
-      if (!deviceLog) {
-        sendJson(res, 404, { ok: false, error: 'Device not found' });
-        return;
-      }
-
-      if (url.pathname.endsWith('/logs')) {
-        sendJson(res, 200, {
-          ok: true,
-          deviceId: deviceLog.deviceId,
-          receivedAt: deviceLog.receivedAt,
-          logs: selectLogs(deviceLog, url.searchParams),
-        });
-        return;
-      }
-
-      sendJson(res, 200, {
-        ok: true,
-        ...toDevicePayload(deviceLog),
-      });
-      return;
+      return handleDeviceMatch(req, res, ctx, url, deviceMatch);
     }
 
     sendJson(res, 404, { ok: false, error: 'Not found' });
@@ -408,5 +436,12 @@ function createDaemonServer(options = {}) {
 
 module.exports = {
   createDaemonServer,
+  handleHealth,
+  handleReport,
+  handleIngest,
+  handleLatestDevice,
+  handleDevicesList,
+  handleDevicesClear,
+  handleDeviceMatch,
   isValidReport,
 };

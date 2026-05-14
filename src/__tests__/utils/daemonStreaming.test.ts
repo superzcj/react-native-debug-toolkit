@@ -1,11 +1,12 @@
 import { DebugToolkit } from '../../core/DebugToolkit';
 import { _resetNetworkForTesting } from '../../features/network';
 import {
-  _resetDaemonSettingsForTesting,
+  _resetDaemonClientForTesting,
   saveDaemonStreamingEnabled,
-} from '../../utils/daemonSettings';
-import { restoreDaemonStreaming } from '../../utils/daemonStreaming';
-import { isStreaming, stopStreaming } from '../../utils/streamToDaemon';
+  restoreDaemonStreaming,
+  isStreaming,
+  stopStreaming,
+} from '../../utils/DaemonClient';
 import type { DebugFeature } from '../../types';
 
 function createFeature(): DebugFeature<Array<Record<string, unknown>>> {
@@ -29,7 +30,7 @@ describe('restoreDaemonStreaming', () => {
 
   beforeEach(() => {
     originalFetch = (globalThis as { fetch?: unknown }).fetch;
-    _resetDaemonSettingsForTesting();
+    _resetDaemonClientForTesting();
   });
 
   afterEach(() => {
@@ -63,7 +64,6 @@ describe('restoreDaemonStreaming', () => {
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3799/health');
     expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:3799/report');
-    expect(isStreaming()).toBe(true);
     expect(isStreaming()).toBe(true);
   });
 
