@@ -105,8 +105,8 @@ async function ensureDaemon(options = {}) {
   };
 }
 
-async function readSession(origin, sessionId) {
-  const requestPath = sessionId ? `/sessions/${encodeURIComponent(sessionId)}` : '/latest';
+async function readDevice(origin, deviceId) {
+  const requestPath = deviceId ? `/devices/${encodeURIComponent(deviceId)}` : '/devices/latest';
   const response = await requestJson(origin, requestPath, { timeoutMs: 3000 });
   if (response.status !== 200 || !response.body?.ok) {
     throw new Error(response.body?.error || `Daemon request failed with status ${response.status}`);
@@ -114,8 +114,8 @@ async function readSession(origin, sessionId) {
   return response.body;
 }
 
-async function readSessions(origin) {
-  const response = await requestJson(origin, '/sessions', { timeoutMs: 3000 });
+async function readDevices(origin) {
+  const response = await requestJson(origin, '/devices', { timeoutMs: 3000 });
   if (response.status !== 200 || !response.body?.ok) {
     throw new Error(response.body?.error || `Daemon request failed with status ${response.status}`);
   }
@@ -127,6 +127,6 @@ module.exports = {
   findDaemonBin,
   getDaemonOrigin,
   readHealth,
-  readSession,
-  readSessions,
+  readDevice,
+  readDevices,
 };

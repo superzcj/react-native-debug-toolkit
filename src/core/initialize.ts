@@ -11,6 +11,7 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
+import { restoreDaemonStreaming } from '../utils/daemonStreaming';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 
 const isDebugMode = __DEV__;
@@ -113,6 +114,8 @@ export function initializeDebugToolkit(
     } else {
       DebugToolkit.hideLauncher();
     }
+
+    restoreDaemonStreaming().catch(() => {});
 
     return DebugToolkit;
   } catch (error) {

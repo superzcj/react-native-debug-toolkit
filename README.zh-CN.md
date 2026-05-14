@@ -4,7 +4,7 @@
 
 React Native 开发期调试面板 + 本地日志桥。
 
-它能在 App 内看日志，也能把同一份 session 发到本机 daemon，供浏览器、curl、脚本、MCP 读取。
+它能在 App 内看日志，也能把同一台设备的日志流发到本机 daemon，供浏览器、curl、脚本、MCP 读取。
 
 ## 模型
 
@@ -20,7 +20,8 @@ RN App logs -> Debug Panel -> local daemon -> Web Console / HTTP / MCP
 - Track
 - Zustand
 
-Daemon 使用内存存储。重启后日志清空。
+CLI daemon 默认把设备日志持久化到 `~/.react-native-debug-toolkit/daemon-devices.json`。
+用 `DELETE /devices` 清空已存日志。
 
 ## 安装
 
@@ -91,6 +92,9 @@ addTrackLog({ eventName: 'button_click' });
 npx debug-toolkit --daemon-only
 ```
 
+默认设备日志存储文件：`~/.react-native-debug-toolkit/daemon-devices.json`。
+可用 `--store /path/to/devices.json` 或 `DEBUG_TOOLKIT_DAEMON_STORE` 覆盖。
+
 打开：
 
 ```text
@@ -112,10 +116,19 @@ Endpoint：
 ## HTTP
 
 ```bash
-curl http://127.0.0.1:3799/health
-curl http://127.0.0.1:3799/sessions
-curl http://127.0.0.1:3799/sessions/latest
-curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=true&limit=50'
+BASE=http://127.0.0.1:3799
+
+curl "$BASE/health"
+curl "$BASE/devices"
+curl "$BASE/devices/latest"
+
+DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log((JSON.parse(s).devices||[])[0]?.deviceId||''))")
+
+curl "$BASE/devices/$DEVICE_ID"
+curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
+curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
+curl -X DELETE "$BASE/devices"
 ```
 
 主要端点：
@@ -124,10 +137,11 @@ curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=tr
 GET    /health
 POST   /report
 POST   /ingest
-GET    /sessions
-GET    /sessions/latest
-GET    /sessions/:sessionId/logs
-DELETE /sessions
+GET    /devices
+GET    /devices/latest
+GET    /devices/:deviceId
+GET    /devices/:deviceId/logs
+DELETE /devices
 GET    /events
 GET    /console
 ```
@@ -140,7 +154,7 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 
 工具：
 
-- `list_app_sessions`
+- `list_app_devices`
 - `get_app_logs`
 
 有 shell 时优先 curl。
@@ -150,9 +164,9 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 - `DebugView`
 - `DebugToolkit`
 - `initializeDebugToolkit`
-- `createDebugSessionReport`
+- `createDebugDeviceReport`
 - `checkDaemonConnection`
-- `reportDebugSessionToDaemon`
+- `reportDebugDeviceToDaemon`
 - `startStreaming`
 - `stopStreaming`
 - `isStreaming`

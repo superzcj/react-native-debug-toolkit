@@ -2,7 +2,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { DebugToolkit } from '../core/DebugToolkit';
 import { _addDaemonEndpointToNetworkBlacklist } from '../features/network';
-import { createDebugSessionReport } from './sessionReport';
+import { createDebugDeviceReport } from './deviceReport';
 import {
   buildDaemonUrl,
   getDefaultDaemonEndpoint,
@@ -15,12 +15,13 @@ export interface StreamToDaemonOptions {
   token?: string;
   debounceMs?: number;
   timeoutMs?: number;
+  maxRetryAttempts?: number | null;
   onStatus?: (status: StreamStatus) => void;
 }
 
 export type StreamStatus =
   | { state: 'connecting' }
-  | { state: 'connected'; sessionId: string }
+  | { state: 'connected'; deviceId: string }
   | { state: 'retrying'; retryInMs: number }
   | { state: 'failed'; reason: 'auth' | 'retry_limit' };
 
@@ -28,7 +29,6 @@ const DEFAULT_DEBOUNCE_MS = 200;
 const DEFAULT_TIMEOUT_MS = 3000;
 const RETRY_BASE_MS = 1000;
 const MAX_RETRY_DELAY_MS = 30000;
-const MAX_RETRY_ATTEMPTS = 10;
 const BACKGROUND_RESYNC_THRESHOLD_MS = 5 * 60 * 1000;
 type SendResult = 'ok' | 'retry' | 'auth_failed';
 
@@ -41,11 +41,12 @@ interface StreamState {
   token: string | undefined;
   debounceMs: number;
   timeoutMs: number;
-  sessionId: string | null;
+  deviceId: string | null;
   sending: boolean;
   debounceTimer: ReturnType<typeof setTimeout> | null;
   retryTimer: ReturnType<typeof setTimeout> | null;
   retryAttempt: number;
+  maxRetryAttempts: number | null;
   dirtyFeatures: Set<string>;
   lastSentIds: Map<string, Set<string | number>>;
   featureUnsubscribes: Array<() => void>;
@@ -149,7 +150,7 @@ function resetRetry(state: StreamState): void {
 
 function scheduleRetry(state: StreamState): void {
   if (state.retryTimer) return;
-  if (state.retryAttempt >= MAX_RETRY_ATTEMPTS) {
+  if (state.maxRetryAttempts !== null && state.retryAttempt >= state.maxRetryAttempts) {
     failStreaming(state, 'retry_limit');
     return;
   }
@@ -162,7 +163,7 @@ function scheduleRetry(state: StreamState): void {
   state.retryTimer = setTimeout(() => {
     state.retryTimer = null;
     if (active !== state) return;
-    if (state.sessionId) {
+    if (state.deviceId) {
       sendDelta(state);
     } else {
       sendFullReport(state);
@@ -191,7 +192,7 @@ async function sendFullReport(state: StreamState): Promise<void> {
 }
 
 async function doSendFullReport(state: StreamState): Promise<SendResult> {
-  const report = createDebugSessionReport();
+  const report = createDebugDeviceReport();
   const response = await doPost(state.reportUrl, fetchHeaders(state), report, state.timeoutMs);
   if (!response) return 'retry';
   if (isAuthFailure(response.status)) return 'auth_failed';
@@ -201,9 +202,9 @@ async function doSendFullReport(state: StreamState): Promise<SendResult> {
     const body = response.json
       ? (await response.json()) as Record<string, unknown> | null
       : null;
-    if (body?.ok !== true || typeof body.sessionId !== 'string') return 'retry';
-    state.sessionId = body.sessionId;
-    emitStatus(state, { state: 'connected', sessionId: body.sessionId });
+    if (body?.ok !== true || typeof body.deviceId !== 'string') return 'retry';
+    state.deviceId = body.deviceId;
+    emitStatus(state, { state: 'connected', deviceId: body.deviceId });
   } catch {
     return 'retry';
   }
@@ -261,7 +262,7 @@ async function sendDelta(state: StreamState): Promise<void> {
 
     if (Object.keys(delta).length === 0) return;
 
-    if (!state.sessionId) {
+    if (!state.deviceId) {
       const result = await doSendFullReport(state);
       retry = result === 'retry';
       if (result !== 'ok') Object.keys(delta).forEach((featureName) => state.dirtyFeatures.add(featureName));
@@ -273,7 +274,7 @@ async function sendDelta(state: StreamState): Promise<void> {
     const response = await doPost(
       state.ingestUrl,
       fetchHeaders(state),
-      { sessionId: state.sessionId, delta: { logs: delta } },
+      { deviceId: state.deviceId, delta: { logs: delta } },
       state.timeoutMs,
     );
     if (!response) {
@@ -283,7 +284,7 @@ async function sendDelta(state: StreamState): Promise<void> {
     }
 
     if (response.status === 404) {
-      state.sessionId = null;
+      state.deviceId = null;
       state.lastSentIds.clear();
       const result = await doSendFullReport(state);
       retry = result === 'retry';
@@ -309,8 +310,8 @@ async function sendDelta(state: StreamState): Promise<void> {
       state.lastSentIds.set(featureName, ids);
     });
     resetRetry(state);
-    if (state.sessionId) {
-      emitStatus(state, { state: 'connected', sessionId: state.sessionId });
+    if (state.deviceId) {
+      emitStatus(state, { state: 'connected', deviceId: state.deviceId });
     }
   } finally {
     state.sending = false;
@@ -351,8 +352,8 @@ function handleAppStateChange(nextState: AppStateStatus): void {
     const wasAway = active.backgroundedAt ? Date.now() - active.backgroundedAt : 0;
     active.backgroundedAt = null;
 
-    if (wasAway > BACKGROUND_RESYNC_THRESHOLD_MS || !active.sessionId) {
-      active.sessionId = null;
+    if (wasAway > BACKGROUND_RESYNC_THRESHOLD_MS || !active.deviceId) {
+      active.deviceId = null;
       active.lastSentIds.clear();
       sendFullReport(active);
     }
@@ -377,11 +378,14 @@ export function startStreaming(options: StreamToDaemonOptions = {}): void {
     token: options.token,
     debounceMs: options.debounceMs || DEFAULT_DEBOUNCE_MS,
     timeoutMs: Math.max(0, options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-    sessionId: null,
+    deviceId: null,
     sending: false,
     debounceTimer: null,
     retryTimer: null,
     retryAttempt: 0,
+    maxRetryAttempts: typeof options.maxRetryAttempts === 'number'
+      ? Math.max(0, Math.floor(options.maxRetryAttempts))
+      : null,
     dirtyFeatures: new Set(),
     lastSentIds: new Map(),
     featureUnsubscribes: [],

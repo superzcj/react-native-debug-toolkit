@@ -28,9 +28,9 @@ export { useNavigationLogger } from './features/navigation/useNavigationLogger';
 export { safeStringify } from './utils/safeStringify';
 export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
 export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
-export { createDebugSessionReport } from './utils/sessionReport';
-export type { DebugSessionReport, DebugSessionReportOptions } from './utils/sessionReport';
-export { getDefaultDaemonEndpoint, reportDebugSessionToDaemon } from './utils/reportToDaemon';
+export { createDebugDeviceReport } from './utils/deviceReport';
+export type { DebugDeviceReport, DebugDeviceReportOptions } from './utils/deviceReport';
+export { getDefaultDaemonEndpoint, reportDebugDeviceToDaemon } from './utils/reportToDaemon';
 export type { ReportResult, ReportToDaemonOptions } from './utils/reportToDaemon';
 export { checkDaemonConnection } from './utils/daemonConnection';
 export type {

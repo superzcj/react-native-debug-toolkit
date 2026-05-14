@@ -4,6 +4,7 @@ const {
   DAEMON_NAME,
   DEFAULT_HOST,
   DEFAULT_PORT,
+  getDefaultDeviceStorePath,
   getLanIPs,
 } = require('./constants');
 const { createDaemonServer } = require('./server');
@@ -21,7 +22,7 @@ function hasHelpFlag(args) {
 }
 
 function printHelp() {
-  process.stdout.write('Usage: debug-toolkit-daemon [--host 0.0.0.0] [--port 3799] [--token dev-token]\n');
+  process.stdout.write('Usage: debug-toolkit-daemon [--host 0.0.0.0] [--port 3799] [--token dev-token] [--store ~/.react-native-debug-toolkit/daemon-devices.json]\n');
 }
 
 function getLocalOrigin(host, port) {
@@ -38,6 +39,11 @@ function startDaemonFromCli(args) {
   const host = readOption(args, '--host', process.env.DEBUG_TOOLKIT_DAEMON_HOST || DEFAULT_HOST);
   const port = Number(readOption(args, '--port', process.env.DEBUG_TOOLKIT_DAEMON_PORT || DEFAULT_PORT));
   const token = readOption(args, '--token', process.env.DEBUG_TOOLKIT_DAEMON_TOKEN || '');
+  const deviceStorePath = readOption(
+    args,
+    '--store',
+    process.env.DEBUG_TOOLKIT_DAEMON_STORE || getDefaultDeviceStorePath(),
+  );
 
   if (!Number.isFinite(port) || port <= 0) {
     process.stderr.write('Invalid --port value\n');
@@ -45,7 +51,7 @@ function startDaemonFromCli(args) {
     return;
   }
 
-  const { server } = createDaemonServer({ token });
+  const { server } = createDaemonServer({ token, deviceStorePath });
 
   server.on('error', (error) => {
     process.stderr.write(`${DAEMON_NAME} failed to start: ${error.message}\n`);
@@ -56,6 +62,7 @@ function startDaemonFromCli(args) {
     const consolePath = token ? `/console?token=${encodeURIComponent(token)}` : '/console';
     process.stderr.write(`${DAEMON_NAME} listening on http://${host}:${port}\n`);
     process.stderr.write(`Web Console: ${getLocalOrigin(host, port)}${consolePath}\n`);
+    process.stderr.write(`Device store: ${deviceStorePath}\n`);
     const lanIPs = getLanIPs();
     if (lanIPs.length > 0) {
       process.stderr.write(`LAN IPs: ${lanIPs.join(', ')}\n`);

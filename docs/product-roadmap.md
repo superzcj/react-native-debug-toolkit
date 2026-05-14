@@ -34,11 +34,11 @@ App：
 Desktop：
 
 - 单 bin：`debug-toolkit`
-- daemon：HTTP API + 内存 session store
-- Web Console：列表、详情、筛选、failed only、复制 JSON、SSE
+- daemon：HTTP API + 本地 device log store
+- Web Console：列表、详情、筛选、failed only、复制 JSON、curl 命令、SSE
 - 默认 `0.0.0.0:3799`
 - 启动打印 `LAN IPs`
-- MCP：`list_app_sessions`、`get_app_logs`
+- MCP：`list_app_devices`、`get_app_logs`
 
 边界：
 
@@ -46,7 +46,7 @@ Desktop：
 - 不做云服务
 - 不默认脱敏
 - Network 只监测，不分析 auth/token
-- daemon 重启清空日志
+- CLI daemon 默认持久化设备日志
 
 ## 原则
 
@@ -60,11 +60,10 @@ Desktop：
 ## 缺口
 
 - Web Console 缺浏览器 e2e。
-- daemon 缺持久化。
 - CLI 缺查询命令。
 - 真机失败诊断仍靠人工。
-- 多设备命名弱。
-- Session 仍分散在多个 tab。
+- 多设备命名仍偏技术化。
+- 日志仍分散在多个 tab。
 - AI 缺精简上下文包。
 - Network 缺 replay / mock / delay。
 - Zustand 缺 diff / restore。
@@ -76,14 +75,13 @@ Desktop：
 - Web Console e2e
 - Doctor 页
 - Copy cURL
-- JSONL 持久化
-- `debug-toolkit sessions`
+- `debug-toolkit devices`
 - `debug-toolkit logs`
 - 多设备命名
 
-### P1：让 session 好读
+### P1：让日志好读
 
-- Session Timeline
+- Device Log Timeline
 - AI Bundle
 - error-first 裁剪
 - 全局过滤
@@ -113,14 +111,14 @@ Desktop：
 | --- | --- | --- |
 | 1 | `test: add browser e2e coverage for web console` | 覆盖 report、ingest、SSE、筛选、复制 |
 | 2 | `feat: add daemon doctor page for real device setup` | 降低真机联通排查成本 |
-| 3 | `feat: add copy curl commands for daemon endpoints` | 让人和 AI 直接复用命令 |
-| 4 | `feat: persist daemon sessions as local jsonl` | daemon 重启后可读最近 session |
-| 5 | `feat: add debug-toolkit sessions and logs commands` | 避免手写 HTTP URL |
-| 6 | `feat: add unified session timeline` | 按时间串起多类日志 |
+| 3 | `test: add web console curl-command coverage` | 防止 curl 入口回退 |
+| 4 | `feat: add device log store rotation policy controls` | 可配置保留数量和文件位置 |
+| 5 | `feat: add debug-toolkit devices and logs commands` | 避免手写 HTTP URL |
+| 6 | `feat: add unified device log timeline` | 按时间串起多类日志 |
 | 7 | `feat: generate compact AI debug bundle` | 给 AI 一份小而准的上下文 |
 | 8 | `feat: identify and label multiple reporting devices` | 多真机不混淆 |
 | 9 | `feat: replay captured network requests` | 从观察走向复现 |
-| 10 | `feat: add clear_app_logs MCP tool` | 让 MCP 能清理 daemon session |
+| 10 | `feat: add clear_app_logs MCP tool` | 让 MCP 能清理 daemon 设备日志 |
 
 ## 不做
 

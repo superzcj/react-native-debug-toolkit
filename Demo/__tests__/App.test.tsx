@@ -285,7 +285,7 @@ test('sends once from desktop logs settings to a real device endpoint', async ()
         status: 200,
         json: async () => ({
           ok: true,
-          sessionId: 'desktop-settings-session',
+          deviceId: 'desktop-settings-device',
           logCount: { navigation: 1 },
         }),
       };

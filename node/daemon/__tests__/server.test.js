@@ -1,6 +1,9 @@
 'use strict';
 
+const fs = require('fs');
 const http = require('http');
+const os = require('os');
+const path = require('path');
 
 const { createDaemonServer } = require('../src/server');
 const { DEFAULT_HOST } = require('../src/constants');
@@ -93,9 +96,81 @@ describe('debug toolkit daemon server', () => {
     expect(Array.isArray(response.body.ips)).toBe(true);
   });
 
+  it('uses device log endpoints', async () => {
+    const report = {
+      version: 2,
+      device: { platform: 'ios', model: 'iPhone 15', osVersion: '17.0', appVersion: '1.0.0' },
+      logs: {
+        network: [
+          { request: { url: '/ok' }, response: { status: 200, success: true } },
+          { request: { url: '/bad' }, response: { status: 500, success: false } },
+        ],
+      },
+    };
+
+    const postResponse = await request(baseUrl, {
+      method: 'POST',
+      path: '/report',
+      body: report,
+    });
+    const devicesResponse = await request(baseUrl, { path: '/devices' });
+    const latestResponse = await request(baseUrl, { path: '/devices/latest' });
+    const logsResponse = await request(baseUrl, {
+      path: `/devices/${postResponse.body.deviceId}/logs?type=network&failedOnly=true`,
+    });
+
+    expect(postResponse.status).toBe(200);
+    expect(postResponse.body).toMatchObject({
+      ok: true,
+      deviceId: expect.any(String),
+      logCount: { network: 2 },
+    });
+    expect(devicesResponse.body.devices[0]).toMatchObject({
+      deviceId: postResponse.body.deviceId,
+      device: report.device,
+      source: { ip: '127.0.0.1' },
+      logCount: { network: 2 },
+    });
+    expect(latestResponse.body).toMatchObject({
+      deviceId: postResponse.body.deviceId,
+      report,
+    });
+    expect(logsResponse.body.logs).toEqual([
+      { request: { url: '/bad' }, response: { status: 500, success: false } },
+    ]);
+  });
+
+  it('can persist device logs across daemon restarts when a store path is configured', async () => {
+    const storePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-')), 'devices.json');
+    await new Promise((resolve) => server.close(resolve));
+
+    ({ server } = createDaemonServer({ deviceStorePath: storePath }));
+    baseUrl = await listen(server);
+
+    const report = {
+      version: 2,
+      logs: {
+        console: [{ level: 'log', data: ['persisted'] }],
+      },
+    };
+    await request(baseUrl, { method: 'POST', path: '/report', body: report });
+
+    await new Promise((resolve) => server.close(resolve));
+    ({ server } = createDaemonServer({ deviceStorePath: storePath }));
+    baseUrl = await listen(server);
+
+    const devicesResponse = await request(baseUrl, { path: '/devices' });
+    const latestResponse = await request(baseUrl, { path: '/devices/latest' });
+
+    expect(devicesResponse.status).toBe(200);
+    expect(devicesResponse.body.devices).toHaveLength(1);
+    expect(latestResponse.body.report).toEqual(report);
+  });
+
   it('stores the latest report and returns log counts', async () => {
     const report = {
       version: 2,
+      device: { platform: 'ios', model: 'iPhone 15', osVersion: '17.0', appVersion: '1.0.0' },
       logs: {
         console: [{ level: 'error', data: ['TEST_ERROR_123'] }],
         network: [{ response: { status: 500, success: false } }],
@@ -107,15 +182,24 @@ describe('debug toolkit daemon server', () => {
       path: '/report',
       body: report,
     });
-    const latestResponse = await request(baseUrl, { path: '/latest' });
+    const latestResponse = await request(baseUrl, { path: '/devices/latest' });
 
     expect(postResponse.status).toBe(200);
     expect(postResponse.body).toMatchObject({
       ok: true,
+      deviceId: expect.any(String),
       logCount: { console: 1, network: 1 },
     });
     expect(latestResponse.status).toBe(200);
     expect(latestResponse.body.report).toEqual(report);
+    expect(latestResponse.body.source).toMatchObject({ ip: '127.0.0.1' });
+
+    const devicesResponse = await request(baseUrl, { path: '/devices' });
+    expect(devicesResponse.body.devices[0]).toMatchObject({
+      deviceId: postResponse.body.deviceId,
+      device: report.device,
+      source: { ip: '127.0.0.1' },
+    });
   });
 
   it('rejects invalid reports', async () => {
@@ -129,7 +213,7 @@ describe('debug toolkit daemon server', () => {
     expect(response.body.ok).toBe(false);
   });
 
-  it('filters failed session logs', async () => {
+  it('filters failed device logs', async () => {
     const report = {
       version: 2,
       logs: {
@@ -146,7 +230,7 @@ describe('debug toolkit daemon server', () => {
       body: report,
     });
     const logsResponse = await request(baseUrl, {
-      path: `/sessions/${postResponse.body.sessionId}/logs?type=network&failedOnly=true`,
+      path: `/devices/${postResponse.body.deviceId}/logs?type=network&failedOnly=true`,
     });
 
     expect(logsResponse.status).toBe(200);
@@ -175,14 +259,14 @@ describe('debug toolkit daemon server', () => {
 
     expect(postResponse.status).toBe(200);
 
-    await expect(request(baseUrl, { path: '/latest' })).resolves.toMatchObject({ status: 401 });
-    await expect(request(baseUrl, { path: '/sessions' })).resolves.toMatchObject({ status: 401 });
-    await expect(request(baseUrl, { path: `/sessions/${postResponse.body.sessionId}` })).resolves.toMatchObject({ status: 401 });
-    await expect(request(baseUrl, { path: `/sessions/${postResponse.body.sessionId}/logs` })).resolves.toMatchObject({ status: 401 });
-    await expect(request(baseUrl, { method: 'DELETE', path: '/sessions' })).resolves.toMatchObject({ status: 401 });
+    await expect(request(baseUrl, { path: '/devices/latest' })).resolves.toMatchObject({ status: 401 });
+    await expect(request(baseUrl, { path: '/devices' })).resolves.toMatchObject({ status: 401 });
+    await expect(request(baseUrl, { path: `/devices/${postResponse.body.deviceId}` })).resolves.toMatchObject({ status: 401 });
+    await expect(request(baseUrl, { path: `/devices/${postResponse.body.deviceId}/logs` })).resolves.toMatchObject({ status: 401 });
+    await expect(request(baseUrl, { method: 'DELETE', path: '/devices' })).resolves.toMatchObject({ status: 401 });
 
     await expect(request(baseUrl, {
-      path: '/latest',
+      path: '/devices/latest',
       headers: { Authorization: 'Bearer dev-token' },
     })).resolves.toMatchObject({
       status: 200,

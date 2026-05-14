@@ -2,14 +2,14 @@
 
 const { ensureDaemon } = require('./daemonClient');
 const { handleMessage, startStdioServer } = require('./server');
-const { callTool, getAppLogsTool, listAppSessionsTool, tools } = require('./tools');
+const { callTool, getAppLogsTool, listAppDevicesTool, tools } = require('./tools');
 
 module.exports = {
   callTool,
   ensureDaemon,
   getAppLogsTool,
   handleMessage,
-  listAppSessionsTool,
+  listAppDevicesTool,
   startStdioServer,
   tools,
 };

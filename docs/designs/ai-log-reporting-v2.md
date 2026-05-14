@@ -1,4 +1,4 @@
-# AI Log Reporting v2：本地 Daemon + HTTP API
+# AI Log Reporting v2：本地 Daemon + Device Logs
 
 ## 1. 目标
 
@@ -6,9 +6,9 @@
 
 核心目标：
 
-1. App 上报当前 debug session。
-2. Daemon 接收、存储、查询、SSE 推送。
-3. Web Console 实时看日志。
+1. App 按设备上报当前 debug 日志。
+2. Daemon 接收、持久化、查询、SSE 推送。
+3. Web Console 实时看设备日志。
 4. AI 通过 HTTP API / MCP 读日志。
 5. 真机可用，失败可诊断。
 
@@ -30,7 +30,7 @@ RN App
   POST /ingest
         ↓
 local daemon
-  memory sessions
+  device log store
   HTTP JSON API
   SSE /events
         ├─ Web Console
@@ -41,11 +41,11 @@ local daemon
 边界：
 
 - App 只采集、截断、上报。
-- Daemon 是本机日志中心。
+- Daemon 是本机设备日志中心。
 - HTTP API 是协议层；Web Console、curl、MCP 共用它。
 - Claude Code / Codex 有 shell，优先 curl。
 - MCP 给无 shell 或需要 tool discovery 的 AI 客户端。
-- Daemon 独立于 AI 会话；AI 重启不丢当前 daemon 内存日志。
+- Daemon 独立运行；CLI daemon 默认把设备日志写到本地文件。
 
 ## 3. 启动
 
@@ -67,15 +67,17 @@ node bin/debug-toolkit.js --daemon-only
 react-native-debug-toolkit-daemon listening on http://0.0.0.0:3799
 Web Console: http://127.0.0.1:3799/console
 LAN IPs: 192.168.100.12, 198.18.0.1
+Device store: ~/.react-native-debug-toolkit/daemon-devices.json
 ```
 
 本机检查：
 
 ```bash
-curl http://127.0.0.1:3799/health
-curl http://127.0.0.1:3799/sessions
-curl http://127.0.0.1:3799/sessions/latest
-curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=true&limit=50'
+BASE=http://127.0.0.1:3799
+curl "$BASE/health"
+curl "$BASE/devices"
+curl "$BASE/devices/latest"
+curl "$BASE/devices/<deviceId>/logs?type=network&failedOnly=true&limit=50"
 ```
 
 MCP 可选：
@@ -89,9 +91,9 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 ### 4.1 API
 
 ```ts
-createDebugSessionReport(options?): DebugSessionReport
+createDebugDeviceReport(options?): DebugDeviceReport
 checkDaemonConnection(options?): Promise<DaemonConnectionResult>
-reportDebugSessionToDaemon(options?): Promise<ReportResult>
+reportDebugDeviceToDaemon(options?): Promise<ReportResult>
 startStreaming(options?): void
 stopStreaming(): void
 isStreaming(): boolean
@@ -113,12 +115,13 @@ Debug Panel 一级只保留 `Desktop Logs` 入口。
 面板内能力：
 
 - `Simulator` / `Real device` 切换。
-- 真机输入 Mac IP。
-- 快速探测：只用 Metro bundle host；不打开面板就扫完整局域网。
+- 模拟器默认启用实时同步；真机通过 Mac IP 连接。
+- 设置只保存在 JS runtime；不依赖 AsyncStorage。
+- App 杀进程后，daemon 端设备日志仍保留。
 - `Send Once`：先 `GET /health`，成功后 `POST /report`。
 - `Start Live Sync`：先 `GET /health`，成功后初始 `POST /report`，后续 `POST /ingest`。
 - 预检失败：不发 `/report`，不启动 sync，提示检查 daemon、IP、防火墙、本地网络权限。
-- Live Sync POST 有 timeout + retry；不会长期卡在 connecting。
+- Live Sync POST 有 timeout + 持续 retry；长时间运行不因次数上限停止。
 
 ### 4.3 真机排查
 
@@ -154,13 +157,13 @@ for (const feature of DebugToolkit.features) {
 
 自污染：
 
-- `reportDebugSessionToDaemon()`、`startStreaming()` 会把 daemon endpoint 加入 Network blacklist。
+- `reportDebugDeviceToDaemon()`、`startStreaming()` 会把 daemon endpoint 加入 Network blacklist。
 - 上报 daemon 的请求不进入 Network 日志。
 
 ## 5. Report 格式
 
 ```ts
-interface DebugSessionReport {
+interface DebugDeviceReport {
   version: 2;
   device: {
     platform: string;
@@ -181,8 +184,9 @@ interface DebugSessionReport {
 
 说明：
 
-- `device` 已实现，用于 Web Console 识别设备。
-- `reportId`、`source`、`app`、`limits` 后置。
+- `device` 用于 Web Console 识别设备。
+- Daemon 用 `device.platform + device.model + source.ip` 生成 `deviceId`。
+- 同一设备重复上报会覆盖当前完整 report；增量 `/ingest` 追加到同一设备。
 - 诊断排序、摘要交给 AI；App 不预生成。
 
 ## 6. Daemon API
@@ -201,12 +205,11 @@ JSON：
 GET    /health
 POST   /report
 POST   /ingest
-GET    /sessions
-GET    /latest
-GET    /sessions/latest
-GET    /sessions/:sessionId
-GET    /sessions/:sessionId/logs?type=network&limit=50&failedOnly=true
-DELETE /sessions
+GET    /devices
+GET    /devices/latest
+GET    /devices/:deviceId
+GET    /devices/:deviceId/logs?type=network&limit=50&failedOnly=true
+DELETE /devices
 ```
 
 `GET /health` 返回：
@@ -217,11 +220,12 @@ DELETE /sessions
   "name": "react-native-debug-toolkit-daemon",
   "version": "0.1.0",
   "protocolVersion": 2,
-  "ips": ["192.168.100.12"]
+  "ips": ["192.168.100.12"],
+  "deviceStore": "~/.react-native-debug-toolkit/daemon-devices.json"
 }
 ```
 
-`POST /report` req:
+`POST /report` req：
 
 ```json
 {
@@ -231,12 +235,12 @@ DELETE /sessions
 }
 ```
 
-`POST /report` res:
+`POST /report` res：
 
 ```json
 {
   "ok": true,
-  "sessionId": "session_...",
+  "deviceId": "ios_iphone_192_168_100_20",
   "receivedAt": "2026-05-13T00:00:00.000Z",
   "logCount": {
     "network": 15,
@@ -245,11 +249,11 @@ DELETE /sessions
 }
 ```
 
-`POST /ingest` req:
+`POST /ingest` req：
 
 ```json
 {
-  "sessionId": "session_...",
+  "deviceId": "ios_iphone_192_168_100_20",
   "delta": {
     "logs": {
       "console": [{ "level": "error", "data": ["TEST_ERROR"] }]
@@ -272,29 +276,32 @@ Token：
 
 存储：
 
-- 内存 store。
-- 最多 20 个 session。
-- 每个 session 保存完整 report；`/ingest` 合并增量。
-- daemon 退出 -> 数据丢失。
+- CLI daemon 默认持久化到 `~/.react-native-debug-toolkit/daemon-devices.json`。
+- `--store /path/to/devices.json` 或 `DEBUG_TOOLKIT_DAEMON_STORE` 可覆盖存储路径。
+- 最多 20 台设备。
+- 每台设备保存当前完整 report；`/ingest` 合并增量。
+- `DELETE /devices` 清空 store。
 
 ## 7. Web Console
 
 已实现：
 
-- session 列表。
-- session 详情。
+- 设备列表。
+- 设备详情。
 - type 筛选。
 - failed only。
 - 复制 JSON。
+- curl 命令。
+- 日志倒序，新日志在上。
+- JSON 按日志类型解析成更易读的详情区。
 - SSE 实时刷新。
 - 增量日志合并，不重建整页。
-- session 卡片状态保留。
+- 设备卡片状态保留。
 
 未实现：
 
 - 浏览器级 e2e。
-- JSONL 持久化。
-- 多设备命名。
+- 多设备自定义命名。
 - Doctor 页。
 
 ## 8. AI 读取
@@ -304,15 +311,18 @@ Token：
 Claude Code / Codex 直接 curl：
 
 ```bash
-curl http://127.0.0.1:3799/sessions
-curl http://127.0.0.1:3799/sessions/latest
-curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=true&limit=50'
+BASE=http://127.0.0.1:3799
+curl "$BASE/devices"
+curl "$BASE/devices/latest"
+curl "$BASE/devices/<deviceId>/logs?limit=100"
+curl "$BASE/devices/<deviceId>/logs?type=network&failedOnly=true&limit=50"
+curl "$BASE/devices/<deviceId>/logs?type=console&limit=100"
 ```
 
 读法：
 
-1. 先 `/sessions`，确认现场。
-2. 最近一次用 `/sessions/latest`。
+1. 先 `/devices`，确认有哪些设备。
+2. 最近一次用 `/devices/latest`。
 3. 上下文太大用 `/logs` + `type` / `failedOnly` / `limit`。
 4. Network 只是监测数据；不做 token/auth 特殊语义。
 
@@ -330,13 +340,13 @@ MCP 不接收 App 日志，不存日志，只转 daemon HTTP API。
 当前工具：
 
 - `get_app_logs`
-- `list_app_sessions`
+- `list_app_devices`
 
 `get_app_logs` 参数：
 
 ```json
 {
-  "sessionId": "session_...",
+  "deviceId": "ios_iphone_192_168_100_20",
   "logType": "network",
   "limit": 50,
   "failedOnly": false,
@@ -360,12 +370,13 @@ ensureDaemon()
 ## 9. 包结构
 
 ```text
-src/utils/sessionReport.ts
+src/utils/deviceReport.ts
 src/utils/daemonConnection.ts
 src/utils/reportToDaemon.ts
 src/utils/streamToDaemon.ts
 src/utils/autoDetectDaemon.ts
 src/utils/daemonSettings.ts
+src/utils/daemonStreaming.ts
 node/daemon/
 node/daemon/src/console/
 node/mcp/
@@ -385,22 +396,23 @@ bin/debug-toolkit.js
 
 1. 单 bin：`bin/debug-toolkit.js`。
 2. Daemon HTTP API + Web Console + SSE。
-3. MCP adapter：`get_app_logs`、`list_app_sessions`。
-4. App API：`createDebugSessionReport()`、`checkDaemonConnection()`、`reportDebugSessionToDaemon()`、`startStreaming()`、`stopStreaming()`。
-5. Desktop Logs UI：连接预检、Send Once、Live Sync、真机 IP。
-6. Live Sync timeout + retry。
-7. 默认 daemon 监听 `0.0.0.0:3799`，打印 `LAN IPs`。
-8. Network daemon blacklist，避免自污染。
-9. 不默认脱敏；network 日志只做监测。
+3. Daemon 本地设备日志持久化。
+4. MCP adapter：`get_app_logs`、`list_app_devices`。
+5. App API：`createDebugDeviceReport()`、`checkDaemonConnection()`、`reportDebugDeviceToDaemon()`、`startStreaming()`、`stopStreaming()`。
+6. Desktop Logs UI：连接预检、Send Once、Live Sync、真机 IP。
+7. Live Sync timeout + 持续 retry。
+8. 默认 daemon 监听 `0.0.0.0:3799`，打印 `LAN IPs`。
+9. Network daemon blacklist，避免自污染。
+10. 不默认脱敏；network 日志只做监测。
 
 未实现：
 
 1. MCP `clear_app_logs`。
-2. CLI 查询命令：`debug-toolkit sessions`、`debug-toolkit logs`。
+2. CLI 查询命令：`debug-toolkit devices`、`debug-toolkit logs`。
 3. AI bundle / `bundleId`。
-4. Doctor 页、Copy cURL。
-5. JSONL 持久化。
-6. 多设备命名、自动选择正确 Mac IP。
+4. Doctor 页。
+5. Store 保留策略配置。
+6. 多设备自定义命名、自动选择正确 Mac IP。
 7. Web Console e2e。
 
 验收：

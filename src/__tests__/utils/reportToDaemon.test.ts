@@ -3,7 +3,7 @@ import {
   _isNetworkUrlBlacklistedForTesting,
   _resetNetworkForTesting,
 } from '../../features/network';
-import { reportDebugSessionToDaemon } from '../../utils/reportToDaemon';
+import { reportDebugDeviceToDaemon } from '../../utils/reportToDaemon';
 import type { DebugFeature } from '../../types';
 
 function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
@@ -16,7 +16,7 @@ function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
   };
 }
 
-describe('reportDebugSessionToDaemon', () => {
+describe('reportDebugDeviceToDaemon', () => {
   let originalFetch: unknown;
 
   beforeEach(() => {
@@ -34,13 +34,13 @@ describe('reportDebugSessionToDaemon', () => {
     DebugToolkit.setEnabled(true);
   });
 
-  it('posts the current debug session report to the daemon', async () => {
+  it('posts the current device report to the daemon', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({
         ok: true,
-        sessionId: 's1',
+        deviceId: 'ios-1',
         receivedAt: '2026-05-06T10:00:00.000Z',
         logCount: { console: 1 },
       }),
@@ -48,14 +48,14 @@ describe('reportDebugSessionToDaemon', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(createFeature('console', [{ level: 'error', data: ['TEST_ERROR_123'] }]));
 
-    const result = await reportDebugSessionToDaemon({
+    const result = await reportDebugDeviceToDaemon({
       endpoint: 'http://127.0.0.1:3799',
       token: 'dev-token',
     });
 
     expect(result).toMatchObject({
       ok: true,
-      sessionId: 's1',
+      deviceId: 'ios-1',
       logCount: { console: 1 },
     });
     expect(fetchMock).toHaveBeenCalledWith(
@@ -90,7 +90,7 @@ describe('reportDebugSessionToDaemon', () => {
       json: async () => ({ ok: true, logCount: {} }),
     });
 
-    await reportDebugSessionToDaemon({ endpoint: 'http://localhost:3799' });
+    await reportDebugDeviceToDaemon({ endpoint: 'http://localhost:3799' });
 
     expect(_isNetworkUrlBlacklistedForTesting('http://localhost:3799/report')).toBe(true);
   });

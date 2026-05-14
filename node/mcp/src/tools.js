@@ -1,15 +1,15 @@
 'use strict';
 
-const { getDaemonOrigin, readSession, readSessions } = require('./daemonClient');
+const { getDaemonOrigin, readDevice, readDevices } = require('./daemonClient');
 const { KNOWN_LOG_TYPES, createToolPayload } = require('./logs');
 
 const getAppLogsTool = {
   name: 'get_app_logs',
-  description: 'Read React Native Debug Toolkit logs from the local daemon. Tip: if you have shell access, curl http://127.0.0.1:3799/sessions/latest is more efficient.',
+  description: 'Read React Native Debug Toolkit logs from the local daemon. Tip: if you have shell access, curl http://127.0.0.1:3799/devices/latest is more efficient.',
   inputSchema: {
     type: 'object',
     properties: {
-      sessionId: { type: 'string' },
+      deviceId: { type: 'string' },
       logType: {
         type: 'string',
         enum: KNOWN_LOG_TYPES,
@@ -21,16 +21,16 @@ const getAppLogsTool = {
   },
 };
 
-const listAppSessionsTool = {
-  name: 'list_app_sessions',
-  description: 'List React Native Debug Toolkit sessions available in the local daemon. Tip: if you have shell access, curl http://127.0.0.1:3799/sessions is more efficient.',
+const listAppDevicesTool = {
+  name: 'list_app_devices',
+  description: 'List React Native Debug Toolkit devices available in the local daemon. Tip: if you have shell access, curl http://127.0.0.1:3799/devices is more efficient.',
   inputSchema: {
     type: 'object',
     properties: {},
   },
 };
 
-const tools = [getAppLogsTool, listAppSessionsTool];
+const tools = [getAppLogsTool, listAppDevicesTool];
 
 async function callTool(name, args = {}, context = {}) {
   const ensureDaemon = context.ensureDaemon || (async () => ({ ok: true, origin: getDaemonOrigin() }));
@@ -44,15 +44,15 @@ async function callTool(name, args = {}, context = {}) {
   }
 
   try {
-    if (name === listAppSessionsTool.name) {
-      const readSessionsImpl = context.readSessions || readSessions;
-      const result = await readSessionsImpl(daemon.origin);
-      const sessions = Array.isArray(result.sessions) ? result.sessions : [];
+    if (name === listAppDevicesTool.name) {
+      const readDevicesImpl = context.readDevices || readDevices;
+      const result = await readDevicesImpl(daemon.origin);
+      const devices = Array.isArray(result.devices) ? result.devices : [];
       return {
         ok: true,
         origin: daemon.origin,
-        sessions,
-        count: sessions.length,
+        devices,
+        count: devices.length,
       };
     }
 
@@ -60,8 +60,8 @@ async function callTool(name, args = {}, context = {}) {
       throw new Error(`Unknown tool: ${name}`);
     }
 
-    const session = await readSession(daemon.origin, args.sessionId);
-    return createToolPayload(session, {
+    const device = await readDevice(daemon.origin, args.deviceId);
+    return createToolPayload(device, {
       logType: args.logType,
       limit: args.limit,
       failedOnly: args.failedOnly,
@@ -79,6 +79,6 @@ async function callTool(name, args = {}, context = {}) {
 module.exports = {
   callTool,
   getAppLogsTool,
-  listAppSessionsTool,
+  listAppDevicesTool,
   tools,
 };

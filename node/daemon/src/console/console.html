@@ -87,7 +87,7 @@ header h1 span{color:var(--text3);font-weight:400}
   border:1px solid var(--border);color:var(--cyan);
 }
 
-/* Session list */
+/* Device list */
 .section-title{
   font-size:13px;font-weight:600;color:var(--text2);
   text-transform:uppercase;letter-spacing:.08em;
@@ -95,21 +95,26 @@ header h1 span{color:var(--text3);font-weight:400}
 }
 .section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-.session-grid{display:flex;flex-direction:column;gap:6px}
-.session-card{
-  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:16px;
+.device-grid{display:flex;flex-direction:column;gap:6px}
+.device-card{
+  display:grid;grid-template-columns:minmax(0,1.2fr) minmax(170px,.8fr) auto 20px;align-items:center;gap:16px;
   padding:14px 18px;background:var(--surface);
   border:1px solid var(--border);border-radius:var(--radius);
   cursor:pointer;transition:all .15s;
 }
-.session-card:hover{
+.device-card:hover{
   background:var(--surface2);border-color:var(--border2);
   transform:translateX(3px);
   box-shadow:0 0 0 1px var(--cyan-dim),0 4px 16px rgba(0,0,0,.3);
 }
-.session-id{font-family:var(--font-mono);font-size:12px;color:var(--text);font-weight:500}
-.session-time{font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:2px}
-.session-tags{display:flex;gap:6px;flex-wrap:wrap}
+.device-id{font-family:var(--font-mono);font-size:12px;color:var(--text);font-weight:500}
+.device-time{font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-top:2px}
+.device-title{font-size:13px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-subtitle{font-family:var(--font-mono);font-size:11px;color:var(--text2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-meta-group{display:flex;flex-direction:column;gap:3px;min-width:0}
+.device-meta-line{font-family:var(--font-mono);font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-meta-line strong{font-family:var(--font-sans);font-weight:600;color:var(--text2);margin-right:5px}
+.device-tags{display:flex;gap:6px;flex-wrap:wrap}
 .tag{
   font-family:var(--font-mono);font-size:10px;font-weight:500;
   padding:2px 8px;border-radius:3px;
@@ -121,8 +126,8 @@ header h1 span{color:var(--text3);font-weight:400}
 .tag-error{background:var(--red-dim);color:var(--red);border-color:rgba(255,23,68,.1)}
 .tag-warn{background:var(--amber-dim);color:var(--amber);border-color:rgba(255,171,0,.1)}
 .tag-track{background:var(--orange-dim);color:var(--orange);border-color:rgba(255,110,64,.1)}
-.session-arrow{color:var(--text3);font-size:16px;transition:color .15s}
-.session-card:hover .session-arrow{color:var(--cyan)}
+.device-arrow{color:var(--text3);font-size:16px;transition:color .15s}
+.device-card:hover .device-arrow{color:var(--cyan)}
 
 /* Detail view */
 .back-link{
@@ -189,10 +194,27 @@ header h1 span{color:var(--text3);font-weight:400}
 }
 .toggle.on::after{transform:translateX(14px)}
 
+/* Curl help */
+.curl-panel{
+  margin-bottom:18px;padding:12px 14px;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--radius);
+}
+.curl-title{
+  font-size:11px;font-family:var(--font-mono);font-weight:700;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+}
+.curl-list{display:flex;flex-direction:column;gap:6px}
+.curl-list code{
+  display:block;padding:7px 9px;background:rgba(0,0,0,.18);
+  border:1px solid rgba(42,63,102,.65);border-radius:4px;
+  color:var(--text2);font-family:var(--font-mono);font-size:11px;
+  white-space:pre-wrap;word-break:break-word;
+}
+
 /* Log entries */
 .log-list{display:flex;flex-direction:column;gap:2px}
 .log-entry{
-  display:grid;grid-template-columns:80px 1fr 90px 30px;
+  display:grid;grid-template-columns:104px 1fr 90px 30px;
   align-items:center;gap:0;
   background:var(--surface);border:1px solid transparent;border-radius:var(--radius);
   cursor:pointer;transition:all .15s;overflow:hidden;
@@ -243,11 +265,45 @@ header h1 span{color:var(--text3);font-weight:400}
   overflow:hidden;
   max-height:0;transition:max-height .3s ease-out;
 }
-.log-json.open{max-height:400px}
+.log-json.open{max-height:720px}
 .log-json pre{
   padding:14px 18px;font-family:var(--font-mono);font-size:11px;
   line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-all;
   overflow:auto;max-height:400px;
+}
+.log-details{
+  padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px;max-height:560px;overflow:auto;
+}
+.detail-section{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:rgba(8,12,22,.35);overflow:hidden;
+}
+.detail-section-title{
+  padding:7px 10px;border-bottom:1px solid var(--border);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--cyan);font-family:var(--font-mono);
+}
+.detail-table{width:100%;border-collapse:collapse}
+.detail-table th,.detail-table td{
+  padding:7px 10px;border-bottom:1px solid rgba(30,45,74,.65);
+  vertical-align:top;font-size:11px;
+}
+.detail-table tr:last-child th,.detail-table tr:last-child td{border-bottom:none}
+.detail-table th{
+  width:92px;color:var(--text3);font-family:var(--font-mono);font-weight:500;text-align:left;
+}
+.detail-table td{color:var(--text2);font-family:var(--font-mono);word-break:break-word}
+.json-block{
+  margin:0;padding:10px;font-family:var(--font-mono);font-size:11px;
+  line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-word;
+  max-height:260px;overflow:auto;background:rgba(0,0,0,.16);
+}
+.value-list{display:flex;flex-direction:column;gap:8px;padding:10px}
+.value-pill{
+  display:block;padding:7px 9px;border:1px solid rgba(42,63,102,.75);
+  border-radius:4px;background:rgba(0,0,0,.12);font-family:var(--font-mono);
+  font-size:11px;color:var(--text2);word-break:break-word;
 }
 
 /* Actions bar */
@@ -305,8 +361,9 @@ header h1 span{color:var(--text3);font-weight:400}
 /* Responsive */
 @media(max-width:640px){
   .container{padding:16px}
-  .session-card{grid-template-columns:1fr;gap:8px}
-  .log-entry{grid-template-columns:60px 1fr 70px 24px}
+  .device-card{grid-template-columns:1fr;gap:8px}
+  .log-entry{grid-template-columns:86px 1fr 70px 24px}
+  .log-details{grid-template-columns:1fr;padding:10px}
   .detail-header{padding:14px 16px}
   .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
@@ -337,14 +394,14 @@ header h1 span{color:var(--text3);font-weight:400}
   var statusEl = document.getElementById('status');
   var toastEl = document.getElementById('toast');
 	  var pulseDot = document.getElementById('pulseDot');
-	  var currentSession = null;
+	  var currentDevice = null;
 	  var expandedRows = {};
 	  var authToken = null;
 
 	  try {
 	    var params = new URLSearchParams(location.search);
-	    authToken = params.get('token') || sessionStorage.getItem('debugToolkitToken');
-	    if (authToken) sessionStorage.setItem('debugToolkitToken', authToken);
+	    authToken = params.get('token') || localStorage.getItem('debugToolkitToken');
+	    if (authToken) localStorage.setItem('debugToolkitToken', authToken);
 	  } catch {
 	    authToken = null;
 	  }
@@ -356,8 +413,30 @@ header h1 span{color:var(--text3);font-weight:400}
 	  }
 
 	  function api(path) {
-	    return fetch(withAuth(path)).then(function(r) { return r.json(); });
+	    return fetch(withAuth(path)).then(function(r) {
+        return r.json().then(function(body) {
+          if (!r.ok) throw new Error(body && body.error ? body.error : ('HTTP ' + r.status));
+          return body;
+        });
+      });
 	  }
+
+  function absoluteUrl(path) {
+    return location.origin + withAuth(path);
+  }
+
+  function curlCommand(path) {
+    return "curl '" + absoluteUrl(path).replace(/'/g, "'\\''") + "'";
+  }
+
+  function renderCurlPanel(title, commands) {
+    var html = '<div class="curl-panel"><div class="curl-title">' + escapeHtml(title) + '</div><div class="curl-list">';
+    commands.forEach(function(command) {
+      html += '<code>' + escapeHtml(command) + '</code>';
+    });
+    html += '</div></div>';
+    return html;
+  }
 
   function showToast(msg) {
     toastEl.textContent = msg;
@@ -389,6 +468,47 @@ header h1 span{color:var(--text3);font-weight:400}
     } catch { return iso; }
   }
 
+  function readObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  }
+
+  function readTimestamp(entry) {
+    if (!entry || typeof entry !== 'object') return 0;
+    var value = entry.timestamp || entry.time || entry.createdAt;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      var parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  function labelForType(type) {
+    var labels = {
+      network: 'Network',
+      console: 'Console',
+      navigation: 'Navigation',
+      track: 'Track',
+      zustand: 'State',
+      clipboard: 'Clipboard',
+      environment: 'Environment',
+    };
+    return labels[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown');
+  }
+
+  function formatDevice(device) {
+    if (!device || typeof device !== 'object') return 'Unknown device';
+    var parts = [];
+    if (device.platform) parts.push(String(device.platform).toUpperCase());
+    if (device.model) parts.push(String(device.model));
+    if (device.osVersion) parts.push('OS ' + String(device.osVersion));
+    return parts.length ? parts.join(' / ') : 'Unknown device';
+  }
+
+  function formatIp(source) {
+    return source && source.ip ? String(source.ip) : 'unknown ip';
+  }
+
   function statusBadge(entry) {
     if (!entry || typeof entry !== 'object') return '<span class="badge badge-info">-</span>';
     if (entry.error) return '<span class="badge badge-error">ERR</span>';
@@ -406,20 +526,28 @@ header h1 span{color:var(--text3);font-weight:400}
 
   function summarize(entry) {
     if (!entry || typeof entry !== 'object') return escapeHtml(String(entry));
+    if (entry.request && typeof entry.request === 'object') {
+      return escapeHtml((entry.request.method || 'GET') + ' ' + (entry.request.url || '-'));
+    }
     if (entry.method && entry.url) return escapeHtml(entry.method + ' ' + entry.url);
-    if (entry.level && entry.data) return escapeHtml((Array.isArray(entry.data) ? entry.data.join(' ') : String(entry.data)).substring(0, 120));
-    if (entry.path) return escapeHtml(entry.path);
-    if (entry.event) return escapeHtml(entry.event);
-    if (entry.action) return escapeHtml(entry.action);
-    return escapeHtml(JSON.stringify(entry).substring(0, 120));
+    if (entry.level && entry.data !== undefined) {
+      var data = Array.isArray(entry.data) ? entry.data.map(formatInlineValue).join(' ') : formatInlineValue(entry.data);
+      return escapeHtml(data.substring(0, 140));
+    }
+    if (entry.from || entry.to) return escapeHtml((entry.from || '-') + ' -> ' + (entry.to || '-'));
+    if (entry.eventName) return escapeHtml(String(entry.eventName));
+    if (entry.event) return escapeHtml(String(entry.event));
+    if (entry.action) return escapeHtml(String(entry.action));
+    return escapeHtml(JSON.stringify(entry).substring(0, 140));
   }
 
   function getLogType(entry) {
     if (!entry || typeof entry !== 'object') return 'unknown';
-    if (entry.method && entry.url) return 'network';
+    if (entry.request || entry.response || (entry.method && entry.url)) return 'network';
     if (entry.level && entry.data !== undefined) return 'console';
-    if (entry.path) return 'navigation';
-    if (entry.event) return 'track';
+    if (entry.from || entry.to || entry.path) return 'navigation';
+    if (entry.eventName || entry.event) return 'track';
+    if (entry.prevState !== undefined || entry.nextState !== undefined || entry.storeName) return 'zustand';
     if (entry.action) return 'zustand';
     return 'unknown';
   }
@@ -452,37 +580,185 @@ header h1 span{color:var(--text3);font-weight:400}
     return logType + '-fallback-' + index + '-' + toKeyPart(stringifyForKey(entry));
   }
 
+  function parseJsonString(value) {
+    if (typeof value !== 'string') return value;
+    var trimmed = value.trim();
+    if (!trimmed || !/^[\[{]/.test(trimmed)) return value;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+
+  function formatInlineValue(value) {
+    var parsed = parseJsonString(value);
+    if (parsed === null || parsed === undefined) return String(parsed);
+    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed);
+    try {
+      return JSON.stringify(parsed);
+    } catch {
+      return String(parsed);
+    }
+  }
+
+  function renderValue(value) {
+    var parsed = parseJsonString(value);
+    if (parsed === null || parsed === undefined) {
+      return '<span class="value-pill">' + escapeHtml(String(parsed)) + '</span>';
+    }
+    if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean') {
+      return '<span class="value-pill">' + escapeHtml(String(parsed)) + '</span>';
+    }
+    return '<pre class="json-block">' + escapeHtml(JSON.stringify(parsed, null, 2)) + '</pre>';
+  }
+
+  function renderRows(rows) {
+    var html = '<table class="detail-table"><tbody>';
+    rows.forEach(function(row) {
+      if (row[1] === undefined || row[1] === null || row[1] === '') return;
+      html += '<tr><th>' + escapeHtml(row[0]) + '</th><td>' + renderValue(row[1]) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function renderSection(title, content) {
+    return '<div class="detail-section"><div class="detail-section-title">' +
+      escapeHtml(title) + '</div>' + content + '</div>';
+  }
+
+  function renderObjectSection(title, value) {
+    var object = readObject(value);
+    if (!object) return '';
+    return renderSection(title, renderValue(object));
+  }
+
+  function renderConsoleDetails(entry) {
+    var messages = Array.isArray(entry.data) ? entry.data : [entry.data];
+    return renderSection('Console', renderRows([
+      ['Level', entry.level],
+      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+    ])) + renderSection('Messages',
+      '<div class="value-list">' + messages.map(renderValue).join('') + '</div>');
+  }
+
+  function renderNetworkDetails(entry) {
+    var request = readObject(entry.request) || entry;
+    var response = readObject(entry.response);
+    var html = renderSection('Request', renderRows([
+      ['Method', request.method],
+      ['URL', request.url],
+      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+      ['Duration', entry.duration !== undefined ? entry.duration + 'ms' : ''],
+      ['Headers', request.headers],
+      ['Body', request.body],
+    ]));
+    if (response) {
+      html += renderSection('Response', renderRows([
+        ['Status', response.status],
+        ['Status text', response.statusText],
+        ['Success', response.success],
+        ['Headers', response.headers],
+        ['Data', response.data],
+      ]));
+    }
+    if (entry.error) {
+      html += renderSection('Error', renderValue(entry.error));
+    }
+    return html;
+  }
+
+  function renderNavigationDetails(entry) {
+    return renderSection('Navigation', renderRows([
+      ['Action', entry.action],
+      ['From', entry.from || entry.path],
+      ['To', entry.to],
+      ['Duration', entry.duration !== undefined ? entry.duration + 'ms' : ''],
+      ['Debug', entry.debugLog],
+      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+    ]));
+  }
+
+  function renderTrackDetails(entry) {
+    return renderSection('Event', renderRows([
+      ['Name', entry.eventName || entry.event],
+      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+      ['Payload', entry],
+    ]));
+  }
+
+  function renderStateDetails(entry) {
+    return renderSection('State', renderRows([
+      ['Store', entry.storeName],
+      ['Action', entry.action],
+      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+      ['Prev', entry.prevState],
+      ['Next', entry.nextState],
+    ]));
+  }
+
+  function renderLogDetails(entry, type) {
+    var logType = type || getLogType(entry);
+    if (!entry || typeof entry !== 'object') {
+      return renderSection('Value', renderValue(entry));
+    }
+    if (logType === 'network') return renderNetworkDetails(entry);
+    if (logType === 'console') return renderConsoleDetails(entry);
+    if (logType === 'navigation') return renderNavigationDetails(entry);
+    if (logType === 'track') return renderTrackDetails(entry);
+    if (logType === 'zustand') return renderStateDetails(entry);
+    return renderObjectSection(labelForType(logType), entry) || renderSection('Raw', renderValue(entry));
+  }
+
   // --- Views ---
 
   function renderList() {
-    currentSession = null;
+    currentDevice = null;
     expandedRows = {};
     pulseDot.style.background = 'var(--text3)';
     pulseDot.style.boxShadow = 'none';
     statusEl.textContent = 'fetching...';
-    api('/sessions').then(function(data) {
+    api('/devices').then(function(data) {
       statusEl.textContent = '';
       pulseDot.style.background = 'var(--cyan)';
       pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
-      var sessions = data.sessions || [];
-      if (!sessions.length) {
+      var devices = data.devices || [];
+      if (!devices.length) {
         app.innerHTML =
           '<div class="empty">' +
           '<div class="empty-icon">_</div>' +
-          '<p>No sessions received yet.</p>' +
+          '<p>No device logs received yet.</p>' +
           '<p style="margin-top:12px;font-size:13px">POST a report to <code>/report</code> to see data here.</p>' +
-          '</div>';
+          '</div>' +
+          renderCurlPanel('Curl quick read', [
+            curlCommand('/health'),
+            curlCommand('/devices'),
+            curlCommand('/devices/latest'),
+          ]);
         return;
       }
-      var html = '<div class="section-title">Sessions <span style="color:var(--text3);font-weight:400">(' + sessions.length + ')</span></div>';
-      html += '<div class="session-grid">';
-      sessions.forEach(function(s, i) {
-        var lc = s.logCount || {};
-        html += '<div class="session-card" data-sid="' + escapeHtml(s.sessionId) + '" style="animation-delay:' + (i * 40) + 'ms" onclick="location.hash=\'session/' + encodeURIComponent(s.sessionId) + '\'">';
-        html += '<div><div class="session-id">' + escapeHtml(s.sessionId) + '</div>';
-        html += '<div class="session-time">' + formatTime(s.receivedAt) + '</div></div>';
-        html += '<div class="session-tags">' + renderSessionTags(lc) + '</div>';
-        html += '<div class="session-arrow">&rsaquo;</div>';
+      var html = '<div class="section-title">Devices <span style="color:var(--text3);font-weight:400">(' + devices.length + ')</span></div>';
+      html += renderCurlPanel('Curl quick read', [
+        curlCommand('/health'),
+        curlCommand('/devices'),
+        curlCommand('/devices/latest'),
+      ]);
+      html += '<div class="device-grid">';
+      devices.forEach(function(deviceLog, i) {
+        var lc = deviceLog.logCount || {};
+        var deviceText = formatDevice(deviceLog.device);
+        var ipText = formatIp(deviceLog.source);
+        html += '<div class="device-card" data-device-id="' + escapeHtml(deviceLog.deviceId) + '" style="animation-delay:' + (i * 40) + 'ms" onclick="location.hash=\'device/' + encodeURIComponent(deviceLog.deviceId) + '\'">';
+        html += '<div><div class="device-title">' + escapeHtml(deviceText) + '</div>';
+        html += '<div class="device-subtitle">IP ' + escapeHtml(ipText) + '</div></div>';
+        html += '<div class="device-meta-group">';
+        html += '<div class="device-meta-line"><strong>Device</strong>' + escapeHtml(deviceLog.deviceId) + '</div>';
+        html += '<div class="device-meta-line"><strong>Last seen</strong>' + formatTime(deviceLog.lastSeenAt || deviceLog.receivedAt) + '</div>';
+        html += '</div>';
+        html += '<div class="device-tags">' + renderDeviceTags(lc) + '</div>';
+        html += '<div class="device-arrow">&rsaquo;</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -495,14 +771,16 @@ header h1 span{color:var(--text3);font-weight:400}
     });
   }
 
-  function renderDetail(sessionId) {
+  function renderDetail(deviceId) {
     expandedRows = {};
+    window._currentFilterType = '';
+    window._failedOnly = false;
     statusEl.textContent = 'loading...';
-    api('/sessions/' + encodeURIComponent(sessionId)).then(function(data) {
+    api('/devices/' + encodeURIComponent(deviceId)).then(function(data) {
       statusEl.textContent = '';
       pulseDot.style.background = 'var(--cyan)';
       pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
-      currentSession = data;
+      currentDevice = data;
       var report = data.report || {};
       var logs = report.logs || {};
       var logTypes = Object.keys(logs);
@@ -512,17 +790,20 @@ header h1 span{color:var(--text3);font-weight:400}
       // Back link
       html += '<a href="#" class="back-link" onclick="location.hash=\'\';return false">';
       html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>';
-      html += 'All sessions</a>';
+      html += 'All devices</a>';
 
-      // Session header card
+      // Device header card
       html += '<div class="detail-header">';
-      html += '<div class="detail-id">' + escapeHtml(data.sessionId) + '</div>';
+      html += '<div class="detail-id">' + escapeHtml(data.deviceId) + '</div>';
       html += '<div class="detail-meta">';
-      html += '<span class="detail-meta-item"><strong>Received</strong> ' + formatTime(data.receivedAt) + '</span>';
+      html += '<span class="detail-meta-item"><strong>Last seen</strong> ' + formatTime(data.lastSeenAt || data.receivedAt) + '</span>';
       var totalLogs = Object.values(data.logCount || {}).reduce(function(a, b) { return a + b; }, 0);
       html += '<span class="detail-meta-item" data-type="Entries"><strong>Entries</strong> ' + totalLogs + '</span>';
+      if (data.source && data.source.ip) {
+        html += '<span class="detail-meta-item"><strong>IP</strong> ' + escapeHtml(data.source.ip) + '</span>';
+      }
       Object.entries(data.logCount || {}).forEach(function(e) {
-        html += '<span class="detail-meta-item" data-type="' + e[0] + '"><strong>' + e[0] + '</strong> ' + e[1] + '</span>';
+        html += '<span class="detail-meta-item" data-type="' + e[0] + '"><strong>' + escapeHtml(labelForType(e[0])) + '</strong> ' + e[1] + '</span>';
       });
       html += '</div>';
 
@@ -543,12 +824,19 @@ header h1 span{color:var(--text3);font-weight:400}
 
       html += '</div>';
 
+      html += renderCurlPanel('Curl this device', [
+        curlCommand('/devices/' + encodeURIComponent(deviceId)),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?limit=100'),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=network&failedOnly=true&limit=50'),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=console&limit=100'),
+      ]);
+
       // Tabs
       html += '<div class="tabs">';
       html += '<button class="tab active" data-type="" onclick="filterType(this,\'\')">All<span class="count">' + totalLogs + '</span></button>';
       logTypes.forEach(function(t) {
         var count = logs[t] ? logs[t].length : 0;
-        html += '<button class="tab" data-type="' + t + '" onclick="filterType(this,\'' + t + '\')">' + escapeHtml(t) + '<span class="count">' + count + '</span></button>';
+        html += '<button class="tab" data-type="' + t + '" onclick="filterType(this,\'' + t + '\')">' + escapeHtml(labelForType(t)) + '<span class="count">' + count + '</span></button>';
       });
       html += '</div>';
 
@@ -581,7 +869,7 @@ header h1 span{color:var(--text3);font-weight:400}
     var entries = [];
     if (type && logs[type]) {
       entries = Array.isArray(logs[type])
-        ? logs[type].map(function(entry) { return { type: type, entry: entry }; })
+        ? logs[type].map(function(entry, index) { return { type: type, entry: entry, order: index }; })
         : [];
     } else {
       Object.entries(logs).forEach(function(logGroup) {
@@ -589,7 +877,7 @@ header h1 span{color:var(--text3);font-weight:400}
         var value = logGroup[1];
         if (Array.isArray(value)) {
           value.forEach(function(entry) {
-            entries.push({ type: logType, entry: entry });
+            entries.push({ type: logType, entry: entry, order: entries.length });
           });
         }
       });
@@ -599,7 +887,13 @@ header h1 span{color:var(--text3);font-weight:400}
       entries = entries.filter(function(item) { return isFailedEntry(item.entry); });
     }
 
-    entries = entries.slice(-limit);
+    entries = entries
+      .slice()
+      .sort(function(a, b) {
+        var byTime = readTimestamp(b.entry) - readTimestamp(a.entry);
+        return byTime || b.order - a.order;
+      })
+      .slice(0, limit);
 
     var container = document.getElementById('logsContainer');
     if (!entries.length) {
@@ -615,11 +909,11 @@ header h1 span{color:var(--text3);font-weight:400}
       var typeClass = toKeyPart(lt);
       var isExpanded = expandedRows[rowId];
       html += '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" onclick="toggleRow(\'' + rowId + '\')">';
-      html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(lt.substring(0,4)) + '</div>';
+      html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
       html += '<div class="log-summary">' + summarize(entry) + '</div>';
       html += '<div class="log-status">' + statusBadge(entry) + '</div>';
       html += '<div class="log-expand">' + (isExpanded ? '&#9660;' : '&#9654;') + '</div>';
-      html += '<div class="log-json' + (isExpanded ? ' open' : '') + '" id="json-' + rowId + '"><pre>' + escapeHtml(JSON.stringify(entry, null, 2)) + '</pre></div>';
+      html += '<div class="log-json' + (isExpanded ? ' open' : '') + '" id="json-' + rowId + '"><div class="log-details">' + renderLogDetails(entry, lt) + '</div></div>';
       html += '</div>';
     });
     html += '</div>';
@@ -637,25 +931,26 @@ header h1 span{color:var(--text3);font-weight:400}
   }
 
   function rerenderVisibleLogs() {
-    if (!currentSession) return;
-    var logs = currentSession.report ? currentSession.report.logs : {};
+    if (!currentDevice) return;
+    var logs = currentDevice.report ? currentDevice.report.logs : {};
     var options = readVisibleLogOptions();
     renderLogs(logs, options.type, options.limit, options.failedOnly);
   }
 
-  function refreshCurrentSession() {
-    if (!currentSession) {
+  function refreshCurrentDevice() {
+    if (!currentDevice) {
       renderList();
       return Promise.resolve();
     }
 
     statusEl.textContent = 'refreshing...';
-    return api('/sessions/' + encodeURIComponent(currentSession.sessionId)).then(function(data) {
+    return api('/devices/' + encodeURIComponent(currentDevice.deviceId)).then(function(data) {
       statusEl.textContent = '';
       if (!data) return;
-      currentSession.report = data.report;
-      currentSession.logCount = data.logCount;
-      currentSession.receivedAt = data.receivedAt;
+      currentDevice.report = data.report;
+      currentDevice.logCount = data.logCount;
+      currentDevice.receivedAt = data.receivedAt;
+      currentDevice.lastSeenAt = data.lastSeenAt;
       rerenderVisibleLogs();
       updateTabCounts();
     }).catch(function(err) {
@@ -665,7 +960,7 @@ header h1 span{color:var(--text3);font-weight:400}
   }
 
   function refreshCurrentView() {
-    return refreshCurrentSession();
+    return refreshCurrentDevice();
   }
 
   window.refresh = function() { refreshCurrentView(); };
@@ -685,7 +980,7 @@ header h1 span{color:var(--text3);font-weight:400}
   };
 
   window.applyFilters = function() {
-    if (!currentSession) return;
+    if (!currentDevice) return;
     expandedRows = {};
     rerenderVisibleLogs();
   };
@@ -708,8 +1003,8 @@ header h1 span{color:var(--text3);font-weight:400}
   };
 
   window.copyJSON = function() {
-    if (!currentSession) return;
-    var text = JSON.stringify(currentSession.report, null, 2);
+    if (!currentDevice) return;
+    var text = JSON.stringify(currentDevice.report, null, 2);
     navigator.clipboard.writeText(text).then(function() {
       showToast('Copied to clipboard');
     }).catch(function() {
@@ -732,8 +1027,8 @@ header h1 span{color:var(--text3);font-weight:400}
 
   function route() {
     var hash = location.hash.replace('#', '');
-    if (hash.startsWith('session/')) {
-      renderDetail(decodeURIComponent(hash.substring(8)));
+    if (hash.startsWith('device/')) {
+      renderDetail(decodeURIComponent(hash.substring(7)));
     } else {
       renderList();
     }
@@ -749,55 +1044,62 @@ header h1 span{color:var(--text3);font-weight:400}
 	    );
 	  }
 
-	  function renderSessionTags(logCount) {
+	  function renderDeviceTags(logCount) {
 	    var html = '';
 	    Object.entries(logCount || {}).forEach(function(e) {
 	      var type = String(e[0]);
-	      html += '<span class="tag tag-' + toKeyPart(type) + '">' + escapeHtml(type.substring(0,3)) + ' ' + escapeHtml(String(e[1])) + '</span>';
+	      html += '<span class="tag tag-' + toKeyPart(type) + '">' + escapeHtml(labelForType(type)) + ' ' + escapeHtml(String(e[1])) + '</span>';
 	    });
 	    return html;
 	  }
 
-	  function appendSessionCard(payload) {
-    var grid = document.querySelector('.session-grid');
+	  function appendDeviceCard(payload) {
+    var grid = document.querySelector('.device-grid');
     if (!grid) { renderList(); return; }
 
-	    var sid = payload.sessionId;
-	    var existing = grid.querySelector('[data-sid="' + CSS.escape(sid) + '"]');
+	    var deviceId = payload.deviceId;
+      if (!deviceId) return;
+	    var existing = grid.querySelector('[data-device-id="' + CSS.escape(deviceId) + '"]');
 	    if (existing) {
-	      var tags = existing.querySelector('.session-tags');
-	      if (tags) tags.innerHTML = renderSessionTags(payload.logCount || {});
+	      var tags = existing.querySelector('.device-tags');
+	      if (tags) tags.innerHTML = renderDeviceTags(payload.logCount || {});
 	      return;
 	    }
 
 	    var lc = payload.logCount || {};
+    var deviceText = formatDevice(payload.device);
+    var ipText = formatIp(payload.source);
     var card = document.createElement('div');
-    card.className = 'session-card';
-    card.setAttribute('data-sid', sid);
-    card.setAttribute('onclick', "location.hash='session/" + encodeURIComponent(sid) + "'");
-    var html = '<div><div class="session-id">' + escapeHtml(sid) + '</div>';
-    html += '<div class="session-time">just now</div></div>';
-	    html += '<div class="session-tags">' + renderSessionTags(lc) + '</div>';
-    html += '<div class="session-arrow">&rsaquo;</div>';
+    card.className = 'device-card';
+    card.setAttribute('data-device-id', deviceId);
+    card.setAttribute('onclick', "location.hash='device/" + encodeURIComponent(deviceId) + "'");
+    var html = '<div><div class="device-title">' + escapeHtml(deviceText) + '</div>';
+    html += '<div class="device-subtitle">IP ' + escapeHtml(ipText) + '</div></div>';
+    html += '<div class="device-meta-group">';
+    html += '<div class="device-meta-line"><strong>Device</strong>' + escapeHtml(deviceId) + '</div>';
+    html += '<div class="device-meta-line"><strong>Last seen</strong> just now</div>';
+    html += '</div>';
+	    html += '<div class="device-tags">' + renderDeviceTags(lc) + '</div>';
+    html += '<div class="device-arrow">&rsaquo;</div>';
     card.innerHTML = html;
     grid.prepend(card);
 
-    // Update session count
+    // Update device count
     var titleEl = document.querySelector('.section-title');
     if (titleEl) {
-      var count = grid.querySelectorAll('.session-card').length;
-      titleEl.innerHTML = 'Sessions <span style="color:var(--text3);font-weight:400">(' + count + ')</span>';
+      var count = grid.querySelectorAll('.device-card').length;
+      titleEl.innerHTML = 'Devices <span style="color:var(--text3);font-weight:400">(' + count + ')</span>';
     }
   }
 
   function buildLogEntryHtml(entry, rowId, type) {
     var lt = type || getLogType(entry);
     var typeClass = toKeyPart(lt);
-    var html = '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(lt.substring(0,4)) + '</div>';
+    var html = '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
     html += '<div class="log-summary">' + summarize(entry) + '</div>';
     html += '<div class="log-status">' + statusBadge(entry) + '</div>';
     html += '<div class="log-expand">&#9654;</div>';
-    html += '<div class="log-json" id="json-' + rowId + '"><pre>' + escapeHtml(JSON.stringify(entry, null, 2)) + '</pre></div>';
+    html += '<div class="log-json" id="json-' + rowId + '"><div class="log-details">' + renderLogDetails(entry, lt) + '</div></div>';
     return html;
   }
 
@@ -836,22 +1138,22 @@ header h1 span{color:var(--text3);font-weight:400}
       div.id = 'entry-' + rowId;
       div.setAttribute('onclick', "toggleRow('" + rowId + "')");
       div.innerHTML = buildLogEntryHtml(entry, rowId, item.type);
-      list.appendChild(div);
+      list.prepend(div);
     });
 
-    // Trim from top if over limit, skip expanded entries
+    // Trim oldest rows from bottom if over limit, skip expanded entries.
     var entries = list.querySelectorAll('.log-entry');
     while (entries.length > limit) {
-      var first = entries[0];
-      if (first && first.classList.contains('expanded')) break;
-      list.removeChild(first);
+      var last = entries[entries.length - 1];
+      if (last && last.classList.contains('expanded')) break;
+      list.removeChild(last);
       entries = list.querySelectorAll('.log-entry');
     }
   }
 
   function updateTabCounts() {
-    if (!currentSession) return;
-    var logs = currentSession.report ? currentSession.report.logs : {};
+    if (!currentDevice) return;
+    var logs = currentDevice.report ? currentDevice.report.logs : {};
     var totalLogs = Object.values(logs).reduce(function(a, v) { return a + (Array.isArray(v) ? v.length : 0); }, 0);
 
     document.querySelectorAll('.tab').forEach(function(tab) {
@@ -886,17 +1188,17 @@ header h1 span{color:var(--text3);font-weight:400}
         pulseDot.style.background = 'var(--cyan)';
         pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
 
-        // Session list page — append new session card
-        if (!currentSession) {
-          appendSessionCard(payload);
+        // Device list page - append or update device card.
+        if (!currentDevice) {
+          appendDeviceCard(payload);
           return;
         }
 
-        // Detail page — merge delta if same session
-        if (payload.sessionId === currentSession.sessionId) {
+        // Detail page - merge delta if same device.
+        if (payload.deviceId === currentDevice.deviceId) {
           if (payload.type === 'delta' && payload.delta) {
             var deltaLogs = payload.delta.logs || {};
-            var report = currentSession.report || { version: 2, logs: {} };
+            var report = currentDevice.report || { version: 2, logs: {} };
             if (!report.logs) report.logs = {};
 
             Object.entries(deltaLogs).forEach(function(entry) {
@@ -907,15 +1209,15 @@ header h1 span{color:var(--text3);font-weight:400}
               report.logs[type] = report.logs[type].concat(entries);
             });
 
-            currentSession.report = report;
-            if (payload.logCount) currentSession.logCount = payload.logCount;
+            currentDevice.report = report;
+            if (payload.logCount) currentDevice.logCount = payload.logCount;
             appendDeltaLogs(deltaLogs);
             updateTabCounts();
           } else if (payload.type === 'full') {
-            refreshCurrentSession();
+            refreshCurrentDevice();
           }
-        } else if (!location.hash.startsWith('session/')) {
-          appendSessionCard(payload);
+        } else if (!location.hash.startsWith('device/')) {
+          appendDeviceCard(payload);
         }
       } catch {}
     });

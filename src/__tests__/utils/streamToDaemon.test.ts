@@ -63,7 +63,7 @@ describe('startStreaming', () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce({
         status: 200,
-        json: async () => ({ ok: true, sessionId: 'session-1' }),
+        json: async () => ({ ok: true, deviceId: 'ios-1' }),
       })
       .mockRejectedValueOnce(new Error('daemon down'))
       .mockResolvedValueOnce({
@@ -101,7 +101,7 @@ describe('startStreaming', () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce({
         status: 200,
-        json: async () => ({ ok: true, sessionId: 'session-1' }),
+        json: async () => ({ ok: true, deviceId: 'ios-1' }),
       })
       .mockRejectedValueOnce(new Error('daemon down'))
       .mockResolvedValueOnce({
@@ -137,7 +137,7 @@ describe('startStreaming', () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce({
         status: 200,
-        json: async () => ({ ok: true, sessionId: 'session-1' }),
+        json: async () => ({ ok: true, deviceId: 'ios-1' }),
       })
       .mockRejectedValueOnce(new Error('daemon down'));
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
@@ -156,7 +156,7 @@ describe('startStreaming', () => {
 
     expect(statuses).toEqual([
       { state: 'connecting' },
-      { state: 'connected', sessionId: 'session-1' },
+      { state: 'connected', deviceId: 'ios-1' },
       { state: 'retrying', retryInMs: 1000 },
     ]);
   });
@@ -170,7 +170,7 @@ describe('startStreaming', () => {
       })
       .mockResolvedValueOnce({
         status: 200,
-        json: async () => ({ ok: true, sessionId: 'session-1' }),
+        json: async () => ({ ok: true, deviceId: 'ios-1' }),
       });
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
@@ -258,7 +258,7 @@ describe('startStreaming', () => {
     ]);
   });
 
-  it('stops retrying after the maximum retry attempts', async () => {
+  it('keeps retrying by default for long-running live sync', async () => {
     const streamFeature = createStreamingFeature('track', [{ id: '1', event: 'initial' }]);
     const statuses: unknown[] = [];
     const fetchMock = jest.fn().mockRejectedValue(new Error('daemon down'));
@@ -278,12 +278,41 @@ describe('startStreaming', () => {
     }
 
     expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(statuses.at(-1)).toEqual({ state: 'retrying', retryInMs: 30000 });
+
+    jest.advanceTimersByTime(30000);
+    await flushPromises();
+
+    expect(fetchMock).toHaveBeenCalledTimes(12);
+  });
+
+  it('can stop retrying after a configured maximum retry attempts', async () => {
+    const streamFeature = createStreamingFeature('track', [{ id: '1', event: 'initial' }]);
+    const statuses: unknown[] = [];
+    const fetchMock = jest.fn().mockRejectedValue(new Error('daemon down'));
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+    DebugToolkit.addFeature(streamFeature.feature);
+
+    startStreaming({
+      endpoint: 'http://127.0.0.1:3799',
+      debounceMs: 10,
+      maxRetryAttempts: 2,
+      onStatus: (status) => statuses.push(status),
+    });
+    await flushPromises();
+
+    jest.advanceTimersByTime(1000);
+    await flushPromises();
+    jest.advanceTimersByTime(2000);
+    await flushPromises();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(statuses.at(-1)).toEqual({ state: 'failed', reason: 'retry_limit' });
 
     jest.advanceTimersByTime(30000);
     await flushPromises();
 
-    expect(fetchMock).toHaveBeenCalledTimes(11);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it.each(['console', 'network'])('streams %s feature deltas', async (featureName) => {
@@ -291,7 +320,7 @@ describe('startStreaming', () => {
     const fetchMock = jest.fn()
       .mockResolvedValueOnce({
         status: 200,
-        json: async () => ({ ok: true, sessionId: 'session-1' }),
+        json: async () => ({ ok: true, deviceId: 'ios-1' }),
       })
       .mockResolvedValueOnce({
         status: 200,

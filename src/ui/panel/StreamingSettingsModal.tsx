@@ -19,9 +19,10 @@ import {
   loadDaemonSettings,
   normalizeDaemonSettings,
   saveDaemonSettings,
+  saveDaemonStreamingEnabled,
 } from '../../utils/daemonSettings';
 import { checkDaemonConnection } from '../../utils/daemonConnection';
-import { getDefaultDaemonEndpoint, reportDebugSessionToDaemon } from '../../utils/reportToDaemon';
+import { getDefaultDaemonEndpoint, reportDebugDeviceToDaemon } from '../../utils/reportToDaemon';
 import { autoDetectDaemonIp, getMetroHost } from '../../utils/autoDetectDaemon';
 import { startStreaming, stopStreaming, isStreaming } from '../../utils/streamToDaemon';
 
@@ -129,6 +130,7 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
   const toggleLiveSync = useCallback(async () => {
     if (streaming) {
       stopStreaming();
+      await saveDaemonStreamingEnabled(false);
       setStreaming(false);
       setSyncState('idle');
       setMessage(null);
@@ -156,6 +158,7 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
       return;
     }
 
+    await saveDaemonStreamingEnabled(true);
     startStreaming({
       ...daemonOptions,
       timeoutMs: 3000,
@@ -204,7 +207,7 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
       }
 
       setMessage('Sending logs...');
-      const result = await reportDebugSessionToDaemon({
+      const result = await reportDebugDeviceToDaemon({
         ...daemonOptions,
         timeoutMs: 2000,
       });

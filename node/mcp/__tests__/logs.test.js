@@ -41,7 +41,7 @@ describe('MCP log selection', () => {
 
   it('filters failed logs across types', () => {
     const payload = createToolPayload(
-      { sessionId: 's1', receivedAt: 'now', report },
+      { deviceId: 'ios_phone_127_0_0_1', receivedAt: 'now', report },
       { failedOnly: true },
     );
 

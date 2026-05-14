@@ -7,7 +7,7 @@ const DEFAULT_MAX_PER_TYPE = 50;
 const DEFAULT_MAX_BODY_BYTES = 16 * 1024;
 const MAX_DEPTH = 8;
 
-export interface DebugSessionReportOptions {
+export interface DebugDeviceReportOptions {
   maxPerType?: number;
   maxBodyBytes?: number;
   includeTypes?: string[];
@@ -20,7 +20,7 @@ export interface DeviceInfo {
   appVersion: string;
 }
 
-export interface DebugSessionReport {
+export interface DebugDeviceReport {
   version: 2;
   device: DeviceInfo;
   logs: Record<string, unknown[] | undefined>;
@@ -159,13 +159,13 @@ function sanitizeValue(
   );
 }
 
-export function createDebugSessionReport(
-  options: DebugSessionReportOptions = {},
-): DebugSessionReport {
+export function createDebugDeviceReport(
+  options: DebugDeviceReportOptions = {},
+): DebugDeviceReport {
   const maxPerType = Math.max(1, Math.floor(options.maxPerType ?? DEFAULT_MAX_PER_TYPE));
   const maxBodyBytes = Math.max(256, Math.floor(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES));
   const includeTypes = options.includeTypes?.length ? new Set(options.includeTypes) : null;
-  const logs: DebugSessionReport['logs'] = {};
+  const logs: DebugDeviceReport['logs'] = {};
 
   DebugToolkit.features.forEach((feature) => {
     if (includeTypes && !includeTypes.has(feature.name)) {

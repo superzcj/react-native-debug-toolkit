@@ -70,14 +70,15 @@ function selectLogs(report, options = {}) {
   }));
 }
 
-function createToolPayload(session, options = {}) {
-  const report = session.report || { version: 2, logs: {} };
+function createToolPayload(device, options = {}) {
+  const report = device.report || { version: 2, logs: {} };
   const logs = selectLogs(report, options);
 
   return {
     ok: true,
-    sessionId: session.sessionId,
-    receivedAt: session.receivedAt,
+    deviceId: device.deviceId,
+    receivedAt: device.receivedAt,
+    lastSeenAt: device.lastSeenAt,
     logType: options.logType || 'all',
     failedOnly: options.failedOnly === true,
     includeBodies: options.includeBodies !== false,

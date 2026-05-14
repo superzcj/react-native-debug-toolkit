@@ -4,7 +4,7 @@
 
 Dev-only React Native inspector with a local log bridge.
 
-It shows app logs on device, then can send the same session to a local daemon for browser, curl, scripts, or MCP.
+It shows app logs on device, then can send the same device log stream to a local daemon for browser, curl, scripts, or MCP.
 
 ## Model
 
@@ -20,7 +20,8 @@ Captured logs:
 - Track
 - Zustand
 
-The daemon stores sessions in memory. Restarting it clears logs.
+The CLI daemon persists device logs to `~/.react-native-debug-toolkit/daemon-devices.json`.
+Use `DELETE /devices` to clear stored logs.
 
 ## Install
 
@@ -91,6 +92,9 @@ Start daemon:
 npx debug-toolkit --daemon-only
 ```
 
+The default device log store is `~/.react-native-debug-toolkit/daemon-devices.json`.
+Override it with `--store /path/to/devices.json` or `DEBUG_TOOLKIT_DAEMON_STORE`.
+
 Open:
 
 ```text
@@ -112,10 +116,19 @@ Real device rule: phone browser must open `http://<mac-ip>:3799/health`. If not,
 ## HTTP
 
 ```bash
-curl http://127.0.0.1:3799/health
-curl http://127.0.0.1:3799/sessions
-curl http://127.0.0.1:3799/sessions/latest
-curl 'http://127.0.0.1:3799/sessions/<sessionId>/logs?type=network&failedOnly=true&limit=50'
+BASE=http://127.0.0.1:3799
+
+curl "$BASE/health"
+curl "$BASE/devices"
+curl "$BASE/devices/latest"
+
+DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log((JSON.parse(s).devices||[])[0]?.deviceId||''))")
+
+curl "$BASE/devices/$DEVICE_ID"
+curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
+curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
+curl -X DELETE "$BASE/devices"
 ```
 
 Main endpoints:
@@ -124,10 +137,11 @@ Main endpoints:
 GET    /health
 POST   /report
 POST   /ingest
-GET    /sessions
-GET    /sessions/latest
-GET    /sessions/:sessionId/logs
-DELETE /sessions
+GET    /devices
+GET    /devices/latest
+GET    /devices/:deviceId
+GET    /devices/:deviceId/logs
+DELETE /devices
 GET    /events
 GET    /console
 ```
@@ -140,7 +154,7 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 
 Tools:
 
-- `list_app_sessions`
+- `list_app_devices`
 - `get_app_logs`
 
 Use curl when shell is available.
@@ -150,9 +164,9 @@ Use curl when shell is available.
 - `DebugView`
 - `DebugToolkit`
 - `initializeDebugToolkit`
-- `createDebugSessionReport`
+- `createDebugDeviceReport`
 - `checkDaemonConnection`
-- `reportDebugSessionToDaemon`
+- `reportDebugDeviceToDaemon`
 - `startStreaming`
 - `stopStreaming`
 - `isStreaming`

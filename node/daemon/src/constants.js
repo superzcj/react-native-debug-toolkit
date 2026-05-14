@@ -1,6 +1,7 @@
 'use strict';
 
 const os = require('os');
+const path = require('path');
 
 const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_PORT = 3799;
@@ -22,11 +23,16 @@ function getLanIPs() {
   return ips;
 }
 
+function getDefaultDeviceStorePath() {
+  return path.join(os.homedir(), '.react-native-debug-toolkit', 'daemon-devices.json');
+}
+
 module.exports = {
   DAEMON_NAME,
   DAEMON_VERSION,
   DEFAULT_HOST,
   DEFAULT_PORT,
   REPORT_PROTOCOL_VERSION,
+  getDefaultDeviceStorePath,
   getLanIPs,
 };

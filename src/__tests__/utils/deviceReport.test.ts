@@ -1,5 +1,5 @@
 import { DebugToolkit } from '../../core/DebugToolkit';
-import { createDebugSessionReport } from '../../utils/sessionReport';
+import { createDebugDeviceReport } from '../../utils/deviceReport';
 import type { DebugFeature } from '../../types';
 
 function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
@@ -12,7 +12,7 @@ function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
   };
 }
 
-describe('createDebugSessionReport', () => {
+describe('createDebugDeviceReport', () => {
   afterEach(() => {
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
@@ -25,7 +25,7 @@ describe('createDebugSessionReport', () => {
     ]));
     DebugToolkit.addFeature(createFeature('environment', { current: 'dev' }));
 
-    const report = createDebugSessionReport({ maxPerType: 1 });
+    const report = createDebugDeviceReport({ maxPerType: 1 });
 
     expect(report).toEqual({
       version: 2,
@@ -45,7 +45,7 @@ describe('createDebugSessionReport', () => {
     DebugToolkit.addFeature(createFeature('console', [{ level: 'error' }]));
     DebugToolkit.addFeature(createFeature('network', [{ request: { url: '/api' } }]));
 
-    const report = createDebugSessionReport({ includeTypes: ['network'] });
+    const report = createDebugDeviceReport({ includeTypes: ['network'] });
 
     expect(Object.keys(report.logs)).toEqual(['network']);
   });
@@ -62,7 +62,7 @@ describe('createDebugSessionReport', () => {
       },
     ]));
 
-    const report = createDebugSessionReport({ maxBodyBytes: 64 });
+    const report = createDebugDeviceReport({ maxBodyBytes: 64 });
     const entry = report.logs.network?.[0] as {
       request: { body: { __debugToolkitTruncated: boolean; preview: string } };
     };

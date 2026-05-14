@@ -1,9 +1,18 @@
 import {
+  _resetDaemonSettingsForTesting,
   buildDeviceDaemonEndpoint,
+  loadDaemonStreamingEnabled,
+  loadDaemonSettings,
   normalizeDaemonSettings,
+  saveDaemonSettings,
+  saveDaemonStreamingEnabled,
 } from '../../utils/daemonSettings';
 
 describe('daemonSettings', () => {
+  beforeEach(() => {
+    _resetDaemonSettingsForTesting();
+  });
+
   it('uses default daemon endpoint for simulator mode', () => {
     expect(normalizeDaemonSettings({
       mode: 'simulator',
@@ -25,6 +34,32 @@ describe('daemonSettings', () => {
       token: ' dev-token ',
       endpoint: '',
     })).toEqual({
+      endpoint: 'http://192.168.1.10:3799',
+      token: 'dev-token',
+    });
+  });
+
+  it('persists live streaming enabled state', async () => {
+    await expect(loadDaemonStreamingEnabled()).resolves.toBeNull();
+
+    await saveDaemonStreamingEnabled(true);
+    await expect(loadDaemonStreamingEnabled()).resolves.toBe(true);
+
+    await saveDaemonStreamingEnabled(false);
+    await expect(loadDaemonStreamingEnabled()).resolves.toBe(false);
+  });
+
+  it('keeps daemon settings in runtime memory', async () => {
+    await saveDaemonSettings({
+      mode: 'device',
+      deviceHost: ' 192.168.1.10 ',
+      token: ' dev-token ',
+      endpoint: '',
+    });
+
+    await expect(loadDaemonSettings()).resolves.toEqual({
+      mode: 'device',
+      deviceHost: '192.168.1.10',
       endpoint: 'http://192.168.1.10:3799',
       token: 'dev-token',
     });

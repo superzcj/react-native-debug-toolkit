@@ -94,21 +94,54 @@ function authorizeRequest(req, res, url, token) {
   return false;
 }
 
-function toSessionPayload(session) {
-  if (!session) {
+function normalizeIpAddress(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  if (value.startsWith('::ffff:')) {
+    return value.slice(7);
+  }
+
+  return value;
+}
+
+function getRequestSource(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const forwardedIp = Array.isArray(forwarded)
+    ? forwarded[0]
+    : typeof forwarded === 'string'
+      ? forwarded.split(',')[0]
+      : null;
+  const ip = normalizeIpAddress((forwardedIp || '').trim()) ||
+    normalizeIpAddress(req.socket && req.socket.remoteAddress);
+  const userAgent = req.headers['user-agent'];
+
+  return {
+    ip: ip || 'unknown',
+    userAgent: typeof userAgent === 'string' ? userAgent : '',
+  };
+}
+
+function toDevicePayload(deviceLog) {
+  if (!deviceLog) {
     return null;
   }
 
   return {
-    sessionId: session.sessionId,
-    receivedAt: session.receivedAt,
-    logCount: session.logCount,
-    report: session.report,
+    deviceId: deviceLog.deviceId,
+    firstSeenAt: deviceLog.firstSeenAt,
+    lastSeenAt: deviceLog.lastSeenAt,
+    receivedAt: deviceLog.receivedAt,
+    device: deviceLog.device || null,
+    source: deviceLog.source || null,
+    logCount: deviceLog.logCount,
+    report: deviceLog.report,
   };
 }
 
-function selectLogs(session, searchParams) {
-  if (!session) {
+function selectLogs(deviceLog, searchParams) {
+  if (!deviceLog) {
     return [];
   }
 
@@ -118,7 +151,7 @@ function selectLogs(session, searchParams) {
     ? Math.min(Math.floor(limitParam), 500)
     : 50;
   const failedOnly = searchParams.get('failedOnly') === 'true';
-  const logs = session.report.logs || {};
+  const logs = deviceLog.report.logs || {};
 
   let entries = [];
   if (type) {
@@ -143,12 +176,18 @@ function selectLogs(session, searchParams) {
   return entries.slice(-limit);
 }
 
-function broadcastSSE(clients, eventType, session, delta) {
+function broadcastSSE(clients, eventType, deviceLog, delta) {
   if (clients.size === 0) return;
 
   const payload = delta
-    ? { type: 'delta', sessionId: session.sessionId, delta, logCount: session.logCount }
-    : { type: 'full', sessionId: session.sessionId, logCount: session.logCount, device: session.report.device || null };
+    ? { type: 'delta', deviceId: deviceLog.deviceId, delta, logCount: deviceLog.logCount }
+    : {
+      type: 'full',
+      deviceId: deviceLog.deviceId,
+      logCount: deviceLog.logCount,
+      device: deviceLog.device || null,
+      source: deviceLog.source || null,
+    };
   const data = JSON.stringify(payload);
 
   clients.forEach((client) => {
@@ -166,8 +205,9 @@ function createDaemonServer(options = {}) {
   let keepaliveTimer = null;
 
   const store = options.store || createMemoryStore({
-    onUpdate(session, type, delta) {
-      broadcastSSE(sseClients, 'logs', session, type === 'delta' ? delta : null);
+    storagePath: options.deviceStorePath || null,
+    onUpdate(deviceLog, type, delta) {
+      broadcastSSE(sseClients, 'logs', deviceLog, type === 'delta' ? delta : null);
     },
   });
   const token = options.token || null;
@@ -197,9 +237,15 @@ function createDaemonServer(options = {}) {
       sseClients.add(res);
       req.on('close', () => { sseClients.delete(res); });
 
-      const latest = store.getLatestSession();
+      const latest = store.getLatestDevice();
       if (latest) {
-        const data = JSON.stringify({ type: 'full', sessionId: latest.sessionId, logCount: latest.logCount, device: latest.report.device || null });
+        const data = JSON.stringify({
+          type: 'full',
+          deviceId: latest.deviceId,
+          logCount: latest.logCount,
+          device: latest.device || null,
+          source: latest.source || null,
+        });
         res.write(`event: logs\ndata: ${data}\n\n`);
       }
 
@@ -225,6 +271,7 @@ function createDaemonServer(options = {}) {
         version: DAEMON_VERSION,
         protocolVersion: REPORT_PROTOCOL_VERSION,
         ips: getLanIPs(),
+        deviceStore: options.deviceStorePath || null,
       });
       return;
     }
@@ -242,12 +289,12 @@ function createDaemonServer(options = {}) {
           return;
         }
 
-        const session = store.saveReport(report);
+        const deviceLog = store.saveReport(report, { source: getRequestSource(req) });
         sendJson(res, 200, {
           ok: true,
-          sessionId: session.sessionId,
-          receivedAt: session.receivedAt,
-          logCount: session.logCount,
+          deviceId: deviceLog.deviceId,
+          receivedAt: deviceLog.receivedAt,
+          logCount: deviceLog.logCount,
         });
       } catch (error) {
         sendJson(res, error.statusCode || 500, {
@@ -263,18 +310,18 @@ function createDaemonServer(options = {}) {
 
       try {
         const body = await readJsonBody(req);
-        if (!body || typeof body.sessionId !== 'string' || !body.delta) {
-          sendJson(res, 400, { ok: false, error: 'Must include sessionId and delta' });
+        if (!body || typeof body.deviceId !== 'string' || !body.delta) {
+          sendJson(res, 400, { ok: false, error: 'Must include deviceId and delta' });
           return;
         }
 
-        const session = store.appendLogs(body.sessionId, body.delta);
-        if (!session) {
-          sendJson(res, 404, { ok: false, error: 'Session not found' });
+        const deviceLog = store.appendLogs(body.deviceId, body.delta);
+        if (!deviceLog) {
+          sendJson(res, 404, { ok: false, error: 'Device not found' });
           return;
         }
 
-        sendJson(res, 200, { ok: true, sessionId: session.sessionId, logCount: session.logCount });
+        sendJson(res, 200, { ok: true, deviceId: deviceLog.deviceId, logCount: deviceLog.logCount });
       } catch (error) {
         sendJson(res, error.statusCode || 500, {
           ok: false,
@@ -284,30 +331,30 @@ function createDaemonServer(options = {}) {
       return;
     }
 
-    if (method === 'GET' && (url.pathname === '/latest' || url.pathname === '/sessions/latest')) {
+    if (method === 'GET' && url.pathname === '/devices/latest') {
       if (!authorizeRequest(req, res, url, token)) return;
 
-      const session = store.getLatestSession();
-      if (!session) {
-        sendJson(res, 404, { ok: false, error: 'No debug session report has been received' });
+      const deviceLog = store.getLatestDevice();
+      if (!deviceLog) {
+        sendJson(res, 404, { ok: false, error: 'No device logs have been received' });
         return;
       }
 
       sendJson(res, 200, {
         ok: true,
-        ...toSessionPayload(session),
+        ...toDevicePayload(deviceLog),
       });
       return;
     }
 
-    if (method === 'GET' && url.pathname === '/sessions') {
+    if (method === 'GET' && url.pathname === '/devices') {
       if (!authorizeRequest(req, res, url, token)) return;
 
-      sendJson(res, 200, { ok: true, sessions: store.listSessions() });
+      sendJson(res, 200, { ok: true, devices: store.listDevices() });
       return;
     }
 
-    if (method === 'DELETE' && url.pathname === '/sessions') {
+    if (method === 'DELETE' && url.pathname === '/devices') {
       if (!authorizeRequest(req, res, url, token)) return;
 
       store.clear();
@@ -315,29 +362,29 @@ function createDaemonServer(options = {}) {
       return;
     }
 
-    const sessionMatch = url.pathname.match(/^\/sessions\/([^/]+)(?:\/logs)?$/);
-    if (method === 'GET' && sessionMatch) {
+    const deviceMatch = url.pathname.match(/^\/devices\/([^/]+)(?:\/logs)?$/);
+    if (method === 'GET' && deviceMatch) {
       if (!authorizeRequest(req, res, url, token)) return;
 
-      const session = store.getSession(decodeURIComponent(sessionMatch[1]));
-      if (!session) {
-        sendJson(res, 404, { ok: false, error: 'Session not found' });
+      const deviceLog = store.getDevice(decodeURIComponent(deviceMatch[1]));
+      if (!deviceLog) {
+        sendJson(res, 404, { ok: false, error: 'Device not found' });
         return;
       }
 
       if (url.pathname.endsWith('/logs')) {
         sendJson(res, 200, {
           ok: true,
-          sessionId: session.sessionId,
-          receivedAt: session.receivedAt,
-          logs: selectLogs(session, url.searchParams),
+          deviceId: deviceLog.deviceId,
+          receivedAt: deviceLog.receivedAt,
+          logs: selectLogs(deviceLog, url.searchParams),
         });
         return;
       }
 
       sendJson(res, 200, {
         ok: true,
-        ...toSessionPayload(session),
+        ...toDevicePayload(deviceLog),
       });
       return;
     }

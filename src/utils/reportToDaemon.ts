@@ -2,10 +2,10 @@ import { Platform } from 'react-native';
 
 import { _addDaemonEndpointToNetworkBlacklist } from '../features/network';
 import {
-  createDebugSessionReport,
-  type DebugSessionReport,
-  type DebugSessionReportOptions,
-} from './sessionReport';
+  createDebugDeviceReport,
+  type DebugDeviceReport,
+  type DebugDeviceReportOptions,
+} from './deviceReport';
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
@@ -31,7 +31,7 @@ type AbortControllerLike = {
   abort: () => void;
 };
 
-export interface ReportToDaemonOptions extends DebugSessionReportOptions {
+export interface ReportToDaemonOptions extends DebugDeviceReportOptions {
   endpoint?: string;
   timeoutMs?: number;
   token?: string;
@@ -40,9 +40,9 @@ export interface ReportToDaemonOptions extends DebugSessionReportOptions {
 export interface ReportResult {
   ok: boolean;
   endpoint: string;
-  report: DebugSessionReport;
+  report: DebugDeviceReport;
   status?: number;
-  sessionId?: string;
+  deviceId?: string;
   receivedAt?: string;
   logCount?: Record<string, number>;
   error?: string;
@@ -102,12 +102,12 @@ function readLogCount(value: unknown): Record<string, number> | undefined {
   );
 }
 
-export async function reportDebugSessionToDaemon(
+export async function reportDebugDeviceToDaemon(
   options: ReportToDaemonOptions = {},
 ): Promise<ReportResult> {
   const endpoint = options.endpoint ?? getDefaultDaemonEndpoint();
   const reportUrl = buildDaemonUrl(endpoint, '/report');
-  const report = createDebugSessionReport(options);
+  const report = createDebugDeviceReport(options);
   const fetchImpl = getGlobalFetch();
 
   _addDaemonEndpointToNetworkBlacklist(endpoint);
@@ -152,7 +152,7 @@ export async function reportDebugSessionToDaemon(
       endpoint,
       report,
       status: response.status,
-      sessionId: typeof bodyObject.sessionId === 'string' ? bodyObject.sessionId : undefined,
+      deviceId: typeof bodyObject.deviceId === 'string' ? bodyObject.deviceId : undefined,
       receivedAt: typeof bodyObject.receivedAt === 'string' ? bodyObject.receivedAt : undefined,
       logCount: readLogCount(bodyObject.logCount),
       error: response.ok ? undefined : typeof bodyObject.error === 'string' ? bodyObject.error : 'Report failed',
