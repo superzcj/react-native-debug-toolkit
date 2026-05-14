@@ -15,8 +15,10 @@
   --red:#ff1744;--red-dim:rgba(255,23,68,.12);
   --amber:#ffab00;--amber-dim:rgba(255,171,0,.12);
   --orange:#ff6e40;--orange-dim:rgba(255,110,64,.12);
-	  --font-mono:'SF Mono',Monaco,Consolas,monospace;
-	  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --purple:#7c4dff;--purple-dim:rgba(124,77,255,.12);
+  --pink:#e040fb;--pink-dim:rgba(224,64,251,.12);
+  --font-mono:'SF Mono',Monaco,Consolas,monospace;
+  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --radius:6px;
 }
 
@@ -32,7 +34,6 @@ body{
     repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,255,.012) 2px,rgba(0,229,255,.012) 4px);
 }
 
-/* Scanline overlay */
 body::after{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   background:repeating-linear-gradient(0deg,transparent 0px,transparent 1px,rgba(0,0,0,.03) 1px,rgba(0,0,0,.03) 2px);
@@ -73,6 +74,9 @@ header h1 span{color:var(--text3);font-weight:400}
 .btn:hover{background:var(--surface3);color:var(--text);border-color:var(--cyan-mid)}
 .btn:active{transform:scale(.97)}
 .btn-icon{padding:6px 10px;font-size:14px}
+.btn-sm{padding:3px 8px;font-size:10px;border-radius:3px}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-ghost:hover{background:var(--surface2);border-color:var(--border)}
 
 /* Container */
 .container{max-width:1160px;margin:0 auto;padding:28px 24px}
@@ -194,15 +198,55 @@ header h1 span{color:var(--text3);font-weight:400}
 }
 .toggle.on::after{transform:translateX(14px)}
 
-/* Curl help */
+/* Search */
+.search-wrap{
+  flex:1;min-width:160px;position:relative;
+}
+.search-input{
+  width:100%;padding:5px 10px 5px 28px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:4px;
+  color:var(--text);font-size:12px;font-family:var(--font-mono);
+  transition:border-color .15s;
+}
+.search-input::placeholder{color:var(--text3)}
+.search-input:focus{outline:none;border-color:var(--cyan)}
+.search-icon{
+  position:absolute;left:8px;top:50%;transform:translateY(-50%);
+  color:var(--text3);font-size:13px;pointer-events:none;
+}
+.search-clear{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:14px;padding:2px 4px;line-height:1;
+  display:none;
+}
+.search-clear.visible{display:block}
+.search-clear:hover{color:var(--text)}
+.kbd{
+  font-family:var(--font-mono);font-size:9px;color:var(--text3);
+  background:var(--surface2);border:1px solid var(--border2);
+  padding:1px 4px;border-radius:2px;letter-spacing:.02em;
+}
+
+/* Curl help - collapsible */
 .curl-panel{
   margin-bottom:18px;padding:12px 14px;background:var(--bg2);
   border:1px solid var(--border);border-radius:var(--radius);
 }
+.curl-header{
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;user-select:none;
+}
 .curl-title{
   font-size:11px;font-family:var(--font-mono);font-weight:700;
-  color:var(--cyan);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:.08em;
 }
+.curl-toggle{
+  font-size:10px;color:var(--text3);transition:transform .2s;
+}
+.curl-toggle.open{transform:rotate(90deg)}
+.curl-body{display:none;margin-top:10px}
+.curl-body.open{display:block}
 .curl-list{display:flex;flex-direction:column;gap:6px}
 .curl-list code{
   display:block;padding:7px 9px;background:rgba(0,0,0,.18);
@@ -211,11 +255,9 @@ header h1 span{color:var(--text3);font-weight:400}
   white-space:pre-wrap;word-break:break-word;
 }
 
-/* Log entries */
+/* Log entries - redesigned */
 .log-list{display:flex;flex-direction:column;gap:2px}
 .log-entry{
-  display:grid;grid-template-columns:104px 1fr 90px 30px;
-  align-items:center;gap:0;
   background:var(--surface);border:1px solid transparent;border-radius:var(--radius);
   cursor:pointer;transition:all .15s;overflow:hidden;
   animation:fadeSlideIn .3s ease-out both;
@@ -225,85 +267,174 @@ header h1 span{color:var(--text3);font-weight:400}
   background:var(--surface2);border-color:var(--border2);
   box-shadow:0 2px 8px rgba(0,0,0,.2);
 }
-.log-entry.expanded{border-color:var(--cyan-mid);background:var(--surface2)}
+.log-entry.expanded{
+  border-color:var(--cyan-mid);background:var(--surface2);
+  box-shadow:0 2px 12px rgba(0,0,0,.25);
+}
+.log-entry.focused{outline:1px solid var(--cyan);outline-offset:-1px}
+
+.log-row{
+  display:grid;grid-template-columns:90px 1fr auto auto 28px;
+  align-items:center;gap:0;
+  padding:0 4px 0 0;min-height:46px;
+}
 .log-type{
   font-family:var(--font-mono);font-size:10px;font-weight:600;
   text-transform:uppercase;letter-spacing:.06em;
-  padding:0 14px;height:42px;display:flex;align-items:center;
-  border-right:1px solid var(--border);
+  padding:0 12px;height:100%;display:flex;align-items:center;
+  justify-content:center;text-align:center;
 }
 .log-type-network{color:var(--cyan)}
 .log-type-console{color:var(--green)}
-.log-type-navigation{color:#7c4dff}
+.log-type-navigation{color:var(--purple)}
 .log-type-track{color:var(--orange)}
-.log-type-zustand{color:#e040fb}
+.log-type-zustand{color:var(--pink)}
 .log-type-unknown{color:var(--text3)}
-.log-summary{
-  padding:0 14px;height:42px;display:flex;align-items:center;
-  font-family:var(--font-mono);font-size:12px;color:var(--text);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+
+.log-summary-col{
+  padding:8px 12px;min-width:0;overflow:hidden;
 }
+.log-summary{
+  font-family:var(--font-mono);font-size:12px;color:var(--text);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.5;word-break:break-all;
+}
+.log-timestamp{
+  font-family:var(--font-mono);font-size:10px;color:var(--text3);
+  margin-top:2px;
+}
+
 .log-status{
-  padding:0 10px;height:42px;display:flex;align-items:center;justify-content:center;
+  padding:0 8px;height:100%;display:flex;align-items:center;justify-content:center;
 }
 .badge{
   font-family:var(--font-mono);font-size:10px;font-weight:600;
-  padding:2px 8px;border-radius:3px;letter-spacing:.02em;
+  padding:2px 8px;border-radius:3px;letter-spacing:.02em;white-space:nowrap;
 }
 .badge-ok{background:var(--green-dim);color:var(--green)}
 .badge-error{background:var(--red-dim);color:var(--red)}
 .badge-warn{background:var(--amber-dim);color:var(--amber)}
 .badge-info{background:var(--cyan-dim);color:var(--cyan)}
+
+.log-copy{
+  padding:0 4px;height:100%;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s;
+}
+.log-entry:hover .log-copy{opacity:1}
+.copy-btn{
+  background:none;border:1px solid transparent;cursor:pointer;
+  color:var(--text3);font-size:13px;padding:2px 4px;border-radius:3px;
+  transition:all .15s;
+}
+.copy-btn:hover{color:var(--cyan);background:var(--cyan-dim);border-color:rgba(0,229,255,.15)}
+
 .log-expand{
-  padding:0 8px;height:42px;display:flex;align-items:center;justify-content:center;
-  color:var(--text3);font-size:10px;transition:color .15s;
+  padding:0 8px;height:100%;display:flex;align-items:center;justify-content:center;
+  color:var(--text3);font-size:10px;transition:transform .2s,color .15s;
 }
 .log-entry:hover .log-expand{color:var(--cyan)}
-.log-json{
-  grid-column:1/-1;
-  border-top:1px solid var(--border);
-  overflow:hidden;
-  max-height:0;transition:max-height .3s ease-out;
+.log-entry.expanded .log-expand{transform:rotate(90deg);color:var(--cyan)}
+
+/* Expanded detail panel */
+.log-detail{
+  display:none;border-top:1px solid var(--border);
+  animation:detailFadeIn .2s ease-out;
 }
-.log-json.open{max-height:720px}
-.log-json pre{
-  padding:14px 18px;font-family:var(--font-mono);font-size:11px;
-  line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-all;
-  overflow:auto;max-height:400px;
-}
-.log-details{
-  padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:12px;max-height:560px;overflow:auto;
-}
+.log-entry.expanded .log-detail{display:block}
+@keyframes detailFadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+.log-detail-inner{padding:16px 18px}
+
+/* Detail sections */
+.detail-sections{display:flex;flex-direction:column;gap:10px}
 .detail-section{
   border:1px solid var(--border);border-radius:var(--radius);
   background:rgba(8,12,22,.35);overflow:hidden;
 }
+.detail-section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 12px;border-bottom:1px solid var(--border);
+  background:rgba(0,229,255,.03);
+}
 .detail-section-title{
-  padding:7px 10px;border-bottom:1px solid var(--border);
   font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
   color:var(--cyan);font-family:var(--font-mono);
 }
+.detail-section-copy{
+  background:none;border:none;cursor:pointer;
+  color:var(--text3);font-size:11px;padding:1px 4px;border-radius:2px;
+  transition:color .15s;
+}
+.detail-section-copy:hover{color:var(--cyan)}
+.detail-section-body{padding:0}
+
+/* Detail key-value table */
 .detail-table{width:100%;border-collapse:collapse}
+.detail-table tr{border-bottom:1px solid rgba(30,45,74,.5)}
+.detail-table tr:last-child{border-bottom:none}
 .detail-table th,.detail-table td{
-  padding:7px 10px;border-bottom:1px solid rgba(30,45,74,.65);
-  vertical-align:top;font-size:11px;
+  padding:8px 12px;vertical-align:top;font-size:12px;
 }
-.detail-table tr:last-child th,.detail-table tr:last-child td{border-bottom:none}
 .detail-table th{
-  width:92px;color:var(--text3);font-family:var(--font-mono);font-weight:500;text-align:left;
+  width:100px;color:var(--text3);font-family:var(--font-mono);font-weight:500;
+  text-align:left;white-space:nowrap;
 }
-.detail-table td{color:var(--text2);font-family:var(--font-mono);word-break:break-word}
+.detail-table td{color:var(--text2);font-family:var(--font-mono);word-break:break-word;line-height:1.6}
+
+/* JSON blocks */
 .json-block{
-  margin:0;padding:10px;font-family:var(--font-mono);font-size:11px;
-  line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-word;
-  max-height:260px;overflow:auto;background:rgba(0,0,0,.16);
+  margin:0;padding:10px 12px;font-family:var(--font-mono);font-size:11px;
+  line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word;
+  max-height:320px;overflow:auto;background:rgba(0,0,0,.16);
 }
-.value-list{display:flex;flex-direction:column;gap:8px;padding:10px}
+.json-block .json-key{color:var(--cyan)}
+.json-block .json-string{color:var(--green)}
+.json-block .json-number{color:var(--amber)}
+.json-block .json-bool{color:var(--purple)}
+.json-block .json-null{color:var(--text3)}
+.json-compact{max-height:160px;font-size:10px;line-height:1.5;padding:8px 10px}
+
+/* Value pills */
+.value-list{display:flex;flex-direction:column;gap:6px;padding:10px 12px}
 .value-pill{
-  display:block;padding:7px 9px;border:1px solid rgba(42,63,102,.75);
-  border-radius:4px;background:rgba(0,0,0,.12);font-family:var(--font-mono);
-  font-size:11px;color:var(--text2);word-break:break-word;
+  display:block;padding:8px 10px;border:1px solid rgba(42,63,102,.6);
+  border-radius:4px;background:rgba(0,0,0,.1);font-family:var(--font-mono);
+  font-size:12px;color:var(--text2);word-break:break-word;line-height:1.6;
+}
+
+/* Network detail hero */
+.network-hero{
+  padding:12px 14px;border-bottom:1px solid rgba(30,45,74,.5);
+  display:flex;align-items:center;gap:10px;
+}
+.method-badge{
+  font-family:var(--font-mono);font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:3px;letter-spacing:.04em;
+}
+.method-get{background:var(--cyan-dim);color:var(--cyan)}
+.method-post{background:var(--green-dim);color:var(--green)}
+.method-put{background:var(--amber-dim);color:var(--amber)}
+.method-patch{background:var(--amber-dim);color:var(--amber)}
+.method-delete{background:var(--red-dim);color:var(--red)}
+.network-url{
+  font-family:var(--font-mono);font-size:12px;color:var(--text);
+  word-break:break-all;line-height:1.5;
+}
+
+/* Navigation hero */
+.nav-hero{
+  padding:12px 14px;border-bottom:1px solid rgba(30,45,74,.5);
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:12px;
+}
+.nav-from{color:var(--text3)}
+.nav-arrow{color:var(--cyan);font-size:14px}
+.nav-to{color:var(--text);font-weight:500}
+
+/* Entry footer */
+.entry-footer{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 0 0;margin-top:10px;border-top:1px solid rgba(30,45,74,.5);
 }
 
 /* Actions bar */
@@ -358,14 +489,23 @@ header h1 span{color:var(--text3);font-weight:400}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}
 .live-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan)}
 
+/* Search highlight */
+mark{
+  background:rgba(0,229,255,.25);color:var(--text);
+  border-radius:2px;padding:0 1px;
+}
+
 /* Responsive */
 @media(max-width:640px){
   .container{padding:16px}
   .device-card{grid-template-columns:1fr;gap:8px}
-  .log-entry{grid-template-columns:86px 1fr 70px 24px}
-  .log-details{grid-template-columns:1fr;padding:10px}
+  .log-row{grid-template-columns:72px 1fr auto 28px}
+  .log-copy{display:none}
+  .detail-table th{width:80px}
   .detail-header{padding:14px 16px}
   .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .toolbar{gap:8px}
+  .search-wrap{min-width:120px;flex-basis:100%}
 }
 </style>
 </head>
@@ -377,6 +517,7 @@ header h1 span{color:var(--text3);font-weight:400}
   </div>
   <div class="header-right">
     <span class="header-meta" id="status"></span>
+    <span class="header-meta" id="ipHint" style="color:var(--text2);display:none"></span>
     <button class="btn" onclick="refresh()">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
       Refresh
@@ -393,33 +534,35 @@ header h1 span{color:var(--text3);font-weight:400}
   var app = document.getElementById('app');
   var statusEl = document.getElementById('status');
   var toastEl = document.getElementById('toast');
-	  var pulseDot = document.getElementById('pulseDot');
-	  var currentDevice = null;
-	  var expandedRows = {};
-	  var authToken = null;
+  var pulseDot = document.getElementById('pulseDot');
+  var currentDevice = null;
+  var expandedRows = {};
+  var authToken = null;
+  var searchTerm = '';
+  var focusedIndex = -1;
 
-	  try {
-	    var params = new URLSearchParams(location.search);
-	    authToken = params.get('token') || localStorage.getItem('debugToolkitToken');
-	    if (authToken) localStorage.setItem('debugToolkitToken', authToken);
-	  } catch {
-	    authToken = null;
-	  }
+  try {
+    var params = new URLSearchParams(location.search);
+    authToken = params.get('token') || localStorage.getItem('debugToolkitToken');
+    if (authToken) localStorage.setItem('debugToolkitToken', authToken);
+  } catch {
+    authToken = null;
+  }
 
-	  function withAuth(path) {
-	    if (!authToken) return path;
-	    var join = path.indexOf('?') >= 0 ? '&' : '?';
-	    return path + join + 'token=' + encodeURIComponent(authToken);
-	  }
+  function withAuth(path) {
+    if (!authToken) return path;
+    var join = path.indexOf('?') >= 0 ? '&' : '?';
+    return path + join + 'token=' + encodeURIComponent(authToken);
+  }
 
-	  function api(path) {
-	    return fetch(withAuth(path)).then(function(r) {
-        return r.json().then(function(body) {
-          if (!r.ok) throw new Error(body && body.error ? body.error : ('HTTP ' + r.status));
-          return body;
-        });
+  function api(path) {
+    return fetch(withAuth(path)).then(function(r) {
+      return r.json().then(function(body) {
+        if (!r.ok) throw new Error(body && body.error ? body.error : ('HTTP ' + r.status));
+        return body;
       });
-	  }
+    });
+  }
 
   function absoluteUrl(path) {
     return location.origin + withAuth(path);
@@ -430,11 +573,17 @@ header h1 span{color:var(--text3);font-weight:400}
   }
 
   function renderCurlPanel(title, commands) {
-    var html = '<div class="curl-panel"><div class="curl-title">' + escapeHtml(title) + '</div><div class="curl-list">';
+    var id = 'curl-' + Math.random().toString(36).slice(2,8);
+    var html = '<div class="curl-panel">';
+    html += '<div class="curl-header" onclick="toggleCurl(\'' + id + '\')">';
+    html += '<div class="curl-title">' + escapeHtml(title) + '</div>';
+    html += '<span class="curl-toggle" id="toggle-' + id + '">&#9654;</span>';
+    html += '</div>';
+    html += '<div class="curl-body" id="' + id + '"><div class="curl-list">';
     commands.forEach(function(command) {
       html += '<code>' + escapeHtml(command) + '</code>';
     });
-    html += '</div></div>';
+    html += '</div></div></div>';
     return html;
   }
 
@@ -464,7 +613,8 @@ header h1 span{color:var(--text3);font-weight:400}
     if (!iso) return '';
     try {
       var d = new Date(iso);
-      return d.toLocaleTimeString();
+      var pad = function(n) { return String(n).padStart(2, '0'); };
+      return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + String(d.getMilliseconds()).padStart(3,'0').slice(0,2);
     } catch { return iso; }
   }
 
@@ -521,7 +671,7 @@ header h1 span{color:var(--text3);font-weight:400}
     }
     if (entry.level === 'error') return '<span class="badge badge-error">ERR</span>';
     if (entry.level === 'warn') return '<span class="badge badge-warn">WRN</span>';
-    return '<span class="badge badge-ok">OK</span>';
+    return '';
   }
 
   function summarize(entry) {
@@ -532,13 +682,13 @@ header h1 span{color:var(--text3);font-weight:400}
     if (entry.method && entry.url) return escapeHtml(entry.method + ' ' + entry.url);
     if (entry.level && entry.data !== undefined) {
       var data = Array.isArray(entry.data) ? entry.data.map(formatInlineValue).join(' ') : formatInlineValue(entry.data);
-      return escapeHtml(data.substring(0, 140));
+      return escapeHtml(data.substring(0, 200));
     }
     if (entry.from || entry.to) return escapeHtml((entry.from || '-') + ' -> ' + (entry.to || '-'));
     if (entry.eventName) return escapeHtml(String(entry.eventName));
     if (entry.event) return escapeHtml(String(entry.event));
     if (entry.action) return escapeHtml(String(entry.action));
-    return escapeHtml(JSON.stringify(entry).substring(0, 140));
+    return escapeHtml(JSON.stringify(entry).substring(0, 200));
   }
 
   function getLogType(entry) {
@@ -603,6 +753,17 @@ header h1 span{color:var(--text3);font-weight:400}
     }
   }
 
+  function highlightJson(json) {
+    var str = typeof json === 'string' ? json : JSON.stringify(json, null, 2);
+    var escaped = escapeHtml(str);
+    return escaped
+      .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+      .replace(/: "((?:[^"\\]|\\.)*)"/g, ': <span class="json-string">"$1"</span>')
+      .replace(/: (\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+      .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>')
+      .replace(/: (null)/g, ': <span class="json-null">$1</span>');
+  }
+
   function renderValue(value) {
     var parsed = parseJsonString(value);
     if (parsed === null || parsed === undefined) {
@@ -611,7 +772,7 @@ header h1 span{color:var(--text3);font-weight:400}
     if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean') {
       return '<span class="value-pill">' + escapeHtml(String(parsed)) + '</span>';
     }
-    return '<pre class="json-block">' + escapeHtml(JSON.stringify(parsed, null, 2)) + '</pre>';
+    return '<pre class="json-block">' + highlightJson(parsed) + '</pre>';
   }
 
   function renderRows(rows) {
@@ -624,15 +785,20 @@ header h1 span{color:var(--text3);font-weight:400}
     return html;
   }
 
-  function renderSection(title, content) {
-    return '<div class="detail-section"><div class="detail-section-title">' +
-      escapeHtml(title) + '</div>' + content + '</div>';
+  function renderSection(title, content, dataForCopy) {
+    var copyAttr = dataForCopy !== undefined
+      ? ' data-copy="' + escapeHtml(typeof dataForCopy === 'string' ? dataForCopy : JSON.stringify(dataForCopy)) + '"'
+      : '';
+    return '<div class="detail-section"><div class="detail-section-header">' +
+      '<span class="detail-section-title">' + escapeHtml(title) + '</span>' +
+      '<button class="detail-section-copy" onclick="event.stopPropagation();copySectionData(this)" title="Copy section"' + copyAttr + '>&#9112;</button>' +
+      '</div><div class="detail-section-body">' + content + '</div></div>';
   }
 
   function renderObjectSection(title, value) {
     var object = readObject(value);
     if (!object) return '';
-    return renderSection(title, renderValue(object));
+    return renderSection(title, renderValue(object), object);
   }
 
   function renderConsoleDetails(entry) {
@@ -641,42 +807,51 @@ header h1 span{color:var(--text3);font-weight:400}
       ['Level', entry.level],
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
     ])) + renderSection('Messages',
-      '<div class="value-list">' + messages.map(renderValue).join('') + '</div>');
+      '<div class="value-list">' + messages.map(renderValue).join('') + '</div>',
+      entry.data);
   }
 
   function renderNetworkDetails(entry) {
     var request = readObject(entry.request) || entry;
     var response = readObject(entry.response);
-    var html = renderSection('Request', renderRows([
-      ['Method', request.method],
-      ['URL', request.url],
+    var method = (request.method || 'GET').toUpperCase();
+    var methodClass = 'method-' + method.toLowerCase();
+
+    var hero = '<div class="network-hero"><span class="method-badge ' + methodClass + '">' + escapeHtml(method) + '</span>' +
+      '<span class="network-url">' + escapeHtml(request.url || '-') + '</span></div>';
+
+    var reqRows = [
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
       ['Duration', entry.duration !== undefined ? entry.duration + 'ms' : ''],
-      ['Headers', request.headers],
-      ['Body', request.body],
-    ]));
+    ];
+    if (request.headers) reqRows.push(['Headers', request.headers]);
+    if (request.body) reqRows.push(['Body', request.body]);
+
+    var html = renderSection('Request', hero + renderRows(reqRows), request);
+
     if (response) {
-      html += renderSection('Response', renderRows([
-        ['Status', response.status],
-        ['Status text', response.statusText],
-        ['Success', response.success],
-        ['Headers', response.headers],
-        ['Data', response.data],
-      ]));
+      var resRows = [
+        ['Status', response.status !== undefined ? response.status + (response.statusText ? ' ' + response.statusText : '') : ''],
+        ['Success', response.success !== undefined ? String(response.success) : ''],
+      ];
+      if (response.headers) resRows.push(['Headers', response.headers]);
+      if (response.data) resRows.push(['Data', response.data]);
+      html += renderSection('Response', renderRows(resRows), response);
     }
     if (entry.error) {
-      html += renderSection('Error', renderValue(entry.error));
+      html += renderSection('Error', renderValue(entry.error), entry.error);
     }
     return html;
   }
 
   function renderNavigationDetails(entry) {
-    return renderSection('Navigation', renderRows([
+    var hero = '<div class="nav-hero">';
+    if (entry.from || entry.path) hero += '<span class="nav-from">' + escapeHtml(entry.from || entry.path || '-') + '</span>';
+    if (entry.to) hero += '<span class="nav-arrow">&rarr;</span><span class="nav-to">' + escapeHtml(entry.to) + '</span>';
+    hero += '</div>';
+    return renderSection('Navigation', hero + renderRows([
       ['Action', entry.action],
-      ['From', entry.from || entry.path],
-      ['To', entry.to],
       ['Duration', entry.duration !== undefined ? entry.duration + 'ms' : ''],
-      ['Debug', entry.debugLog],
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
     ]));
   }
@@ -685,8 +860,7 @@ header h1 span{color:var(--text3);font-weight:400}
     return renderSection('Event', renderRows([
       ['Name', entry.eventName || entry.event],
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
-      ['Payload', entry],
-    ]));
+    ])) + renderSection('Payload', renderValue(entry), entry);
   }
 
   function renderStateDetails(entry) {
@@ -694,9 +868,20 @@ header h1 span{color:var(--text3);font-weight:400}
       ['Store', entry.storeName],
       ['Action', entry.action],
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
-      ['Prev', entry.prevState],
-      ['Next', entry.nextState],
-    ]));
+    ])) +
+    (entry.prevState !== undefined ? renderSection('Prev', renderValueCompact(entry.prevState), entry.prevState) : '') +
+    (entry.nextState !== undefined ? renderSection('Next', renderValueCompact(entry.nextState), entry.nextState) : '');
+  }
+
+  function renderValueCompact(value) {
+    var parsed = parseJsonString(value);
+    if (parsed === null || parsed === undefined) {
+      return '<span class="value-pill">' + escapeHtml(String(parsed)) + '</span>';
+    }
+    if (typeof parsed === 'string' || typeof parsed === 'number' || typeof parsed === 'boolean') {
+      return '<span class="value-pill">' + escapeHtml(String(parsed)) + '</span>';
+    }
+    return '<pre class="json-block json-compact">' + highlightJson(parsed) + '</pre>';
   }
 
   function renderLogDetails(entry, type) {
@@ -712,11 +897,36 @@ header h1 span{color:var(--text3);font-weight:400}
     return renderObjectSection(labelForType(logType), entry) || renderSection('Raw', renderValue(entry));
   }
 
+  // --- Search ---
+
+  function matchSearch(text) {
+    if (!searchTerm) return text;
+    var escaped = escapeHtml(text);
+    var re = new RegExp('(' + escapeRegex(searchTerm) + ')', 'gi');
+    return escaped.replace(re, '<mark>$1</mark>');
+  }
+
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function entryMatchesSearch(entry) {
+    if (!searchTerm) return true;
+    var term = searchTerm.toLowerCase();
+    var text = summarize(entry);
+    // Remove HTML for matching
+    var div = document.createElement('div');
+    div.innerHTML = text;
+    return div.textContent.toLowerCase().indexOf(term) >= 0;
+  }
+
   // --- Views ---
 
   function renderList() {
     currentDevice = null;
     expandedRows = {};
+    searchTerm = '';
+    focusedIndex = -1;
     pulseDot.style.background = 'var(--text3)';
     pulseDot.style.boxShadow = 'none';
     statusEl.textContent = 'fetching...';
@@ -773,6 +983,8 @@ header h1 span{color:var(--text3);font-weight:400}
 
   function renderDetail(deviceId) {
     expandedRows = {};
+    searchTerm = '';
+    focusedIndex = -1;
     window._currentFilterType = '';
     window._failedOnly = false;
     statusEl.textContent = 'loading...';
@@ -840,8 +1052,13 @@ header h1 span{color:var(--text3);font-weight:400}
       });
       html += '</div>';
 
-      // Toolbar
+      // Toolbar with search
       html += '<div class="toolbar">';
+      html += '<div class="search-wrap">';
+      html += '<span class="search-icon">&#9906;</span>';
+      html += '<input class="search-input" id="searchInput" type="text" placeholder="Search logs..." autocomplete="off">';
+      html += '<button class="search-clear" id="searchClear" onclick="clearSearch()">&times;</button>';
+      html += '</div>';
       html += '<label>Failed only <div class="toggle" id="failedToggle" onclick="toggleFailed()"></div></label>';
       html += '<label>Limit <input type="number" id="limitInput" value="50" min="1" max="500"></label>';
       html += '</div>';
@@ -854,9 +1071,21 @@ header h1 span{color:var(--text3);font-weight:400}
       html += '<button class="btn" onclick="copyJSON()">';
       html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
       html += 'Copy JSON</button>';
+      html += '<span style="flex:1"></span>';
+      html += '<span style="font-size:10px;color:var(--text3);font-family:var(--font-mono)"><span class="kbd">/</span> search &nbsp; <span class="kbd">j</span><span class="kbd">k</span> navigate &nbsp; <span class="kbd">Enter</span> expand &nbsp; <span class="kbd">Esc</span> back</span>';
       html += '</div>';
 
       app.innerHTML = html;
+
+      // Wire up search
+      var searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', function() {
+        searchTerm = this.value.trim();
+        var clearBtn = document.getElementById('searchClear');
+        if (clearBtn) clearBtn.classList.toggle('visible', searchTerm.length > 0);
+        applyFilters();
+      });
+
       document.getElementById('limitInput').addEventListener('change', applyFilters);
       renderLogs(logs, '', 50, false);
     }).catch(function(err) {
@@ -887,6 +1116,11 @@ header h1 span{color:var(--text3);font-weight:400}
       entries = entries.filter(function(item) { return isFailedEntry(item.entry); });
     }
 
+    // Search filter
+    if (searchTerm) {
+      entries = entries.filter(function(item) { return entryMatchesSearch(item.entry); });
+    }
+
     entries = entries
       .slice()
       .sort(function(a, b) {
@@ -897,10 +1131,13 @@ header h1 span{color:var(--text3);font-weight:400}
 
     var container = document.getElementById('logsContainer');
     if (!entries.length) {
-      container.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p style="font-size:13px">No logs match filters.</p></div>';
+      container.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p style="font-size:13px">' +
+        (searchTerm ? 'No logs match "' + escapeHtml(searchTerm) + '"' : 'No logs match filters.') +
+        '</p></div>';
       return;
     }
 
+    focusedIndex = -1;
     var html = '<div class="log-list">';
     entries.forEach(function(item, i) {
       var entry = item.entry;
@@ -908,12 +1145,31 @@ header h1 span{color:var(--text3);font-weight:400}
       var lt = item.type || getLogType(entry);
       var typeClass = toKeyPart(lt);
       var isExpanded = expandedRows[rowId];
-      html += '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" onclick="toggleRow(\'' + rowId + '\')">';
+      var ts = readTimestamp(entry);
+
+      html += '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" data-index="' + i + '">';
+      html += '<div class="log-row" onclick="toggleRow(\'' + rowId + '\')">';
       html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
-      html += '<div class="log-summary">' + summarize(entry) + '</div>';
+      html += '<div class="log-summary-col">';
+      html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
+      if (ts) {
+        html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
+      }
+      html += '</div>';
       html += '<div class="log-status">' + statusBadge(entry) + '</div>';
-      html += '<div class="log-expand">' + (isExpanded ? '&#9660;' : '&#9654;') + '</div>';
-      html += '<div class="log-json' + (isExpanded ? ' open' : '') + '" id="json-' + rowId + '"><div class="log-details">' + renderLogDetails(entry, lt) + '</div></div>';
+      html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
+      html += '<div class="log-expand">' + (isExpanded ? '&#9654;' : '&#9654;') + '</div>';
+      html += '</div>';
+
+      // Detail panel
+      html += '<div class="log-detail' + (isExpanded ? '' : '') + '" id="detail-' + rowId + '">';
+      html += '<div class="log-detail-inner"><div class="detail-sections">';
+      html += renderLogDetails(entry, lt);
+      html += '<div class="entry-footer">';
+      html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
+      html += '</div>';
+      html += '</div></div></div>';
+
       html += '</div>';
     });
     html += '</div>';
@@ -985,21 +1241,33 @@ header h1 span{color:var(--text3);font-weight:400}
     rerenderVisibleLogs();
   };
 
+  window.clearSearch = function() {
+    var input = document.getElementById('searchInput');
+    if (input) input.value = '';
+    searchTerm = '';
+    var clearBtn = document.getElementById('searchClear');
+    if (clearBtn) clearBtn.classList.remove('visible');
+    applyFilters();
+  };
+
   window.toggleRow = function(rowId) {
     var entry = document.getElementById('entry-' + rowId);
-    var json = document.getElementById('json-' + rowId);
-    var expand = entry ? entry.querySelector('.log-expand') : null;
-    if (!entry || !json) return;
+    var detail = document.getElementById('detail-' + rowId);
+    if (!entry || !detail) return;
     expandedRows[rowId] = !expandedRows[rowId];
     if (expandedRows[rowId]) {
       entry.classList.add('expanded');
-      json.classList.add('open');
-      if (expand) expand.innerHTML = '&#9660;';
     } else {
       entry.classList.remove('expanded');
-      json.classList.remove('open');
-      if (expand) expand.innerHTML = '&#9654;';
     }
+  };
+
+  window.toggleCurl = function(id) {
+    var body = document.getElementById(id);
+    var toggle = document.getElementById('toggle-' + id);
+    if (!body) return;
+    body.classList.toggle('open');
+    if (toggle) toggle.classList.toggle('open');
   };
 
   window.copyJSON = function() {
@@ -1020,6 +1288,135 @@ header h1 span{color:var(--text3);font-weight:400}
     });
   };
 
+  window.copyEntryJSON = function(rowId) {
+    // Find the entry data from current device logs
+    if (!currentDevice) return;
+    var el = document.getElementById('entry-' + rowId);
+    if (!el) return;
+
+    // Re-derive the entry from current logs
+    var logs = currentDevice.report ? currentDevice.report.logs : {};
+    var entries = [];
+    Object.entries(logs).forEach(function(logGroup) {
+      var logType = logGroup[0];
+      var value = logGroup[1];
+      if (Array.isArray(value)) {
+        value.forEach(function(entry, index) {
+          entries.push({ type: logType, entry: entry, order: entries.length });
+        });
+      }
+    });
+
+    var options = readVisibleLogOptions();
+    if (options.type) {
+      entries = entries.filter(function(item) { return item.type === options.type; });
+    }
+    if (options.failedOnly) {
+      entries = entries.filter(function(item) { return isFailedEntry(item.entry); });
+    }
+    if (searchTerm) {
+      entries = entries.filter(function(item) { return entryMatchesSearch(item.entry); });
+    }
+    entries = entries.slice().sort(function(a, b) {
+      var byTime = readTimestamp(b.entry) - readTimestamp(a.entry);
+      return byTime || b.order - a.order;
+    }).slice(0, options.limit);
+
+    var idx = parseInt(el.getAttribute('data-index'), 10);
+    if (isNaN(idx) || idx < 0 || idx >= entries.length) return;
+    var text = JSON.stringify(entries[idx].entry, null, 2);
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Entry copied');
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Entry copied');
+    });
+  };
+
+  window.copySectionData = function(btn) {
+    var data = btn.getAttribute('data-copy');
+    if (!data) return;
+    navigator.clipboard.writeText(data).then(function() {
+      showToast('Section copied');
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = data;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Section copied');
+    });
+  };
+
+  // --- Keyboard shortcuts ---
+
+  document.addEventListener('keydown', function(e) {
+    // Don't intercept when typing in inputs
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.key === 'Escape') {
+        e.target.blur();
+        if (e.target.id === 'searchInput' && searchTerm) {
+          clearSearch();
+        }
+      }
+      return;
+    }
+
+    if (e.key === '/') {
+      e.preventDefault();
+      var searchInput = document.getElementById('searchInput');
+      if (searchInput) searchInput.focus();
+    } else if (e.key === 'Escape') {
+      if (currentDevice) {
+        location.hash = '';
+      }
+    } else if (e.key === 'j' || e.key === 'k') {
+      e.preventDefault();
+      navigateEntries(e.key === 'j' ? 1 : -1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      toggleFocusedEntry();
+    }
+  });
+
+  function navigateEntries(direction) {
+    var list = document.querySelector('.log-list');
+    if (!list) return;
+    var items = list.querySelectorAll('.log-entry');
+    if (!items.length) return;
+
+    // Remove previous focus
+    if (focusedIndex >= 0 && focusedIndex < items.length) {
+      items[focusedIndex].classList.remove('focused');
+    }
+
+    focusedIndex += direction;
+    if (focusedIndex < 0) focusedIndex = 0;
+    if (focusedIndex >= items.length) focusedIndex = items.length - 1;
+
+    items[focusedIndex].classList.add('focused');
+    items[focusedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function toggleFocusedEntry() {
+    if (focusedIndex < 0) return;
+    var list = document.querySelector('.log-list');
+    if (!list) return;
+    var items = list.querySelectorAll('.log-entry');
+    if (focusedIndex >= items.length) return;
+    items[focusedIndex].click();
+  }
+
   // --- Routing ---
 
   window._currentFilterType = '';
@@ -1036,37 +1433,37 @@ header h1 span{color:var(--text3);font-weight:400}
 
   // --- Incremental DOM updates ---
 
-	  function isFailedEntry(e) {
-	    return e && typeof e === 'object' && (
-	      Boolean(e.error) ||
-	      e.level === 'error' ||
-	      (e.response && (e.response.success === false || e.response.status >= 400))
-	    );
-	  }
+  function isFailedEntry(e) {
+    return e && typeof e === 'object' && (
+      Boolean(e.error) ||
+      e.level === 'error' ||
+      (e.response && (e.response.success === false || e.response.status >= 400))
+    );
+  }
 
-	  function renderDeviceTags(logCount) {
-	    var html = '';
-	    Object.entries(logCount || {}).forEach(function(e) {
-	      var type = String(e[0]);
-	      html += '<span class="tag tag-' + toKeyPart(type) + '">' + escapeHtml(labelForType(type)) + ' ' + escapeHtml(String(e[1])) + '</span>';
-	    });
-	    return html;
-	  }
+  function renderDeviceTags(logCount) {
+    var html = '';
+    Object.entries(logCount || {}).forEach(function(e) {
+      var type = String(e[0]);
+      html += '<span class="tag tag-' + toKeyPart(type) + '">' + escapeHtml(labelForType(type)) + ' ' + escapeHtml(String(e[1])) + '</span>';
+    });
+    return html;
+  }
 
-	  function appendDeviceCard(payload) {
+  function appendDeviceCard(payload) {
     var grid = document.querySelector('.device-grid');
     if (!grid) { renderList(); return; }
 
-	    var deviceId = payload.deviceId;
-      if (!deviceId) return;
-	    var existing = grid.querySelector('[data-device-id="' + CSS.escape(deviceId) + '"]');
-	    if (existing) {
-	      var tags = existing.querySelector('.device-tags');
-	      if (tags) tags.innerHTML = renderDeviceTags(payload.logCount || {});
-	      return;
-	    }
+    var deviceId = payload.deviceId;
+    if (!deviceId) return;
+    var existing = grid.querySelector('[data-device-id="' + CSS.escape(deviceId) + '"]');
+    if (existing) {
+      var tags = existing.querySelector('.device-tags');
+      if (tags) tags.innerHTML = renderDeviceTags(payload.logCount || {});
+      return;
+    }
 
-	    var lc = payload.logCount || {};
+    var lc = payload.logCount || {};
     var deviceText = formatDevice(payload.device);
     var ipText = formatIp(payload.source);
     var card = document.createElement('div');
@@ -1079,12 +1476,11 @@ header h1 span{color:var(--text3);font-weight:400}
     html += '<div class="device-meta-line"><strong>Device</strong>' + escapeHtml(deviceId) + '</div>';
     html += '<div class="device-meta-line"><strong>Last seen</strong> just now</div>';
     html += '</div>';
-	    html += '<div class="device-tags">' + renderDeviceTags(lc) + '</div>';
+    html += '<div class="device-tags">' + renderDeviceTags(lc) + '</div>';
     html += '<div class="device-arrow">&rsaquo;</div>';
     card.innerHTML = html;
     grid.prepend(card);
 
-    // Update device count
     var titleEl = document.querySelector('.section-title');
     if (titleEl) {
       var count = grid.querySelectorAll('.device-card').length;
@@ -1092,14 +1488,29 @@ header h1 span{color:var(--text3);font-weight:400}
     }
   }
 
-  function buildLogEntryHtml(entry, rowId, type) {
+  function buildLogEntryHtml(entry, rowId, type, index) {
     var lt = type || getLogType(entry);
     var typeClass = toKeyPart(lt);
-    var html = '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
-    html += '<div class="log-summary">' + summarize(entry) + '</div>';
+    var ts = readTimestamp(entry);
+    var html = '<div class="log-row">';
+    html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
+    html += '<div class="log-summary-col">';
+    html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
+    if (ts) {
+      html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
+    }
+    html += '</div>';
     html += '<div class="log-status">' + statusBadge(entry) + '</div>';
+    html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
     html += '<div class="log-expand">&#9654;</div>';
-    html += '<div class="log-json" id="json-' + rowId + '"><div class="log-details">' + renderLogDetails(entry, lt) + '</div></div>';
+    html += '</div>';
+    html += '<div class="log-detail" id="detail-' + rowId + '">';
+    html += '<div class="log-detail-inner"><div class="detail-sections">';
+    html += renderLogDetails(entry, lt);
+    html += '<div class="entry-footer">';
+    html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
+    html += '</div>';
+    html += '</div></div></div>';
     return html;
   }
 
@@ -1125,6 +1536,7 @@ header h1 span{color:var(--text3);font-weight:400}
       entries.forEach(function(e) {
         if (failedOnly && !isFailedEntry(e)) return;
         if (type && t !== type) return;
+        if (searchTerm && !entryMatchesSearch(e)) return;
         allNewEntries.push({ type: t, entry: e });
       });
     });
@@ -1136,8 +1548,10 @@ header h1 span{color:var(--text3);font-weight:400}
       var div = document.createElement('div');
       div.className = 'log-entry';
       div.id = 'entry-' + rowId;
-      div.setAttribute('onclick', "toggleRow('" + rowId + "')");
-      div.innerHTML = buildLogEntryHtml(entry, rowId, item.type);
+      div.setAttribute('data-index', count - 1);
+      div.setAttribute('onclick', '');
+      div.querySelector('.log-row').setAttribute('onclick', "toggleRow('" + rowId + "')");
+      div.innerHTML = buildLogEntryHtml(entry, rowId, item.type, count - 1);
       list.prepend(div);
     });
 
@@ -1179,7 +1593,7 @@ header h1 span{color:var(--text3);font-weight:400}
 
   function connectSSE() {
     if (eventSource) { try { eventSource.close(); } catch {} }
-	    eventSource = new EventSource(withAuth('/events'));
+    eventSource = new EventSource(withAuth('/events'));
 
     eventSource.addEventListener('logs', function(e) {
       try {
@@ -1188,13 +1602,11 @@ header h1 span{color:var(--text3);font-weight:400}
         pulseDot.style.background = 'var(--cyan)';
         pulseDot.style.boxShadow = '0 0 8px var(--cyan),0 0 20px rgba(0,229,255,.3)';
 
-        // Device list page - append or update device card.
         if (!currentDevice) {
           appendDeviceCard(payload);
           return;
         }
 
-        // Detail page - merge delta if same device.
         if (payload.deviceId === currentDevice.deviceId) {
           if (payload.type === 'delta' && payload.delta) {
             var deltaLogs = payload.delta.logs || {};
@@ -1232,6 +1644,18 @@ header h1 span{color:var(--text3);font-weight:400}
   window.addEventListener('hashchange', route);
   connectSSE();
   route();
+
+  // Fetch LAN IPs from /health and display in header
+  api('/health').then(function(data) {
+    var ips = data && data.ips;
+    if (Array.isArray(ips) && ips.length) {
+      var ipEl = document.getElementById('ipHint');
+      if (ipEl) {
+        ipEl.textContent = 'LAN ' + ips.join(' / ');
+        ipEl.style.display = '';
+      }
+    }
+  }).catch(function() {});
 })();
 </script>
 </body>

@@ -56,7 +56,7 @@ describe('daemon web console script', () => {
     expect(html).toContain('readTimestamp(b.entry) - readTimestamp(a.entry)');
     expect(html).toContain('function renderLogDetails(entry, type)');
     expect(html).toContain('function renderNetworkDetails(entry)');
-    expect(html).toContain('class="log-details"');
+    expect(html).toContain('class="log-detail"');
   });
 
   it('shows curl commands in list and detail views', () => {
