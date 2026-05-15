@@ -1,11 +1,8 @@
 import {
   _resetDaemonClientForTesting,
   buildDeviceDaemonEndpoint,
-  loadDaemonStreamingEnabled,
-  loadDaemonSettings,
   normalizeDaemonSettings,
-  saveDaemonSettings,
-  saveDaemonStreamingEnabled,
+  daemonClient,
 } from '../../utils/DaemonClient';
 
 describe('daemonSettings', () => {
@@ -39,23 +36,20 @@ describe('daemonSettings', () => {
     });
   });
 
-  it('persists live streaming enabled state', async () => {
-    await expect(loadDaemonStreamingEnabled()).resolves.toBeNull();
-
-    await saveDaemonStreamingEnabled(true);
-
-    await saveDaemonStreamingEnabled(false);
+  it('manages streaming enabled state', () => {
+    daemonClient.setStreamingEnabled(true);
+    daemonClient.setStreamingEnabled(false);
   });
 
-  it('keeps daemon settings in runtime memory', async () => {
-    await saveDaemonSettings({
+  it('keeps daemon settings in runtime memory', () => {
+    daemonClient.configure({
       mode: 'device',
       deviceHost: ' 192.168.1.10 ',
       token: ' dev-token ',
       endpoint: '',
     });
 
-    await expect(loadDaemonSettings()).resolves.toEqual({
+    expect(daemonClient.getSettings()).toEqual({
       mode: 'device',
       deviceHost: '192.168.1.10',
       endpoint: 'http://192.168.1.10:3799',

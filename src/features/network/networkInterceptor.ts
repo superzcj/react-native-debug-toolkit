@@ -1,5 +1,5 @@
 import type { NetworkLogEntry } from '../../types';
-import { urlRewriter } from '../../utils/urlRewriterRegistry';
+import { getUrlRewriter } from '../../utils/urlRewriter';
 
 type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
 
@@ -11,7 +11,7 @@ export type { NetworkLogPayload };
 // ─── Shared helpers ────────────────────────────────────
 
 function rewriteUrl(url: string): string {
-  const rewriter = urlRewriter.get();
+  const rewriter = getUrlRewriter();
   if (!rewriter) {
     return url;
   }
@@ -193,7 +193,7 @@ export function startXMLHttpRequest(
     url: string,
     ...args: unknown[]
   ) {
-    const rewrittenUrl = urlRewriter.get() ? rewriteUrl(url) : url;
+    const rewrittenUrl = rewriteUrl(url);
     if (shouldIgnoreUrl(rewrittenUrl)) {
       return originalXhrOpen!.call(this, method, rewrittenUrl, ...args);
     }

@@ -30,6 +30,10 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
     renderContent?: ComponentType<DebugFeatureRenderProps<TEntry[]>>;
     maxLogs?: number;
     persist?: ChannelFeaturePersistConfig<TEntry>;
+    /** Return null to skip, or the (possibly modified) payload to proceed. */
+    beforePush?: (payload: TPayload) => TPayload | null;
+    /** Called after channel subscription in setup. Return a cleanup function. */
+    onSetup?: () => (() => void) | void;
   },
 ): DebugFeature<TEntry[]> {
   const maxLogs = options.maxLogs ?? DEFAULT_MAX_LOGS;
@@ -53,6 +57,7 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
 
   let initialized = false;
   let unsubscribe: (() => void) | null = null;
+  let customCleanup: (() => void) | null = null;
 
   return {
     name: options.name,
@@ -61,8 +66,12 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
     setup: () => {
       if (initialized) return;
       unsubscribe = getChannel().subscribe((payload) => {
-        logStore.push(toEntry(payload, getId()), maxLogs);
+        const filtered = options.beforePush ? options.beforePush(payload) : payload;
+        if (filtered == null) return;
+        logStore.push(toEntry(filtered, getId()), maxLogs);
       });
+      const cleanup = options.onSetup?.();
+      if (cleanup) customCleanup = cleanup;
       initialized = true;
     },
     getSnapshot: () => logStore.getData(),
@@ -70,6 +79,8 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
       logStore.clear();
     },
     cleanup: () => {
+      customCleanup?.();
+      customCleanup = null;
       unsubscribe?.();
       unsubscribe = null;
       logStore.clear();

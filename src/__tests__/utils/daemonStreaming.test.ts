@@ -2,10 +2,7 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import { _resetNetworkForTesting } from '../../features/network';
 import {
   _resetDaemonClientForTesting,
-  saveDaemonStreamingEnabled,
-  restoreDaemonStreaming,
-  isStreaming,
-  stopStreaming,
+  daemonClient,
 } from '../../utils/DaemonClient';
 import type { DebugFeature } from '../../types';
 
@@ -34,7 +31,7 @@ describe('restoreDaemonStreaming', () => {
   });
 
   afterEach(() => {
-    stopStreaming();
+    daemonClient.disconnect();
     if (originalFetch) {
       (globalThis as { fetch?: unknown }).fetch = originalFetch;
     } else {
@@ -59,16 +56,16 @@ describe('restoreDaemonStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(createFeature());
 
-    await restoreDaemonStreaming();
+    await daemonClient.restore();
     await flushPromises();
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3799/health');
     expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:3799/report');
-    expect(isStreaming()).toBe(true);
+    expect(daemonClient.isConnected()).toBe(true);
   });
 
   it('restores previously enabled streaming without blocking on health check', async () => {
-    await saveDaemonStreamingEnabled(true);
+    await daemonClient.setStreamingEnabled(true);
     const fetchMock = jest.fn().mockResolvedValue({
       status: 200,
       json: async () => ({ ok: true, deviceId: 'ios-1' }),
@@ -76,10 +73,10 @@ describe('restoreDaemonStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(createFeature());
 
-    await restoreDaemonStreaming();
+    await daemonClient.restore();
     await flushPromises();
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3799/report');
-    expect(isStreaming()).toBe(true);
+    expect(daemonClient.isConnected()).toBe(true);
   });
 });

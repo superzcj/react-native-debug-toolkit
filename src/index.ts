@@ -42,21 +42,16 @@ export type {
   ReportResult,
   ReportToDaemonOptions,
 } from './utils/DaemonClient';
-export {
-  getDefaultDaemonEndpoint,
-  reportDebugDeviceToDaemon,
-  checkDaemonConnection,
-  startStreaming,
-  stopStreaming,
-  isStreaming,
-} from './utils/DaemonClient';
+export { getDefaultDaemonEndpoint } from './utils/DaemonClient';
 
 // Types
 export type {
   AnyDebugFeature,
   BuiltInFeatureName,
   DebugFeature,
+  DebugFeatureListener,
   DebugFeatureRenderProps,
+  FeatureDataProvider,
   NetworkLogEntry,
   ConsoleLogEntry,
   ZustandLogEntry,

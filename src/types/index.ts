@@ -4,6 +4,7 @@ export type {
   DebugFeature,
   DebugFeatureListener,
   DebugFeatureRenderProps,
+  FeatureDataProvider,
 } from './feature';
 
 export type {

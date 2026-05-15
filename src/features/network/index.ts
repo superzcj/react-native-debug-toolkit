@@ -1,15 +1,15 @@
 import { NetworkLogTab } from './NetworkLogTab';
 
-import type { DebugFeature, NetworkLogEntry } from '../../types';
+import type { NetworkLogEntry } from '../../types';
+import { createChannelFeature } from '../../utils/createChannelFeature';
 import { createEventChannel } from '../../utils/createEventChannel';
-import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
 import { KEYS } from '../../utils/debugPreferences';
-import { urlRewriter } from '../../utils/urlRewriterRegistry';
 import {
   startXMLHttpRequest,
   resetInterceptors,
 } from './networkInterceptor';
 import type { NetworkLogPayload } from './networkInterceptor';
+import { setUrlRewriter as setInterceptorUrlRewriter } from '../../utils/urlRewriter';
 
 // ─── Utilities ────────────────────────────────────────
 
@@ -35,7 +35,6 @@ function emitNetworkLog(entry: NetworkLogPayload): void {
 
 // ─── Feature factory ──────────────────────────────────
 
-const DEFAULT_MAX_LOGS = 200;
 const daemonEndpointBlacklist: Array<string | RegExp> = [];
 
 export interface NetworkFeatureConfig {
@@ -45,54 +44,33 @@ export interface NetworkFeatureConfig {
   blacklist?: Array<string | RegExp>;
 }
 
-export const createNetworkFeature = (config?: NetworkFeatureConfig): DebugFeature<NetworkLogEntry[]> => {
-  const maxLogs = config?.maxLogs ?? DEFAULT_MAX_LOGS;
-  const blacklist: Array<string | RegExp> = config?.blacklist ? [...config.blacklist] : [];
-  const logStore = createPersistedObservableStore<NetworkLogEntry>({
-    storageKey: KEYS.networkLogs,
-    maxPersist: 30,
-  });
-  let initialized = false;
-  let unsubscribeLogs: (() => void) | null = null;
-  let stopXhrFn: (() => void) | null = null;
+export const createNetworkFeature = (config?: NetworkFeatureConfig) => {
+  const userBlacklist = config?.blacklist ? [...config.blacklist] : [];
 
-  const handleLog = (entry: NetworkLogPayload) => {
-    if (isUrlBlacklisted(entry.request.url, [...blacklist, ...daemonEndpointBlacklist])) {
-      return;
-    }
-    logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
-  };
-
-  return {
-    name: 'network',
-    label: 'Network',
-    renderContent: NetworkLogTab,
-    setup: () => {
-      if (initialized) {
-        return;
-      }
-      unsubscribeLogs = networkChannel.subscribe(handleLog);
-      stopXhrFn = startXMLHttpRequest(emitNetworkLog);
-      initialized = true;
+  return createChannelFeature<NetworkLogPayload, NetworkLogEntry>(
+    () => networkChannel,
+    (payload, id) => ({ ...payload, id }),
+    {
+      name: 'network',
+      label: 'Network',
+      renderContent: NetworkLogTab,
+      maxLogs: config?.maxLogs,
+      persist: { storageKey: KEYS.networkLogs, maxPersist: 30 },
+      beforePush: (payload) => {
+        if (isUrlBlacklisted(payload.request.url, [...userBlacklist, ...daemonEndpointBlacklist])) {
+          return null;
+        }
+        return payload;
+      },
+      onSetup: () => {
+        const stopXhr = startXMLHttpRequest(emitNetworkLog);
+        return () => {
+          setInterceptorUrlRewriter(null);
+          stopXhr();
+        };
+      },
     },
-    getSnapshot: () => logStore.getData(),
-    clear: () => {
-      logStore.clear();
-    },
-    cleanup: () => {
-      if (!initialized) {
-        return;
-      }
-      urlRewriter.set(null);
-      unsubscribeLogs?.();
-      unsubscribeLogs = null;
-      stopXhrFn?.();
-      stopXhrFn = null;
-      logStore.clear();
-      initialized = false;
-    },
-    subscribe: (listener) => logStore.subscribe(listener),
-  };
+  );
 };
 
 function normalizeDaemonEndpoint(endpoint: string): string {
@@ -109,7 +87,7 @@ function normalizeDaemonEndpoint(endpoint: string): string {
   }
 }
 
-export function _addDaemonEndpointToNetworkBlacklist(endpoint: string): void {
+export function addToBlacklist(endpoint: string): void {
   const normalized = normalizeDaemonEndpoint(endpoint);
   if (!normalized || daemonEndpointBlacklist.includes(normalized)) {
     return;

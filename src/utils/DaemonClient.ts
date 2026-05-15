@@ -1,6 +1,7 @@
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 
-import { DebugToolkit } from '../core/DebugToolkit';
+import { debugToolkit } from '../core/DebugToolkit';
+import type { FeatureDataProvider } from '../types';
 import {
   createDebugDeviceReport,
   type DebugDeviceReport,
@@ -164,6 +165,7 @@ interface StreamState {
 export interface DaemonClientOptions {
   fetch?: FetchLike;
   AbortController?: AbortControllerCtor;
+  featureProvider: FeatureDataProvider;
   onEndpointDetected?: (url: string) => void;
 }
 
@@ -178,13 +180,15 @@ export class DaemonClient {
   private _stream: StreamState | null = null;
   private _fetch: FetchLike | undefined;
   private _AbortController: AbortControllerCtor | undefined;
+  private _featureProvider: FeatureDataProvider;
   private _onEndpointDetected: ((url: string) => void) | undefined;
   private _restorePromise: Promise<void> | null = null;
 
-  constructor(options?: DaemonClientOptions) {
-    this._fetch = options?.fetch;
-    this._AbortController = options?.AbortController;
-    this._onEndpointDetected = options?.onEndpointDetected;
+  constructor(options: DaemonClientOptions) {
+    this._fetch = options.fetch;
+    this._AbortController = options.AbortController;
+    this._featureProvider = options.featureProvider;
+    this._onEndpointDetected = options.onEndpointDetected;
   }
 
   // --- Settings ---
@@ -291,7 +295,7 @@ export class DaemonClient {
       onStatus: options.onStatus,
     };
 
-    for (const feature of DebugToolkit.features) {
+    for (const feature of this._featureProvider.features) {
       if (!feature.subscribe) continue;
       const unsub = feature.subscribe(() => { this.onFeatureChange(feature.name); });
       state.featureUnsubscribes.push(unsub);
@@ -625,7 +629,7 @@ export class DaemonClient {
   }
 
   private async doSendFullReport(state: StreamState): Promise<SendResult> {
-    const report = createDebugDeviceReport();
+    const report = createDebugDeviceReport({ featureProvider: this._featureProvider });
     const response = await this.doPost(
       state.reportUrl,
       this.fetchHeaders(state),
@@ -648,7 +652,7 @@ export class DaemonClient {
     }
 
     state.lastSentIds.clear();
-    for (const feature of DebugToolkit.features) {
+    for (const feature of this._featureProvider.features) {
       try {
         const snapshot = feature.getSnapshot();
         if (Array.isArray(snapshot)) {
@@ -673,7 +677,7 @@ export class DaemonClient {
       try {
         const delta: Record<string, unknown[]> = {};
         const nextSentIds = new Map<string, Set<string | number>>();
-        const features = DebugToolkit.features;
+        const features = this._featureProvider.features;
 
         for (const featureName of state.dirtyFeatures) {
           const feature = features.find((f) => f.name === featureName);
@@ -769,53 +773,7 @@ export class DaemonClient {
 
 // ---- Module-level Singleton ----
 
-export const daemonClient = new DaemonClient();
-
-// ---- Backward-compatible Function Exports ----
-
-export async function loadDaemonSettings(): Promise<DaemonSettings> {
-  return daemonClient.getSettings();
-}
-
-export async function saveDaemonSettings(settings: DaemonSettings): Promise<void> {
-  daemonClient.configure(settings);
-}
-
-export async function loadDaemonStreamingEnabled(): Promise<boolean | null> {
-  return null;
-}
-
-export async function saveDaemonStreamingEnabled(enabled: boolean): Promise<void> {
-  daemonClient.setStreamingEnabled(enabled);
-}
-
-export function startStreaming(options: StreamToDaemonOptions = {}): void {
-  daemonClient.connect(options);
-}
-
-export function stopStreaming(): void {
-  daemonClient.disconnect();
-}
-
-export function isStreaming(): boolean {
-  return daemonClient.isConnected();
-}
-
-export function checkDaemonConnection(
-  options: DaemonConnectionOptions = {},
-): Promise<DaemonConnectionResult> {
-  return daemonClient.checkConnection(options);
-}
-
-export function reportDebugDeviceToDaemon(
-  options: ReportToDaemonOptions = {},
-): Promise<ReportResult> {
-  return daemonClient.reportOnce(options);
-}
-
-export function restoreDaemonStreaming(): Promise<void> {
-  return daemonClient.restore();
-}
+export const daemonClient = new DaemonClient({ featureProvider: debugToolkit });
 
 // ---- Internal Helpers ----
 

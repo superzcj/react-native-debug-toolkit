@@ -2,7 +2,7 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import {
   _resetNetworkForTesting,
 } from '../../features/network';
-import { startStreaming, stopStreaming, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
+import { daemonClient, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
 
 async function flushPromises(): Promise<void> {
@@ -37,7 +37,7 @@ function createStreamingFeature(name: string, initial: Array<Record<string, unkn
   };
 }
 
-describe('startStreaming', () => {
+describe('daemonClient.connect', () => {
   let originalFetch: unknown;
 
   beforeEach(() => {
@@ -46,7 +46,7 @@ describe('startStreaming', () => {
   });
 
   afterEach(() => {
-    stopStreaming();
+    daemonClient.disconnect();
     jest.useRealTimers();
     if (originalFetch) {
       (globalThis as { fetch?: unknown }).fetch = originalFetch;
@@ -74,7 +74,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
+    daemonClient.connect({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
     await flushPromises();
 
     streamFeature.push({ id: '2', event: 'first-delta' });
@@ -112,7 +112,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
+    daemonClient.connect({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
     await flushPromises();
 
     streamFeature.push({ id: '2', event: 'first-delta' });
@@ -144,7 +144,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({
+    daemonClient.connect({
       endpoint: 'http://127.0.0.1:3799',
       debounceMs: 10,
       onStatus: (status) => statuses.push(status),
@@ -176,7 +176,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
+    daemonClient.connect({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
     await flushPromises();
 
     streamFeature.push({ id: '2', event: 'new-while-offline' });
@@ -208,7 +208,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({
+    daemonClient.connect({
       endpoint: 'http://127.0.0.1:3799',
       debounceMs: 10,
       timeoutMs: 1000,
@@ -241,7 +241,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({
+    daemonClient.connect({
       endpoint: 'http://127.0.0.1:3799',
       debounceMs: 10,
       onStatus: (status) => statuses.push(status),
@@ -266,7 +266,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({
+    daemonClient.connect({
       endpoint: 'http://127.0.0.1:3799',
       debounceMs: 10,
       onStatus: (status) => statuses.push(status),
@@ -294,7 +294,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({
+    daemonClient.connect({
       endpoint: 'http://127.0.0.1:3799',
       debounceMs: 10,
       maxRetryAttempts: 2,
@@ -330,7 +330,7 @@ describe('startStreaming', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(streamFeature.feature);
 
-    startStreaming({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
+    daemonClient.connect({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
     await flushPromises();
 
     streamFeature.push({ id: '2', event: 'delta' });

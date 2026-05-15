@@ -1,4 +1,4 @@
-import { checkDaemonConnection, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
+import { daemonClient, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
 
 describe('checkDaemonConnection', () => {
   let originalFetch: unknown;
@@ -26,7 +26,7 @@ describe('checkDaemonConnection', () => {
     });
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
 
-    const result = await checkDaemonConnection({
+    const result = await daemonClient.checkConnection({
       endpoint: 'http://192.168.1.10:3799',
       timeoutMs: 1000,
     });
@@ -48,7 +48,7 @@ describe('checkDaemonConnection', () => {
         init.signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
       }));
 
-    const resultPromise = checkDaemonConnection({
+    const resultPromise = daemonClient.checkConnection({
       endpoint: 'http://192.168.1.10:3799',
       timeoutMs: 1000,
     });

@@ -1,5 +1,5 @@
 import { DebugToolkit } from './DebugToolkit';
-import { createNetworkFeature } from '../features/network';
+import { createNetworkFeature, addToBlacklist } from '../features/network';
 import type { NetworkFeatureConfig } from '../features/network';
 import { createConsoleLogFeature } from '../features/console';
 import type { ConsoleFeatureConfig } from '../features/console';
@@ -11,15 +11,10 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
-import { daemonClient, restoreDaemonStreaming } from '../utils/DaemonClient';
-import { _addDaemonEndpointToNetworkBlacklist } from '../features/network';
+import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 
 const isDebugMode = __DEV__;
-
-daemonClient.setEndpointDetector((url) => {
-  _addDaemonEndpointToNetworkBlacklist(url);
-});
 
 /** Feature-specific configuration map */
 export interface FeatureConfigs {
@@ -114,13 +109,17 @@ export function initializeDebugToolkit(
 
     DebugToolkit.replaceFeatures(resolvedFeatures);
 
+    daemonClient.setEndpointDetector((url) => {
+      addToBlacklist(url);
+    });
+
     if (DebugToolkit.hasFeatures()) {
       DebugToolkit.showLauncher();
     } else {
       DebugToolkit.hideLauncher();
     }
 
-    restoreDaemonStreaming().catch(() => {});
+    daemonClient.restore().catch(() => {});
 
     return DebugToolkit;
   } catch (error) {

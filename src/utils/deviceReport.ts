@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
-import { DebugToolkit } from '../core/DebugToolkit';
+import { debugToolkit } from '../core/DebugToolkit';
+import type { FeatureDataProvider } from '../types';
 import { safeStringify } from './safeStringify';
 
 const DEFAULT_MAX_PER_TYPE = 50;
@@ -160,14 +161,15 @@ function sanitizeValue(
 }
 
 export function createDebugDeviceReport(
-  options: DebugDeviceReportOptions = {},
+  options: DebugDeviceReportOptions & { featureProvider?: FeatureDataProvider } = {},
 ): DebugDeviceReport {
+  const provider = options.featureProvider ?? debugToolkit;
   const maxPerType = Math.max(1, Math.floor(options.maxPerType ?? DEFAULT_MAX_PER_TYPE));
   const maxBodyBytes = Math.max(256, Math.floor(options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES));
   const includeTypes = options.includeTypes?.length ? new Set(options.includeTypes) : null;
   const logs: DebugDeviceReport['logs'] = {};
 
-  DebugToolkit.features.forEach((feature) => {
+  provider.features.forEach((feature) => {
     if (includeTypes && !includeTypes.has(feature.name)) {
       return;
     }

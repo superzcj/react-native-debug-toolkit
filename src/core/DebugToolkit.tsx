@@ -1,176 +1,190 @@
-import type { AnyDebugFeature } from '../types';
+import type { AnyDebugFeature, DebugFeatureListener, FeatureDataProvider } from '../types';
 
-type Listener = () => void;
+class DebugToolkitCore implements FeatureDataProvider {
+  private _features: AnyDebugFeature[] = [];
+  private _launcherVisible = false;
+  private _panelOpen = false;
+  private _enabled = true;
+  private _listeners = new Set<DebugFeatureListener>();
 
-const listeners = new Set<Listener>();
-let _features: AnyDebugFeature[] = [];
-let _launcherVisible = false;
-let _panelOpen = false;
-let _enabled = true;
+  private notify(): void {
+    this._listeners.forEach((l) => l());
+  }
 
-function notify(): void {
-  listeners.forEach((l) => l());
-}
-
-function setupFeature(feature: AnyDebugFeature): void {
-  feature.setup?.();
-}
-
-function cleanupFeature(feature: AnyDebugFeature): void {
-  feature.cleanup?.();
-}
-
-export const DebugToolkit = {
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  },
+  // --- FeatureDataProvider ---
 
   get features(): AnyDebugFeature[] {
-    return [..._features];
-  },
+    return [...this._features];
+  }
+
+  subscribe(listener: DebugFeatureListener): () => void {
+    this._listeners.add(listener);
+    return () => {
+      this._listeners.delete(listener);
+    };
+  }
+
+  // --- Enabled ---
 
   get enabled(): boolean {
-    return _enabled;
-  },
-
-  get launcherVisible(): boolean {
-    return _launcherVisible;
-  },
+    return this._enabled;
+  }
 
   setEnabled(enabled: boolean): void {
-    if (_enabled === enabled) return;
-    _enabled = enabled;
+    if (this._enabled === enabled) return;
+    this._enabled = enabled;
     if (!enabled) {
-      _launcherVisible = false;
-      _features.forEach(cleanupFeature);
-      _features = [];
+      this._launcherVisible = false;
+      this._features.forEach((f) => f.cleanup?.());
+      this._features = [];
     }
-    notify();
-  },
+    this.notify();
+  }
+
+  // --- Feature Management ---
 
   replaceFeatures(features: AnyDebugFeature[]): void {
-    if (!_enabled) return;
+    if (!this._enabled) return;
     const next = features.filter(
       (f, i, arr) =>
         f && typeof f.name === 'string' && arr.findIndex((item) => item.name === f.name) === i,
     );
-    const prevMap = new Map(_features.map((f) => [f.name, f]));
+    const prevMap = new Map(this._features.map((f) => [f.name, f]));
     const nextMap = new Map(next.map((f) => [f.name, f]));
 
-    _features.forEach((f) => {
-      if (!nextMap.get(f.name) || nextMap.get(f.name) !== f) cleanupFeature(f);
+    this._features.forEach((f) => {
+      if (!nextMap.get(f.name) || nextMap.get(f.name) !== f) f.cleanup?.();
     });
     next.forEach((f) => {
-      if (!prevMap.get(f.name) || prevMap.get(f.name) !== f) setupFeature(f);
+      if (!prevMap.get(f.name) || prevMap.get(f.name) !== f) f.setup?.();
     });
 
-    _features = next;
-    notify();
-  },
+    this._features = next;
+    this.notify();
+  }
 
   addFeature(feature: AnyDebugFeature): void {
-    if (!_enabled || !feature || typeof feature.name !== 'string') {
+    if (!this._enabled || !feature || typeof feature.name !== 'string') {
       return;
     }
 
-    const existingIndex = _features.findIndex((f) => f.name === feature.name);
+    const existingIndex = this._features.findIndex((f) => f.name === feature.name);
     if (existingIndex >= 0) {
-      const existing = _features[existingIndex]!;
+      const existing = this._features[existingIndex]!;
       if (existing === feature) {
         return;
       }
 
-      cleanupFeature(existing);
-      setupFeature(feature);
-      _features = [
-        ..._features.slice(0, existingIndex),
+      existing.cleanup?.();
+      feature.setup?.();
+      this._features = [
+        ...this._features.slice(0, existingIndex),
         feature,
-        ..._features.slice(existingIndex + 1),
+        ...this._features.slice(existingIndex + 1),
       ];
-      notify();
+      this.notify();
       return;
     }
 
-    setupFeature(feature);
-    _features = [..._features, feature];
-    notify();
-  },
+    feature.setup?.();
+    this._features = [...this._features, feature];
+    this.notify();
+  }
 
   removeFeature(name: string): void {
-    if (!_enabled) {
+    if (!this._enabled) {
       return;
     }
 
-    const feature = _features.find((f) => f.name === name);
+    const feature = this._features.find((f) => f.name === name);
     if (!feature) {
       return;
     }
 
-    cleanupFeature(feature);
-    _features = _features.filter((f) => f.name !== name);
-    if (_features.length === 0) {
-      _launcherVisible = false;
+    feature.cleanup?.();
+    this._features = this._features.filter((f) => f.name !== name);
+    if (this._features.length === 0) {
+      this._launcherVisible = false;
     }
-    notify();
-  },
-
-  reset(): void {
-    _launcherVisible = false;
-    _panelOpen = false;
-    _features.forEach(cleanupFeature);
-    _features = [];
-    notify();
-  },
+    this.notify();
+  }
 
   hasFeatures(): boolean {
-    return _features.length > 0;
-  },
+    return this._features.length > 0;
+  }
+
+  // --- Panel ---
 
   get panelOpen(): boolean {
-    return _panelOpen;
-  },
+    return this._panelOpen;
+  }
 
   openPanel(): void {
-    if (!_enabled || _panelOpen) return;
-    _panelOpen = true;
-    notify();
-  },
+    if (!this._enabled || this._panelOpen) return;
+    this._panelOpen = true;
+    this.notify();
+  }
 
   closePanel(): void {
-    if (!_panelOpen) return;
-    _panelOpen = false;
-    notify();
-  },
+    if (!this._panelOpen) return;
+    this._panelOpen = false;
+    this.notify();
+  }
 
   togglePanel(): void {
-    if (_panelOpen) {
-      DebugToolkit.closePanel();
+    if (this._panelOpen) {
+      this.closePanel();
     } else {
-      DebugToolkit.openPanel();
+      this.openPanel();
     }
-  },
+  }
+
+  // --- Launcher ---
+
+  get launcherVisible(): boolean {
+    return this._launcherVisible;
+  }
 
   showLauncher(): void {
-    if (!_enabled) return;
-    _launcherVisible = true;
-    notify();
-  },
+    if (!this._enabled) return;
+    this._launcherVisible = true;
+    this.notify();
+  }
 
   hideLauncher(): void {
-    _launcherVisible = false;
-    notify();
-  },
+    if (!this._launcherVisible) return;
+    this._launcherVisible = false;
+    this.notify();
+  }
+
+  // --- Bulk Operations ---
 
   clearAll(): void {
-    _features.forEach((f) => f.clear?.());
-    notify();
-  },
+    this._features.forEach((f) => f.clear?.());
+    this.notify();
+  }
+
+  reset(): void {
+    this._launcherVisible = false;
+    this._panelOpen = false;
+    this._features.forEach((f) => f.cleanup?.());
+    this._features = [];
+    this.notify();
+  }
 
   destroy(): void {
-    DebugToolkit.reset();
-    listeners.clear();
-  },
-};
+    this.reset();
+    this._listeners.clear();
+  }
+}
+
+/** Module-level default instance for non-React scenarios and backward compatibility. */
+export const debugToolkit = new DebugToolkitCore();
+
+export type DebugToolkit = DebugToolkitCore;
+
+/**
+ * @deprecated Use `debugToolkit` or get instance from `initializeDebugToolkit()`.
+ * This is the default module-level instance exported for backward compatibility.
+ */
+export const DebugToolkit = debugToolkit;

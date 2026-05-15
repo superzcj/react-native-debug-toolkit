@@ -2,9 +2,9 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import {
   _isNetworkUrlBlacklistedForTesting,
   _resetNetworkForTesting,
-  _addDaemonEndpointToNetworkBlacklist,
+  addToBlacklist,
 } from '../../features/network';
-import { reportDebugDeviceToDaemon, _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
+import { _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
 import type { DebugFeature } from '../../types';
 
 function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
@@ -23,7 +23,7 @@ describe('reportDebugDeviceToDaemon', () => {
   beforeEach(() => {
     originalFetch = (globalThis as { fetch?: unknown }).fetch;
     daemonClient.setEndpointDetector((url) => {
-      _addDaemonEndpointToNetworkBlacklist(url);
+      addToBlacklist(url);
     });
   });
 
@@ -53,7 +53,7 @@ describe('reportDebugDeviceToDaemon', () => {
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(createFeature('console', [{ level: 'error', data: ['TEST_ERROR_123'] }]));
 
-    const result = await reportDebugDeviceToDaemon({
+    const result = await daemonClient.reportOnce({
       endpoint: 'http://127.0.0.1:3799',
       token: 'dev-token',
     });
@@ -95,7 +95,7 @@ describe('reportDebugDeviceToDaemon', () => {
       json: async () => ({ ok: true, logCount: {} }),
     });
 
-    await reportDebugDeviceToDaemon({ endpoint: 'http://localhost:3799' });
+    await daemonClient.reportOnce({ endpoint: 'http://localhost:3799' });
 
     expect(_isNetworkUrlBlacklistedForTesting('http://localhost:3799/report')).toBe(true);
   });

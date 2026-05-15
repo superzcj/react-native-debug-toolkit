@@ -9,14 +9,16 @@
 - **Report** — A full snapshot of device debug data (all features' logs + device info)
 - **Delta** — Incremental update containing only new log entries since last sync
 - **Channel** — Pub/sub event bus used by features to broadcast events
+- **FeatureDataProvider** — Interface that provides feature list and change notifications to consumers (DaemonClient). Decouples transport from feature registry.
 
 ## Architecture
 
-- **Feature Registry** (`DebugToolkit`) — Singleton that manages feature lifecycle (setup/cleanup/snapshot)
+- **Feature Registry** (`DebugToolkit`) — Class that manages feature lifecycle (setup/cleanup/snapshot). Implements `FeatureDataProvider`.
 - **Feature Factory** — Function that creates a `DebugFeature` instance (e.g., `createNetworkFeature`)
-- **DaemonClient** — Class that manages all device-to-daemon communication (streaming, one-shot reports, health checks, retry, delta tracking)
-- **Channel Feature** — Simple feature using `createChannelFeature` helper (track, navigation, zustand)
-- **Complex Feature** — Feature with custom interception logic (network, console)
+- **DaemonClient** — Class that manages all device-to-daemon communication (streaming, one-shot reports, health checks, retry, delta tracking). Accepts `FeatureDataProvider` at construction — does not import DebugToolkit directly.
+- **Channel Feature** — Simple feature using `createChannelFeature` helper (track, navigation, zustand, network)
+- **Complex Feature** — Feature with custom interception logic (console)
+- **URL Rewriter Seam** (`src/utils/urlRewriter.ts`) — Neutral seam for URL rewriting. Environment feature registers rewriter; network interceptor reads it. No direct dependency between the two features.
 
 ## Module Boundaries
 

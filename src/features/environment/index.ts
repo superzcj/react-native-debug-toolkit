@@ -5,7 +5,7 @@ import type {
   EnvironmentConfig,
   EnvironmentState,
 } from '../../types';
-import { urlRewriter } from '../../utils/urlRewriterRegistry';
+import { setUrlRewriter } from '../../utils/urlRewriter';
 
 // Lazy AsyncStorage loader
 type AsyncStorageModule = {
@@ -32,10 +32,6 @@ function getAsyncStorage(): AsyncStorageModule | null {
 
 const STORAGE_KEY = 'debug_toolkit_env_id';
 
-// Module-level state for synchronous URL rewriting
-let currentHostsMap: Map<string, string> | null = null;
-let activeEnvironmentId: string | null = null;
-
 function buildHostsMap(
   environments: EnvironmentConfig[],
   targetId: string | null,
@@ -53,24 +49,6 @@ function buildHostsMap(
   return map;
 }
 
-function createUrlRewriter(): (url: string) => string {
-  return (url: string): string => {
-    if (!currentHostsMap) return url;
-
-    try {
-      const parsed = new URL(url);
-      const targetHost = currentHostsMap.get(parsed.host);
-      if (targetHost) {
-        return url.replace(parsed.host, targetHost);
-      }
-    } catch {
-      // Not a valid URL or relative URL — return unchanged
-    }
-
-    return url;
-  };
-}
-
 export interface EnvironmentFeatureAPI extends DebugFeature<EnvironmentState> {
   registerEnvironments: (environments: EnvironmentConfig[]) => void;
   switchEnvironment: (environmentId: string | null) => void;
@@ -83,6 +61,26 @@ export const createEnvironmentFeature = (
   const listeners = new Set<DebugFeatureListener>();
   let environments: EnvironmentConfig[] = initialEnvironments ?? [];
   let initialized = false;
+  let currentHostsMap: Map<string, string> | null = null;
+  let activeEnvironmentId: string | null = null;
+
+  const createUrlRewriter = (): ((url: string) => string) => {
+    return (url: string): string => {
+      if (!currentHostsMap) return url;
+
+      try {
+        const parsed = new URL(url);
+        const targetHost = currentHostsMap.get(parsed.host);
+        if (targetHost) {
+          return url.replace(parsed.host, targetHost);
+        }
+      } catch {
+        // Not a valid URL or relative URL — return unchanged
+      }
+
+      return url;
+    };
+  };
 
   const getCurrentState = (): EnvironmentState => ({
     environments,
@@ -102,9 +100,9 @@ export const createEnvironmentFeature = (
     if (initialized) {
       try {
         if (envId && environments.length > 0) {
-          urlRewriter.set(createUrlRewriter());
+          setUrlRewriter(createUrlRewriter());
         } else {
-          urlRewriter.set(null);
+          setUrlRewriter(null);
         }
       } catch (err) {
         if (__DEV__) console.warn('[DebugToolkit] Failed to set URL rewriter:', err);
@@ -149,7 +147,7 @@ export const createEnvironmentFeature = (
 
       // Install rewriter if an environment is already selected
       if (activeEnvironmentId && environments.length > 0) {
-        urlRewriter.set(createUrlRewriter());
+        setUrlRewriter(createUrlRewriter());
       }
 
       // Async persistence load (will override if a preference exists)
@@ -162,7 +160,7 @@ export const createEnvironmentFeature = (
     },
     cleanup: () => {
       if (!initialized) return;
-      urlRewriter.set(null);
+      setUrlRewriter(null);
       activeEnvironmentId = null;
       currentHostsMap = null;
       notify();
