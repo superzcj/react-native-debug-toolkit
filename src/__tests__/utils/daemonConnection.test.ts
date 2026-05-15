@@ -1,4 +1,4 @@
-import { checkDaemonConnection } from '../../utils/daemonConnection';
+import { checkDaemonConnection, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
 
 describe('checkDaemonConnection', () => {
   let originalFetch: unknown;
@@ -15,6 +15,7 @@ describe('checkDaemonConnection', () => {
     } else {
       delete (globalThis as { fetch?: unknown }).fetch;
     }
+    _resetDaemonClientForTesting();
   });
 
   it('checks daemon health before reporting logs', async () => {

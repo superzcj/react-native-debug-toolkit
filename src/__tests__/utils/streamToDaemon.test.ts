@@ -2,7 +2,7 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import {
   _resetNetworkForTesting,
 } from '../../features/network';
-import { startStreaming, stopStreaming } from '../../utils/streamToDaemon';
+import { startStreaming, stopStreaming, _resetDaemonClientForTesting } from '../../utils/DaemonClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
 
 async function flushPromises(): Promise<void> {
@@ -54,6 +54,7 @@ describe('startStreaming', () => {
       delete (globalThis as { fetch?: unknown }).fetch;
     }
     _resetNetworkForTesting();
+    _resetDaemonClientForTesting();
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
   });

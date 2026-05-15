@@ -13,18 +13,13 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
-  buildDeviceDaemonEndpoint,
+  daemonClient,
   type DaemonConnectionMode,
   type DaemonSettings,
-  loadDaemonSettings,
+  buildDeviceDaemonEndpoint,
   normalizeDaemonSettings,
-  saveDaemonSettings,
-  saveDaemonStreamingEnabled,
-} from '../../utils/daemonSettings';
-import { checkDaemonConnection } from '../../utils/daemonConnection';
-import { getDefaultDaemonEndpoint, reportDebugDeviceToDaemon } from '../../utils/reportToDaemon';
-import { autoDetectDaemonIp, getMetroHost } from '../../utils/autoDetectDaemon';
-import { startStreaming, stopStreaming, isStreaming } from '../../utils/streamToDaemon';
+  getDefaultDaemonEndpoint,
+} from '../../utils/DaemonClient';
 
 interface StreamingSettingsModalProps {
   visible: boolean;
@@ -43,11 +38,10 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
   const inputRef = useRef<TextInput>(null);
   const [mode, setMode] = useState<DaemonConnectionMode>('simulator');
   const [deviceHost, setDeviceHost] = useState('');
-  const [streaming, setStreaming] = useState(isStreaming());
-  const [syncState, setSyncState] = useState<SyncUiState>(isStreaming() ? 'running' : 'idle');
+  const [streaming, setStreaming] = useState(daemonClient.isConnected());
+  const [syncState, setSyncState] = useState<SyncUiState>(daemonClient.isConnected() ? 'running' : 'idle');
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [detecting, setDetecting] = useState(false);
 
   const handleDeviceHostChange = useCallback((value: string) => {
     setDeviceHost(value);
@@ -58,44 +52,19 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
   }, [syncState]);
 
   const detectDeviceHost = useCallback(async () => {
-    setDetecting(true);
-    setMessage('Detecting desktop...');
-    const result = await autoDetectDaemonIp({
-      timeoutMs: 800,
-      scanSubnets: false,
-    });
-    setDetecting(false);
-
-    if (result.ip) {
-      setDeviceHost((current) => current.trim() ? current : result.ip || current);
-      setMessage(`Detected desktop at ${buildDeviceDaemonEndpoint(result.ip)}.`);
-      return;
-    }
-
     setMessage('Enter your Mac IP, or open /health on the phone browser to verify reachability.');
   }, []);
 
   useEffect(() => {
     if (visible) {
-      loadDaemonSettings().then((settings) => {
-        setMode(settings.mode);
-        const savedHost = settings.deviceHost;
-        if (settings.mode === 'device' && !savedHost) {
-          const metroHost = getMetroHost();
-          if (metroHost) {
-            setDeviceHost(metroHost);
-          } else {
-            detectDeviceHost();
-          }
-        } else {
-          setDeviceHost(savedHost);
-        }
-      });
+      const settings = daemonClient.getSettings();
+      setMode(settings.mode);
+      setDeviceHost(settings.deviceHost);
     }
-  }, [detectDeviceHost, visible]);
+  }, [visible]);
 
   useEffect(() => {
-    const active = isStreaming();
+    const active = daemonClient.isConnected();
     setStreaming(active);
     setSyncState(active ? 'running' : 'idle');
   }, [visible]);
@@ -117,20 +86,12 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
 
   const handleModeChange = useCallback((nextMode: DaemonConnectionMode) => {
     setMode(nextMode);
-    if (nextMode === 'device' && !deviceHost) {
-      const metroHost = getMetroHost();
-      if (metroHost) {
-        setDeviceHost(metroHost);
-      } else {
-        detectDeviceHost();
-      }
-    }
-  }, [detectDeviceHost, deviceHost]);
+  }, []);
 
   const toggleLiveSync = useCallback(async () => {
     if (streaming) {
-      stopStreaming();
-      await saveDaemonStreamingEnabled(false);
+      daemonClient.disconnect();
+      daemonClient.setStreamingEnabled(false);
       setStreaming(false);
       setSyncState('idle');
       setMessage(null);
@@ -145,9 +106,9 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
     const daemonOptions = normalizeDaemonSettings(settings);
     setMessage('Checking desktop connection...');
     setSyncState('connecting');
-    await saveDaemonSettings(settings);
+    daemonClient.configure(settings);
 
-    const connection = await checkDaemonConnection({
+    const connection = await daemonClient.checkConnection({
       ...daemonOptions,
       timeoutMs: CONNECTION_TIMEOUT_MS,
     });
@@ -158,8 +119,8 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
       return;
     }
 
-    await saveDaemonStreamingEnabled(true);
-    startStreaming({
+    daemonClient.setStreamingEnabled(true);
+    daemonClient.connect({
       ...daemonOptions,
       timeoutMs: 3000,
       onStatus: (status) => {
@@ -194,10 +155,10 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
     const daemonOptions = normalizeDaemonSettings(settings);
     setSending(true);
     setMessage('Checking desktop connection...');
-    await saveDaemonSettings(settings);
+    daemonClient.configure(settings);
 
     try {
-      const connection = await checkDaemonConnection({
+      const connection = await daemonClient.checkConnection({
         ...daemonOptions,
         timeoutMs: CONNECTION_TIMEOUT_MS,
       });
@@ -207,7 +168,7 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
       }
 
       setMessage('Sending logs...');
-      const result = await reportDebugDeviceToDaemon({
+      const result = await daemonClient.reportOnce({
         ...daemonOptions,
         timeoutMs: 2000,
       });
@@ -228,12 +189,10 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
     : getDefaultDaemonEndpoint();
   const canConnect = mode === 'simulator' || Boolean(deviceHost.trim());
   const connecting = !streaming && syncState === 'connecting';
-  const busy = detecting || sending || connecting;
-  const statusTitle = detecting
+  const busy = sending || connecting;
+  const statusTitle = sending
     ? 'Checking'
-    : sending
-      ? 'Checking'
-      : connecting
+    : connecting
         ? 'Checking'
         : streaming && syncState === 'connected'
       ? 'Live sync connected'
@@ -327,7 +286,7 @@ export function StreamingSettingsModal({ visible, onClose }: StreamingSettingsMo
                       disabled={streaming || busy}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.detectButtonText}>{detecting ? '...' : 'Detect'}</Text>
+                      <Text style={styles.detectButtonText}>?</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

@@ -2,8 +2,9 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import {
   _isNetworkUrlBlacklistedForTesting,
   _resetNetworkForTesting,
+  _addDaemonEndpointToNetworkBlacklist,
 } from '../../features/network';
-import { reportDebugDeviceToDaemon } from '../../utils/reportToDaemon';
+import { reportDebugDeviceToDaemon, _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
 import type { DebugFeature } from '../../types';
 
 function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
@@ -21,6 +22,9 @@ describe('reportDebugDeviceToDaemon', () => {
 
   beforeEach(() => {
     originalFetch = (globalThis as { fetch?: unknown }).fetch;
+    daemonClient.setEndpointDetector((url) => {
+      _addDaemonEndpointToNetworkBlacklist(url);
+    });
   });
 
   afterEach(() => {
@@ -30,6 +34,7 @@ describe('reportDebugDeviceToDaemon', () => {
       delete (globalThis as { fetch?: unknown }).fetch;
     }
     _resetNetworkForTesting();
+    _resetDaemonClientForTesting();
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
   });
