@@ -179,12 +179,6 @@ header h1 span{color:var(--text3);font-weight:400}
   font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;
   font-family:var(--font-mono);cursor:pointer;
 }
-.toolbar input[type=number]{
-  width:56px;padding:4px 8px;
-  background:var(--surface);border:1px solid var(--border2);border-radius:4px;
-  color:var(--text);font-size:11px;font-family:var(--font-mono);
-}
-.toolbar input[type=number]:focus{outline:none;border-color:var(--cyan)}
 .toggle{
   position:relative;width:32px;height:18px;
   background:var(--surface3);border-radius:9px;cursor:pointer;
@@ -227,6 +221,26 @@ header h1 span{color:var(--text3);font-weight:400}
   background:var(--surface2);border:1px solid var(--border2);
   padding:1px 4px;border-radius:2px;letter-spacing:.02em;
 }
+.pager{
+  display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  flex-wrap:wrap;color:var(--text3);font-family:var(--font-mono);font-size:11px;
+}
+.toolbar .pager{margin-left:auto}
+.pager-bottom{margin-top:14px}
+.pager-info{white-space:nowrap}
+.page-btn{
+  padding:4px 9px;border:1px solid var(--border2);border-radius:4px;
+  background:var(--surface);color:var(--text2);font-family:var(--font-mono);
+  font-size:11px;cursor:pointer;
+}
+.page-btn:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan-mid)}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+.live-notice{
+  display:none;padding:4px 9px;border:1px solid var(--cyan-mid);border-radius:4px;
+  background:var(--cyan-dim);color:var(--cyan);font-family:var(--font-mono);
+  font-size:11px;cursor:pointer;
+}
+.live-notice.visible{display:inline-flex}
 
 /* Curl help - collapsible */
 .curl-panel{
@@ -540,6 +554,10 @@ mark{
   var authToken = null;
   var searchTerm = '';
   var focusedIndex = -1;
+  var PAGE_SIZE = 200;
+  var currentPage = 1;
+  var pendingLiveCount = 0;
+  var liveSequence = 0;
 
   try {
     var params = new URLSearchParams(location.search);
@@ -960,7 +978,7 @@ mark{
         var lc = deviceLog.logCount || {};
         var deviceText = formatDevice(deviceLog.device);
         var ipText = formatIp(deviceLog.source);
-        html += '<div class="device-card" data-device-id="' + escapeHtml(deviceLog.deviceId) + '" style="animation-delay:' + (i * 40) + 'ms" onclick="location.hash=\'device/' + encodeURIComponent(deviceLog.deviceId) + '\'">';
+        html += '<div class="device-card" data-device-id="' + escapeHtml(deviceLog.deviceId) + '" style="animation-delay:' + (i * 40) + 'ms">';
         html += '<div><div class="device-title">' + escapeHtml(deviceText) + '</div>';
         html += '<div class="device-subtitle">IP ' + escapeHtml(ipText) + '</div></div>';
         html += '<div class="device-meta-group">';
@@ -985,6 +1003,7 @@ mark{
     expandedRows = {};
     searchTerm = '';
     focusedIndex = -1;
+    currentPage = 1;
     window._currentFilterType = '';
     window._failedOnly = false;
     statusEl.textContent = 'loading...';
@@ -1000,7 +1019,7 @@ mark{
       var html = '';
 
       // Back link
-      html += '<a href="#" class="back-link" onclick="location.hash=\'\';return false">';
+      html += '<a href="#" class="back-link">';
       html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>';
       html += 'All devices</a>';
 
@@ -1038,9 +1057,9 @@ mark{
 
       html += renderCurlPanel('Curl this device', [
         curlCommand('/devices/' + encodeURIComponent(deviceId)),
-        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?limit=100'),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?limit=200'),
         curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=network&failedOnly=true&limit=50'),
-        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=console&limit=100'),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=console&limit=200'),
       ]);
 
       // Tabs
@@ -1060,11 +1079,13 @@ mark{
       html += '<button class="search-clear" id="searchClear" onclick="clearSearch()">&times;</button>';
       html += '</div>';
       html += '<label>Failed only <div class="toggle" id="failedToggle" onclick="toggleFailed()"></div></label>';
-      html += '<label>Limit <input type="number" id="limitInput" value="50" min="1" max="500"></label>';
+      html += '<button class="live-notice" id="liveNotice" onclick="showLiveUpdates()">0 new logs</button>';
+      html += '<div class="pager" id="pagerTop"></div>';
       html += '</div>';
 
       // Log container
       html += '<div id="logsContainer"></div>';
+      html += '<div class="pager pager-bottom" id="pagerBottom"></div>';
 
       // Actions
       html += '<div class="actions">';
@@ -1086,15 +1107,14 @@ mark{
         applyFilters();
       });
 
-      document.getElementById('limitInput').addEventListener('change', applyFilters);
-      renderLogs(logs, '', 50, false);
+      renderLogs(logs, '', false);
     }).catch(function(err) {
       statusEl.textContent = '';
       app.innerHTML = '<div class="empty" style="color:var(--red)">Failed to load: ' + escapeHtml(err.message) + '</div>';
     });
   }
 
-  function renderLogs(logs, type, limit, failedOnly) {
+  function collectLogEntries(logs, type, failedOnly) {
     var entries = [];
     if (type && logs[type]) {
       entries = Array.isArray(logs[type])
@@ -1126,8 +1146,63 @@ mark{
       .sort(function(a, b) {
         var byTime = readTimestamp(b.entry) - readTimestamp(a.entry);
         return byTime || b.order - a.order;
-      })
-      .slice(0, limit);
+      });
+
+    return entries;
+  }
+
+  function renderPagination(total, page, pageSize) {
+    var totalPages = Math.max(1, Math.ceil(total / pageSize));
+    var start = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
+    var end = Math.min(page * pageSize, total);
+    var html = '<span class="pager-info">' + start + '-' + end + ' / ' + total + ' · ' + pageSize + ' per page</span>';
+    html += '<button class="page-btn" onclick="goToPage(' + (page - 1) + ')"' + (page <= 1 ? ' disabled' : '') + '>Prev</button>';
+    html += '<span class="pager-info">' + page + ' / ' + totalPages + '</span>';
+    html += '<button class="page-btn" onclick="goToPage(' + (page + 1) + ')"' + (page >= totalPages ? ' disabled' : '') + '>Next</button>';
+
+    ['pagerTop', 'pagerBottom'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    });
+  }
+
+  function renderLogEntryHtml(entry, type, rowId, index, isExpanded) {
+    var lt = type || getLogType(entry);
+    var typeClass = toKeyPart(lt);
+    var ts = readTimestamp(entry);
+    var html = '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" data-index="' + index + '" data-sort="' + ts + '">';
+    html += '<div class="log-row" onclick="toggleRow(\'' + rowId + '\')">';
+    html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
+    html += '<div class="log-summary-col">';
+    html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
+    if (ts) {
+      html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
+    }
+    html += '</div>';
+    html += '<div class="log-status">' + statusBadge(entry) + '</div>';
+    html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
+    html += '<div class="log-expand">' + (isExpanded ? '&#9654;' : '&#9654;') + '</div>';
+    html += '</div>';
+    html += '<div class="log-detail' + (isExpanded ? '' : '') + '" id="detail-' + rowId + '">';
+    html += '<div class="log-detail-inner"><div class="detail-sections">';
+    html += renderLogDetails(entry, lt);
+    html += '<div class="entry-footer">';
+    html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
+    html += '</div>';
+    html += '</div></div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderLogs(logs, type, failedOnly) {
+    var allEntries = collectLogEntries(logs, type, failedOnly);
+    var totalPages = Math.max(1, Math.ceil(allEntries.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    var startIndex = (currentPage - 1) * PAGE_SIZE;
+    var entries = allEntries.slice(startIndex, startIndex + PAGE_SIZE);
+    renderPagination(allEntries.length, currentPage, PAGE_SIZE);
 
     var container = document.getElementById('logsContainer');
     if (!entries.length) {
@@ -1140,37 +1215,9 @@ mark{
     focusedIndex = -1;
     var html = '<div class="log-list">';
     entries.forEach(function(item, i) {
-      var entry = item.entry;
-      var rowId = getLogEntryKey(entry, item.type, i);
-      var lt = item.type || getLogType(entry);
-      var typeClass = toKeyPart(lt);
-      var isExpanded = expandedRows[rowId];
-      var ts = readTimestamp(entry);
-
-      html += '<div class="log-entry' + (isExpanded ? ' expanded' : '') + '" id="entry-' + rowId + '" data-index="' + i + '">';
-      html += '<div class="log-row" onclick="toggleRow(\'' + rowId + '\')">';
-      html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
-      html += '<div class="log-summary-col">';
-      html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
-      if (ts) {
-        html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
-      }
-      html += '</div>';
-      html += '<div class="log-status">' + statusBadge(entry) + '</div>';
-      html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
-      html += '<div class="log-expand">' + (isExpanded ? '&#9654;' : '&#9654;') + '</div>';
-      html += '</div>';
-
-      // Detail panel
-      html += '<div class="log-detail' + (isExpanded ? '' : '') + '" id="detail-' + rowId + '">';
-      html += '<div class="log-detail-inner"><div class="detail-sections">';
-      html += renderLogDetails(entry, lt);
-      html += '<div class="entry-footer">';
-      html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
-      html += '</div>';
-      html += '</div></div></div>';
-
-      html += '</div>';
+      var absoluteIndex = startIndex + i;
+      var rowId = getLogEntryKey(item.entry, item.type, absoluteIndex);
+      html += renderLogEntryHtml(item.entry, item.type, rowId, i, expandedRows[rowId]);
     });
     html += '</div>';
     container.innerHTML = html;
@@ -1182,7 +1229,7 @@ mark{
     return {
       type: window._currentFilterType || '',
       failedOnly: window._failedOnly || false,
-      limit: document.getElementById('limitInput') ? parseInt(document.getElementById('limitInput').value, 10) || 50 : 50,
+      page: currentPage,
     };
   }
 
@@ -1190,7 +1237,27 @@ mark{
     if (!currentDevice) return;
     var logs = currentDevice.report ? currentDevice.report.logs : {};
     var options = readVisibleLogOptions();
-    renderLogs(logs, options.type, options.limit, options.failedOnly);
+    renderLogs(logs, options.type, options.failedOnly);
+    updateLiveNotice();
+  }
+
+  function updateCurrentPagination() {
+    if (!currentDevice) return;
+    var logs = currentDevice.report ? currentDevice.report.logs : {};
+    var options = readVisibleLogOptions();
+    var total = collectLogEntries(logs, options.type, options.failedOnly).length;
+    renderPagination(total, currentPage, PAGE_SIZE);
+  }
+
+  function updateLiveNotice() {
+    var notice = document.getElementById('liveNotice');
+    if (!notice) return;
+    if (pendingLiveCount > 0) {
+      notice.textContent = pendingLiveCount + ' new logs';
+      notice.classList.add('visible');
+    } else {
+      notice.classList.remove('visible');
+    }
   }
 
   function refreshCurrentDevice() {
@@ -1207,6 +1274,7 @@ mark{
       currentDevice.logCount = data.logCount;
       currentDevice.receivedAt = data.receivedAt;
       currentDevice.lastSeenAt = data.lastSeenAt;
+      pendingLiveCount = 0;
       rerenderVisibleLogs();
       updateTabCounts();
     }).catch(function(err) {
@@ -1238,6 +1306,24 @@ mark{
   window.applyFilters = function() {
     if (!currentDevice) return;
     expandedRows = {};
+    currentPage = 1;
+    pendingLiveCount = 0;
+    rerenderVisibleLogs();
+  };
+
+  window.goToPage = function(page) {
+    if (!currentDevice) return;
+    currentPage = Math.max(1, Math.floor(page));
+    expandedRows = {};
+    if (currentPage === 1) pendingLiveCount = 0;
+    rerenderVisibleLogs();
+  };
+
+  window.showLiveUpdates = function() {
+    if (!currentDevice) return;
+    currentPage = 1;
+    expandedRows = {};
+    pendingLiveCount = 0;
     rerenderVisibleLogs();
   };
 
@@ -1294,33 +1380,11 @@ mark{
     var el = document.getElementById('entry-' + rowId);
     if (!el) return;
 
-    // Re-derive the entry from current logs
     var logs = currentDevice.report ? currentDevice.report.logs : {};
-    var entries = [];
-    Object.entries(logs).forEach(function(logGroup) {
-      var logType = logGroup[0];
-      var value = logGroup[1];
-      if (Array.isArray(value)) {
-        value.forEach(function(entry, index) {
-          entries.push({ type: logType, entry: entry, order: entries.length });
-        });
-      }
-    });
-
     var options = readVisibleLogOptions();
-    if (options.type) {
-      entries = entries.filter(function(item) { return item.type === options.type; });
-    }
-    if (options.failedOnly) {
-      entries = entries.filter(function(item) { return isFailedEntry(item.entry); });
-    }
-    if (searchTerm) {
-      entries = entries.filter(function(item) { return entryMatchesSearch(item.entry); });
-    }
-    entries = entries.slice().sort(function(a, b) {
-      var byTime = readTimestamp(b.entry) - readTimestamp(a.entry);
-      return byTime || b.order - a.order;
-    }).slice(0, options.limit);
+    var startIndex = (options.page - 1) * PAGE_SIZE;
+    var entries = collectLogEntries(logs, options.type, options.failedOnly)
+      .slice(startIndex, startIndex + PAGE_SIZE);
 
     var idx = parseInt(el.getAttribute('data-index'), 10);
     if (isNaN(idx) || idx < 0 || idx >= entries.length) return;
@@ -1417,6 +1481,25 @@ mark{
     items[focusedIndex].click();
   }
 
+  function openDeviceDetail(deviceId) {
+    if (!deviceId) return;
+    var nextHash = 'device/' + encodeURIComponent(deviceId);
+    if (location.hash === '#' + nextHash) {
+      route();
+      return;
+    }
+    location.hash = nextHash;
+  }
+
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    if (!target || !target.closest) return;
+    var card = target.closest('.device-card[data-device-id]');
+    if (!card) return;
+    e.preventDefault();
+    openDeviceDetail(card.getAttribute('data-device-id'));
+  });
+
   // --- Routing ---
 
   window._currentFilterType = '';
@@ -1450,13 +1533,85 @@ mark{
     return html;
   }
 
+  function findDeviceCard(deviceId) {
+    var cards = document.querySelectorAll('.device-card[data-device-id]');
+    for (var i = 0; i < cards.length; i += 1) {
+      if (cards[i].getAttribute('data-device-id') === deviceId) return cards[i];
+    }
+    return null;
+  }
+
+  function updateVisibleIndexes(list) {
+    Array.from(list.querySelectorAll('.log-entry')).forEach(function(entry, index) {
+      entry.setAttribute('data-index', index);
+    });
+  }
+
+  function visibleDeltaItems(deltaLogs) {
+    var options = readVisibleLogOptions();
+    var items = [];
+    Object.entries(deltaLogs || {}).forEach(function(logGroup) {
+      var type = logGroup[0];
+      var entries = logGroup[1];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(entry) {
+        if (options.type && type !== options.type) return;
+        if (options.failedOnly && !isFailedEntry(entry)) return;
+        if (searchTerm && !entryMatchesSearch(entry)) return;
+        items.push({ type: type, entry: entry, order: items.length });
+      });
+    });
+    return items.sort(function(a, b) {
+      var byTime = readTimestamp(b.entry) - readTimestamp(a.entry);
+      return byTime || b.order - a.order;
+    });
+  }
+
+  function appendDeltaLogs(deltaLogs) {
+    var items = visibleDeltaItems(deltaLogs);
+    updateCurrentPagination();
+    if (!items.length) {
+      return;
+    }
+
+    if (currentPage !== 1) {
+      pendingLiveCount += items.length;
+      updateLiveNotice();
+      return;
+    }
+
+    pendingLiveCount = 0;
+    updateLiveNotice();
+
+    var container = document.getElementById('logsContainer');
+    var list = container ? container.querySelector('.log-list') : null;
+    if (!list) {
+      rerenderVisibleLogs();
+      return;
+    }
+
+    var html = '';
+    items.forEach(function(item) {
+      var rowId = getLogEntryKey(item.entry, item.type, 'live-' + (liveSequence += 1));
+      html += renderLogEntryHtml(item.entry, item.type, rowId, 0, false);
+    });
+    list.insertAdjacentHTML('afterbegin', html);
+
+    while (list.querySelectorAll('.log-entry').length > PAGE_SIZE) {
+      var last = list.lastElementChild;
+      if (!last || last.classList.contains('expanded')) break;
+      list.removeChild(last);
+    }
+    updateVisibleIndexes(list);
+  }
+
   function appendDeviceCard(payload) {
     var grid = document.querySelector('.device-grid');
     if (!grid) { renderList(); return; }
 
     var deviceId = payload.deviceId;
     if (!deviceId) return;
-    var existing = grid.querySelector('[data-device-id="' + CSS.escape(deviceId) + '"]');
+    var existing = findDeviceCard(deviceId);
     if (existing) {
       var tags = existing.querySelector('.device-tags');
       if (tags) tags.innerHTML = renderDeviceTags(payload.logCount || {});
@@ -1469,7 +1624,6 @@ mark{
     var card = document.createElement('div');
     card.className = 'device-card';
     card.setAttribute('data-device-id', deviceId);
-    card.setAttribute('onclick', "location.hash='device/" + encodeURIComponent(deviceId) + "'");
     var html = '<div><div class="device-title">' + escapeHtml(deviceText) + '</div>';
     html += '<div class="device-subtitle">IP ' + escapeHtml(ipText) + '</div></div>';
     html += '<div class="device-meta-group">';
@@ -1485,83 +1639,6 @@ mark{
     if (titleEl) {
       var count = grid.querySelectorAll('.device-card').length;
       titleEl.innerHTML = 'Devices <span style="color:var(--text3);font-weight:400">(' + count + ')</span>';
-    }
-  }
-
-  function buildLogEntryHtml(entry, rowId, type, index) {
-    var lt = type || getLogType(entry);
-    var typeClass = toKeyPart(lt);
-    var ts = readTimestamp(entry);
-    var html = '<div class="log-row">';
-    html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
-    html += '<div class="log-summary-col">';
-    html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
-    if (ts) {
-      html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
-    }
-    html += '</div>';
-    html += '<div class="log-status">' + statusBadge(entry) + '</div>';
-    html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
-    html += '<div class="log-expand">&#9654;</div>';
-    html += '</div>';
-    html += '<div class="log-detail" id="detail-' + rowId + '">';
-    html += '<div class="log-detail-inner"><div class="detail-sections">';
-    html += renderLogDetails(entry, lt);
-    html += '<div class="entry-footer">';
-    html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
-    html += '</div>';
-    html += '</div></div></div>';
-    return html;
-  }
-
-  function appendDeltaLogs(deltaLogs) {
-    var container = document.getElementById('logsContainer');
-    if (!container) return;
-
-    var list = container.querySelector('.log-list');
-    if (!list) {
-      applyFilters();
-      return;
-    }
-
-    var type = window._currentFilterType || '';
-    var failedOnly = window._failedOnly || false;
-    var limit = document.getElementById('limitInput') ? parseInt(document.getElementById('limitInput').value, 10) || 50 : 50;
-    var allNewEntries = [];
-
-    Object.entries(deltaLogs).forEach(function(entry) {
-      var t = entry[0];
-      var entries = entry[1];
-      if (!Array.isArray(entries)) return;
-      entries.forEach(function(e) {
-        if (failedOnly && !isFailedEntry(e)) return;
-        if (type && t !== type) return;
-        if (searchTerm && !entryMatchesSearch(e)) return;
-        allNewEntries.push({ type: t, entry: e });
-      });
-    });
-
-    var count = list.querySelectorAll('.log-entry').length;
-    allNewEntries.forEach(function(item) {
-      var entry = item.entry;
-      var rowId = getLogEntryKey(entry, item.type, count++);
-      var div = document.createElement('div');
-      div.className = 'log-entry';
-      div.id = 'entry-' + rowId;
-      div.setAttribute('data-index', count - 1);
-      div.setAttribute('onclick', '');
-      div.querySelector('.log-row').setAttribute('onclick', "toggleRow('" + rowId + "')");
-      div.innerHTML = buildLogEntryHtml(entry, rowId, item.type, count - 1);
-      list.prepend(div);
-    });
-
-    // Trim oldest rows from bottom if over limit, skip expanded entries.
-    var entries = list.querySelectorAll('.log-entry');
-    while (entries.length > limit) {
-      var last = entries[entries.length - 1];
-      if (last && last.classList.contains('expanded')) break;
-      list.removeChild(last);
-      entries = list.querySelectorAll('.log-entry');
     }
   }
 

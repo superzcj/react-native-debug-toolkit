@@ -37,7 +37,9 @@ describe('daemon web console script', () => {
     const html = readConsoleHtml();
 
     expect(html).toContain('data-device-id="');
-    expect(html).toContain('var existing = grid.querySelector');
+    expect(html).toContain('function findDeviceCard(deviceId)');
+    expect(html).toContain('var existing = findDeviceCard(deviceId)');
+    expect(html).not.toContain('CSS.escape');
     expect(html).toContain('renderDeviceTags(payload.logCount || {})');
   });
 
@@ -56,7 +58,7 @@ describe('daemon web console script', () => {
     expect(html).toContain('readTimestamp(b.entry) - readTimestamp(a.entry)');
     expect(html).toContain('function renderLogDetails(entry, type)');
     expect(html).toContain('function renderNetworkDetails(entry)');
-    expect(html).toContain('class="log-detail"');
+    expect(html).toContain('class="log-detail');
   });
 
   it('shows curl commands in list and detail views', () => {
@@ -66,5 +68,42 @@ describe('daemon web console script', () => {
     expect(html).toContain('Curl quick read');
     expect(html).toContain('Curl this device');
     expect(html).toContain('/logs?type=network&failedOnly=true&limit=50');
+  });
+
+  it('opens device details through delegated card navigation', () => {
+    const html = readConsoleHtml();
+
+    expect(html).toContain("closest('.device-card[data-device-id]')");
+    expect(html).toContain('function openDeviceDetail(deviceId)');
+    expect(html).not.toContain('onclick="location.hash');
+  });
+
+  it('uses pagination instead of a detail limit input', () => {
+    const html = readConsoleHtml();
+
+    expect(html).toContain('var PAGE_SIZE = 200;');
+    expect(html).toContain('function renderPagination');
+    expect(html).toContain('window.goToPage = function(page)');
+    expect(html).not.toContain('id="limitInput"');
+    expect(html).not.toContain('Limit <input');
+  });
+
+  it('patches live deltas without rerendering the visible log list', () => {
+    const html = readConsoleHtml();
+
+    expect(html).toContain('function appendDeltaLogs(deltaLogs)');
+    expect(html).toContain('appendDeltaLogs(deltaLogs);');
+    expect(html).toContain("list.insertAdjacentHTML('afterbegin', html)");
+    expect(html).toContain('function updateVisibleIndexes(list)');
+    expect(html).not.toContain("div.querySelector('.log-row').setAttribute");
+  });
+
+  it('holds live deltas off-page behind a new-log notice', () => {
+    const html = readConsoleHtml();
+
+    expect(html).toContain('var pendingLiveCount = 0;');
+    expect(html).toContain('function updateLiveNotice()');
+    expect(html).toContain('window.showLiveUpdates = function()');
+    expect(html).toContain('if (currentPage !== 1)');
   });
 });

@@ -57,6 +57,7 @@ Demo/yarn-error.log
 # Local tooling
 .claude/
 .superset/
+AGENTS.md
 
 # Misc
 *.log
