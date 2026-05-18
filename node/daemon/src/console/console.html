@@ -421,6 +421,33 @@ header h1 span{color:var(--text3);font-weight:400}
   padding:12px 14px;border-bottom:1px solid rgba(30,45,74,.5);
   display:flex;align-items:center;gap:10px;
 }
+.network-meta-line{
+  padding:6px 14px;border-bottom:1px solid rgba(30,45,74,.5);
+  font-family:var(--font-mono);font-size:10px;color:var(--text3);
+  display:flex;gap:10px;flex-wrap:wrap;
+}
+.network-meta-line span{white-space:nowrap}
+
+/* Collapsible sections */
+.collapse-section{border:1px solid var(--border);border-radius:var(--radius);background:rgba(8,12,22,.35);overflow:hidden;margin-bottom:0}
+.collapse-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 12px;border-bottom:1px solid var(--border);
+  background:rgba(0,229,255,.03);cursor:pointer;user-select:none;
+}
+.collapse-header:hover{background:rgba(0,229,255,.06)}
+.collapse-header-left{display:flex;align-items:center;gap:6px}
+.collapse-arrow{
+  font-size:9px;color:var(--text3);transition:transform .2s;display:inline-block;
+}
+.collapse-arrow.open{transform:rotate(90deg)}
+.collapse-title{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--cyan);font-family:var(--font-mono);
+}
+.collapse-body{display:none;padding:0}
+.collapse-body.open{display:block}
+.section-body-inner{padding:4px 0}
 .method-badge{
   font-family:var(--font-mono);font-size:11px;font-weight:700;
   padding:3px 10px;border-radius:3px;letter-spacing:.04em;
@@ -819,6 +846,34 @@ mark{
     return renderSection(title, renderValue(object), object);
   }
 
+  function renderCollapsibleSection(title, content, dataForCopy, collapsed) {
+    var id = 'ns-' + Math.random().toString(36).slice(2,8);
+    var isOpen = !collapsed;
+    var copyAttr = dataForCopy !== undefined
+      ? ' data-copy="' + escapeHtml(typeof dataForCopy === 'string' ? dataForCopy : JSON.stringify(dataForCopy)) + '"'
+      : '';
+    var html = '<div class="collapse-section">';
+    html += '<div class="collapse-header" onclick="toggleNetworkSection(\'' + id + '\')">';
+    html += '<div class="collapse-header-left">';
+    html += '<span class="collapse-arrow' + (isOpen ? ' open' : '') + '" id="arrow-' + id + '">&#9654;</span>';
+    html += '<span class="collapse-title">' + escapeHtml(title) + '</span>';
+    html += '</div>';
+    html += '<button class="detail-section-copy" onclick="event.stopPropagation();copySectionData(this)" title="Copy section"' + copyAttr + '>&#9112;</button>';
+    html += '</div>';
+    html += '<div class="collapse-body' + (isOpen ? ' open' : '') + '" id="' + id + '">';
+    html += '<div class="section-body-inner">' + content + '</div>';
+    html += '</div></div>';
+    return html;
+  }
+
+  window.toggleNetworkSection = function(id) {
+    var body = document.getElementById(id);
+    var arrow = document.getElementById('arrow-' + id);
+    if (!body) return;
+    body.classList.toggle('open');
+    if (arrow) arrow.classList.toggle('open');
+  };
+
   function renderConsoleDetails(entry) {
     var messages = Array.isArray(entry.data) ? entry.data : [entry.data];
     return renderSection('Console', renderRows([
@@ -835,30 +890,53 @@ mark{
     var method = (request.method || 'GET').toUpperCase();
     var methodClass = 'method-' + method.toLowerCase();
 
-    var hero = '<div class="network-hero"><span class="method-badge ' + methodClass + '">' + escapeHtml(method) + '</span>' +
+    // Hero - always visible
+    var html = '<div class="network-hero"><span class="method-badge ' + methodClass + '">' + escapeHtml(method) + '</span>' +
       '<span class="network-url">' + escapeHtml(request.url || '-') + '</span></div>';
 
-    var reqRows = [
-      ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
-      ['Duration', entry.duration !== undefined ? entry.duration + 'ms' : ''],
-    ];
-    if (request.headers) reqRows.push(['Headers', request.headers]);
-    if (request.body) reqRows.push(['Body', request.body]);
-
-    var html = renderSection('Request', hero + renderRows(reqRows), request);
-
-    if (response) {
-      var resRows = [
-        ['Status', response.status !== undefined ? response.status + (response.statusText ? ' ' + response.statusText : '') : ''],
-        ['Success', response.success !== undefined ? String(response.success) : ''],
-      ];
-      if (response.headers) resRows.push(['Headers', response.headers]);
-      if (response.data) resRows.push(['Data', response.data]);
-      html += renderSection('Response', renderRows(resRows), response);
+    // Compact meta line - always visible
+    var metaParts = [];
+    if (response && response.status !== undefined) {
+      metaParts.push(response.status + (response.statusText ? ' ' + response.statusText : ''));
     }
+    if (entry.duration !== undefined) metaParts.push(entry.duration + 'ms');
+    if (entry.timestamp) metaParts.push(formatTimeShort(new Date(entry.timestamp).toISOString()));
+    if (metaParts.length) {
+      html += '<div class="network-meta-line">' + metaParts.map(function(p) { return '<span>' + escapeHtml(p) + '</span>'; }).join('') + '</div>';
+    }
+
+    // Request Body - EXPANDED by default, always visible
+    var reqBodyContent = request.body
+      ? renderValue(request.body)
+      : '<span class="value-pill" style="color:var(--text3)">No request body</span>';
+    html += renderCollapsibleSection('Request Body', reqBodyContent, request.body || null, false);
+
+    // Response Data - EXPANDED by default, always visible
+    if (response) {
+      var resDataContent = response.data != null
+        ? renderValue(response.data)
+        : '<span class="value-pill" style="color:var(--text3)">No response body</span>';
+      html += renderCollapsibleSection('Response Data', resDataContent, response.data || null, false);
+    }
+
+    // Error - always visible if present
     if (entry.error) {
       html += renderSection('Error', renderValue(entry.error), entry.error);
     }
+
+    // Everything below is COLLAPSED by default
+    var reqHeadersContent = request.headers
+      ? renderValue(request.headers)
+      : '<span class="value-pill" style="color:var(--text3)">No headers</span>';
+    html += renderCollapsibleSection('Request Headers', reqHeadersContent, request.headers || null, true);
+
+    if (response) {
+      var resHeadersContent = response.headers
+        ? renderValue(response.headers)
+        : '<span class="value-pill" style="color:var(--text3)">No headers</span>';
+      html += renderCollapsibleSection('Response Headers', resHeadersContent, response.headers || null, true);
+    }
+
     return html;
   }
 
