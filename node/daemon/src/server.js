@@ -140,6 +140,25 @@ function toDevicePayload(deviceLog) {
   };
 }
 
+function stripBodies(value, parentKey) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripBodies(item, parentKey));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  return Object.entries(value).reduce((acc, [key, child]) => {
+    const normalizedKey = key.toLowerCase();
+    if (normalizedKey === 'body' || (parentKey === 'response' && normalizedKey === 'data')) {
+      return acc;
+    }
+    acc[key] = stripBodies(child, normalizedKey);
+    return acc;
+  }, {});
+}
+
 function selectLogs(deviceLog, searchParams) {
   if (!deviceLog) {
     return [];
@@ -150,6 +169,8 @@ function selectLogs(deviceLog, searchParams) {
   const limit = Number.isFinite(limitParam) && limitParam > 0
     ? Math.min(Math.floor(limitParam), 500)
     : 50;
+  const entryId = searchParams.get('entryId');
+  const includeBodies = entryId ? true : searchParams.get('includeBodies') === 'true';
   const failedOnly = searchParams.get('failedOnly') === 'true';
   const logs = deviceLog.report.logs || {};
 
@@ -160,7 +181,12 @@ function selectLogs(deviceLog, searchParams) {
     entries = Object.values(logs).flatMap((value) => Array.isArray(value) ? value : []);
   }
 
-  if (failedOnly) {
+  if (entryId) {
+    entries = entries.filter((entry) => (
+      entry && typeof entry === 'object' &&
+      (entry.id === entryId || entry.id === Number(entryId))
+    ));
+  } else if (failedOnly) {
     entries = entries.filter((entry) => (
       entry &&
       typeof entry === 'object' &&
@@ -173,7 +199,11 @@ function selectLogs(deviceLog, searchParams) {
     ));
   }
 
-  return entries.slice(-limit);
+  if (!entryId) {
+    entries = entries.slice(-limit);
+  }
+
+  return includeBodies ? entries : entries.map(stripBodies);
 }
 
 function broadcastSSE(clients, eventType, deviceLog, delta) {

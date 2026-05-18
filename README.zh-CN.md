@@ -126,8 +126,10 @@ DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',
 
 curl "$BASE/devices/$DEVICE_ID"
 curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?limit=100&includeBodies=true"
 curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
 curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?entryId=<entryId>"
 curl -X DELETE "$BASE/devices"
 ```
 
@@ -140,7 +142,7 @@ POST   /ingest
 GET    /devices
 GET    /devices/latest
 GET    /devices/:deviceId
-GET    /devices/:deviceId/logs
+GET    /devices/:deviceId/logs?type=&limit=&failedOnly=&includeBodies=&entryId=
 DELETE /devices
 GET    /events
 GET    /console
@@ -155,7 +157,7 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 工具：
 
 - `list_app_devices`
-- `get_app_logs`
+- `get_app_logs` — 默认不含 body；设置 `includeBodies=true` 或传 `entryId` 获取详情
 
 有 shell 时优先 curl。
 

@@ -5,7 +5,7 @@ const { KNOWN_LOG_TYPES, createToolPayload } = require('./logs');
 
 const getAppLogsTool = {
   name: 'get_app_logs',
-  description: 'Read React Native Debug Toolkit logs from the local daemon. Tip: if you have shell access, curl http://127.0.0.1:3799/devices/latest is more efficient.',
+  description: 'Read React Native Debug Toolkit logs from the local daemon. Bodies are excluded by default to reduce token usage; set includeBodies=true or pass an entryId to fetch details. Tip: if you have shell access, curl http://127.0.0.1:3799/devices/latest/logs?includeBodies=true is more efficient.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -16,7 +16,8 @@ const getAppLogsTool = {
       },
       limit: { type: 'number', default: 50 },
       failedOnly: { type: 'boolean', default: false },
-      includeBodies: { type: 'boolean', default: true },
+      includeBodies: { type: 'boolean', default: false },
+      entryId: { type: 'string', description: 'Fetch a single entry by ID; forces includeBodies=true' },
     },
   },
 };
@@ -66,6 +67,7 @@ async function callTool(name, args = {}, context = {}) {
       limit: args.limit,
       failedOnly: args.failedOnly,
       includeBodies: args.includeBodies,
+      entryId: args.entryId,
     });
   } catch (error) {
     return {

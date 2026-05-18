@@ -40,7 +40,8 @@ function selectLogs(report, options = {}) {
   const limit = Number.isFinite(options.limit) && options.limit > 0
     ? Math.min(Math.floor(options.limit), 200)
     : 50;
-  const includeBodies = options.includeBodies !== false;
+  const entryId = options.entryId;
+  const includeBodies = entryId ? true : options.includeBodies === true;
   const failedOnly = options.failedOnly === true;
 
   let entries;
@@ -54,11 +55,18 @@ function selectLogs(report, options = {}) {
     ));
   }
 
-  if (failedOnly) {
+  if (entryId) {
+    entries = entries.filter((item) => {
+      const e = item.entry || item;
+      return e.id === entryId || e.id === Number(entryId);
+    });
+  } else if (failedOnly) {
     entries = entries.filter((item) => isFailedLog(item.entry || item));
   }
 
-  entries = entries.slice(-limit);
+  if (!entryId) {
+    entries = entries.slice(-limit);
+  }
 
   if (logType) {
     return includeBodies ? entries : entries.map(stripBodies);
@@ -72,6 +80,8 @@ function selectLogs(report, options = {}) {
 
 function createToolPayload(device, options = {}) {
   const report = device.report || { version: 2, logs: {} };
+  const entryId = options.entryId;
+  const includeBodies = entryId ? true : options.includeBodies === true;
   const logs = selectLogs(report, options);
 
   return {
@@ -81,7 +91,8 @@ function createToolPayload(device, options = {}) {
     lastSeenAt: device.lastSeenAt,
     logType: options.logType || 'all',
     failedOnly: options.failedOnly === true,
-    includeBodies: options.includeBodies !== false,
+    includeBodies,
+    entryId: entryId || undefined,
     count: logs.length,
     logs,
   };

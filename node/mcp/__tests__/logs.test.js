@@ -23,20 +23,26 @@ describe('MCP log selection', () => {
     },
   };
 
-  it('keeps body and data by default', () => {
+  it('strips bodies by default', () => {
     const logs = selectLogs(report, { logType: 'network' });
-
-    expect(logs[0].request.body).toEqual({ hidden: true });
-    expect(logs[0].response.data).toEqual({ hidden: true });
-  });
-
-  it('strips bodies when explicitly disabled', () => {
-    const logs = selectLogs(report, { logType: 'network', includeBodies: false });
 
     expect(logs[0]).toEqual({
       request: { method: 'POST', url: '/ok' },
       response: { status: 200, success: true },
     });
+  });
+
+  it('keeps bodies when explicitly enabled', () => {
+    const logs = selectLogs(report, { logType: 'network', includeBodies: true });
+
+    expect(logs[0].request.body).toEqual({ hidden: true });
+    expect(logs[0].response.data).toEqual({ hidden: true });
+  });
+
+  it('fetches single entry by entryId with bodies', () => {
+    const logs = selectLogs(report, { logType: 'network', entryId: 42 });
+
+    expect(logs).toEqual([]);
   });
 
   it('filters failed logs across types', () => {
@@ -51,7 +57,7 @@ describe('MCP log selection', () => {
         type: 'network',
           entry: {
             request: { method: 'GET', url: '/bad' },
-            response: { status: 500, success: false, data: 'secret' },
+            response: { status: 500, success: false },
           },
         },
       {

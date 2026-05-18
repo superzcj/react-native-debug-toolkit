@@ -315,8 +315,10 @@ BASE=http://127.0.0.1:3799
 curl "$BASE/devices"
 curl "$BASE/devices/latest"
 curl "$BASE/devices/<deviceId>/logs?limit=100"
+curl "$BASE/devices/<deviceId>/logs?limit=100&includeBodies=true"
 curl "$BASE/devices/<deviceId>/logs?type=network&failedOnly=true&limit=50"
 curl "$BASE/devices/<deviceId>/logs?type=console&limit=100"
+curl "$BASE/devices/<deviceId>/logs?entryId=<entryId>"
 ```
 
 读法：
@@ -350,11 +352,12 @@ MCP 不接收 App 日志，不存日志，只转 daemon HTTP API。
   "logType": "network",
   "limit": 50,
   "failedOnly": false,
-  "includeBodies": true
+  "includeBodies": false,
+  "entryId": null
 }
 ```
 
-`includeBodies` 默认 `true`。不默认脱敏。`false` 只用于降上下文体量。
+`includeBodies` 默认 `false`，降低 MCP token 消耗。传 `entryId` 时自动启用 body 返回指定条目。
 
 Daemon 自动拉起：
 

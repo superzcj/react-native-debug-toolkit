@@ -1136,6 +1136,7 @@ mark{
       html += renderCurlPanel('Curl this device', [
         curlCommand('/devices/' + encodeURIComponent(deviceId)),
         curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?limit=200'),
+        curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?limit=200&includeBodies=true'),
         curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=network&failedOnly=true&limit=50'),
         curlCommand('/devices/' + encodeURIComponent(deviceId) + '/logs?type=console&limit=200'),
       ]);
