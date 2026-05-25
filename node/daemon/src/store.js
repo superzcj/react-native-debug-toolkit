@@ -28,15 +28,33 @@ function slugPart(value) {
     .slice(0, 80) || 'unknown';
 }
 
+function ipTail(ip) {
+  if (!ip || typeof ip !== 'string') return '0';
+  const parts = ip.split('.');
+  return parts.length >= 2 ? parts[parts.length - 1] : slugPart(ip);
+}
+
+function isSimulatorIp(ip) {
+  return ip === '127.0.0.1' || ip === '::1' || ip === '10.0.2.2' || ip === 'localhost';
+}
+
 function createDeviceId(report, source) {
   const device = report && typeof report === 'object' && report.device && typeof report.device === 'object'
     ? report.device
     : {};
-  return [
-    slugPart(device.platform),
-    slugPart(device.model),
-    slugPart(source && source.ip),
-  ].join('_');
+  const platform = slugPart(device.platform);
+  const ip = source && source.ip ? String(source.ip) : '';
+  const sim = isSimulatorIp(ip);
+  let model = slugPart(device.model);
+  if (model === 'unknown' && platform !== 'unknown') {
+    model = sim ? 'sim' : 'device';
+  }
+  const ver = device.appVersion ? slugPart(device.appVersion) : '';
+  const tail = sim ? 'sim' : ipTail(ip);
+  const parts = [platform, model];
+  if (ver && ver !== 'unknown') parts.push(ver);
+  parts.push(tail);
+  return parts.join('_');
 }
 
 function readPersistedDevices(storagePath, maxDevices) {
@@ -92,6 +110,18 @@ function createMemoryStore(options = {}) {
     const deviceId = createDeviceId(report, source);
     const existingIndex = devices.findIndex((item) => item.deviceId === deviceId);
     const existing = existingIndex >= 0 ? devices[existingIndex] : null;
+    const reportSessionId = report.session ? report.session.id : null;
+    if (reportSessionId && report.logs) {
+      Object.entries(report.logs).forEach(function(pair) {
+        if (!Array.isArray(pair[1])) return;
+        report.logs[pair[0]] = pair[1].map(function(entry) {
+          if (entry && typeof entry === 'object' && !entry.sessionId) {
+            return Object.assign({}, entry, { sessionId: reportSessionId });
+          }
+          return entry;
+        });
+      });
+    }
     const deviceLog = {
       deviceId,
       firstSeenAt: existing ? existing.firstSeenAt : receivedAt,
@@ -99,6 +129,7 @@ function createMemoryStore(options = {}) {
       receivedAt,
       source,
       device: report.device || null,
+      session: report.session || null,
       report,
       logCount: createLogCount(report),
     };
@@ -124,6 +155,7 @@ function createMemoryStore(options = {}) {
     }
 
     const deltaLogs = (delta && delta.logs) || {};
+    const currentSessionId = deviceLog.session ? deviceLog.session.id : null;
     Object.entries(deltaLogs).forEach(([type, entries]) => {
       if (!Array.isArray(entries)) {
         return;
@@ -131,7 +163,13 @@ function createMemoryStore(options = {}) {
       if (!deviceLog.report.logs[type]) {
         deviceLog.report.logs[type] = [];
       }
-      deviceLog.report.logs[type].push(...entries);
+      const tagged = entries.map(function(entry) {
+        if (entry && typeof entry === 'object' && currentSessionId && !entry.sessionId) {
+          return Object.assign({}, entry, { sessionId: currentSessionId });
+        }
+        return entry;
+      });
+      deviceLog.report.logs[type].push(...tagged);
     });
 
     deviceLog.lastSeenAt = new Date(Date.now()).toISOString();
@@ -153,6 +191,7 @@ function createMemoryStore(options = {}) {
         receivedAt: deviceLog.receivedAt,
         device: deviceLog.device || null,
         source: deviceLog.source || null,
+        session: deviceLog.session || null,
         logCount: deviceLog.logCount,
       }));
   }

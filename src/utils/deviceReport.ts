@@ -21,9 +21,15 @@ export interface DeviceInfo {
   appVersion: string;
 }
 
+export interface SessionInfo {
+  id: string;
+  startedAt: number;
+}
+
 export interface DebugDeviceReport {
   version: 2;
   device: DeviceInfo;
+  session?: SessionInfo;
   logs: Record<string, unknown[] | undefined>;
 }
 
@@ -161,7 +167,7 @@ function sanitizeValue(
 }
 
 export function createDebugDeviceReport(
-  options: DebugDeviceReportOptions & { featureProvider?: FeatureDataProvider } = {},
+  options: DebugDeviceReportOptions & { featureProvider?: FeatureDataProvider; session?: SessionInfo } = {},
 ): DebugDeviceReport {
   const provider = options.featureProvider ?? debugToolkit;
   const maxPerType = Math.max(1, Math.floor(options.maxPerType ?? DEFAULT_MAX_PER_TYPE));
@@ -200,6 +206,7 @@ export function createDebugDeviceReport(
       osVersion: Platform.Version == null ? 'unknown' : String(Platform.Version),
       appVersion: (constants?.appVersion as string) || 'unknown',
     },
+    session: options.session,
     logs,
   };
 }

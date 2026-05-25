@@ -472,6 +472,23 @@ header h1 span{color:var(--text3);font-weight:400}
 .nav-arrow{color:var(--cyan);font-size:14px}
 .nav-to{color:var(--text);font-weight:500}
 
+/* Session divider */
+.session-divider{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 0;margin:6px 0;
+}
+.session-divider-line{flex:1;height:1px;background:var(--border2)}
+.session-divider-label{
+  font-family:var(--font-mono);font-size:10px;
+  color:var(--text3);white-space:nowrap;letter-spacing:.04em;
+  display:flex;align-items:center;gap:6px;
+}
+.session-divider-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--amber);flex-shrink:0;
+}
+.session-new .session-divider-dot{background:var(--cyan)}
+
 /* Entry footer */
 .entry-footer{
   display:flex;align-items:center;gap:8px;
@@ -691,11 +708,18 @@ mark{
     return labels[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown');
   }
 
+  function capitalizePlatform(p) {
+    if (p === 'ios') return 'iOS';
+    if (p === 'android') return 'Android';
+    var s = String(p || 'unknown');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   function formatDevice(device) {
     if (!device || typeof device !== 'object') return 'Unknown device';
     var parts = [];
-    if (device.platform) parts.push(String(device.platform).toUpperCase());
-    if (device.model) parts.push(String(device.model));
+    if (device.platform) parts.push(capitalizePlatform(device.platform));
+    if (device.model && String(device.model) !== 'unknown') parts.push(String(device.model));
     if (device.osVersion) parts.push('OS ' + String(device.osVersion));
     return parts.length ? parts.join(' / ') : 'Unknown device';
   }
@@ -937,7 +961,35 @@ mark{
       html += renderCollapsibleSection('Response Headers', resHeadersContent, response.headers || null, true);
     }
 
+    // cURL command
+    var curlStr = buildCurlCommand(entry);
+    if (curlStr) {
+      var curlContent = '<pre class="json-block" style="max-height:none;font-size:11px;line-height:1.6">' + escapeHtml(curlStr) + '</pre>';
+      html += renderCollapsibleSection('cURL', curlContent, curlStr, true);
+    }
+
     return html;
+  }
+
+  // Keep in sync with src/features/network/NetworkLogTab.tsx buildCurl()
+  function buildCurlCommand(entry) {
+    var request = readObject(entry.request) || entry;
+    if (!request.url) return '';
+    var method = (request.method || 'GET').toUpperCase();
+    function q(s) { return String(s).replace(/'/g, "'\\''"); }
+    var parts = ["curl -X " + method + " '" + q(request.url) + "'"];
+    var headers = request.headers;
+    if (headers && typeof headers === 'object') {
+      Object.keys(headers).forEach(function(k) {
+        parts.push("  -H '" + q(k) + ": " + q(headers[k]) + "'");
+      });
+    }
+    var body = request.body;
+    if (body != null) {
+      var bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+      parts.push("  -d '" + q(bodyStr) + "'");
+    }
+    return parts.join(' \\\n');
   }
 
   function renderNavigationDetails(entry) {
@@ -1060,7 +1112,7 @@ mark{
         html += '<div><div class="device-title">' + escapeHtml(deviceText) + '</div>';
         html += '<div class="device-subtitle">IP ' + escapeHtml(ipText) + '</div></div>';
         html += '<div class="device-meta-group">';
-        html += '<div class="device-meta-line"><strong>Device</strong>' + escapeHtml(deviceLog.deviceId) + '</div>';
+        html += '<div class="device-meta-line"><strong>ID</strong>' + escapeHtml(deviceLog.deviceId) + '</div>';
         html += '<div class="device-meta-line"><strong>Last seen</strong>' + formatTime(deviceLog.lastSeenAt || deviceLog.receivedAt) + '</div>';
         html += '</div>';
         html += '<div class="device-tags">' + renderDeviceTags(lc) + '</div>';
@@ -1121,7 +1173,7 @@ mark{
       if (device && typeof device === 'object') {
         html += '<div class="device-info">';
         var pClass = device.platform === 'ios' ? 'platform-ios' : device.platform === 'android' ? 'platform-android' : '';
-        html += '<span class="device-badge ' + pClass + '">' + escapeHtml((device.platform || 'unknown').toUpperCase()) + '</span>';
+        html += '<span class="device-badge ' + pClass + '">' + escapeHtml(capitalizePlatform(device.platform)) + '</span>';
         if (device.model) html += '<span class="device-badge">' + escapeHtml(device.model) + '</span>';
         if (device.osVersion) html += '<span class="device-badge">OS ' + escapeHtml(device.osVersion) + '</span>';
         if (device.appVersion) html += '<span class="device-badge">v' + escapeHtml(device.appVersion) + '</span>';
@@ -1168,10 +1220,6 @@ mark{
 
       // Actions
       html += '<div class="actions">';
-      html += '<button class="btn" onclick="copyJSON()">';
-      html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-      html += 'Copy JSON</button>';
-      html += '<span style="flex:1"></span>';
       html += '<span style="font-size:10px;color:var(--text3);font-family:var(--font-mono)"><span class="kbd">/</span> search &nbsp; <span class="kbd">j</span><span class="kbd">k</span> navigate &nbsp; <span class="kbd">Enter</span> expand &nbsp; <span class="kbd">Esc</span> back</span>';
       html += '</div>';
 
@@ -1262,12 +1310,9 @@ mark{
     html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
     html += '<div class="log-expand">' + (isExpanded ? '&#9654;' : '&#9654;') + '</div>';
     html += '</div>';
-    html += '<div class="log-detail' + (isExpanded ? '' : '') + '" id="detail-' + rowId + '">';
+    html += '<div class="log-detail" id="detail-' + rowId + '">';
     html += '<div class="log-detail-inner"><div class="detail-sections">';
     html += renderLogDetails(entry, lt);
-    html += '<div class="entry-footer">';
-    html += '<button class="btn btn-sm" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')">&#9112; Copy JSON</button>';
-    html += '</div>';
     html += '</div></div></div>';
     html += '</div>';
     return html;
@@ -1292,8 +1337,24 @@ mark{
     }
 
     focusedIndex = -1;
+    var currentSessionId = null;
+    var knownSessionIds = new Set();
+    if (currentDevice && currentDevice.session) {
+      knownSessionIds.add(currentDevice.session.id);
+    }
     var html = '<div class="log-list">';
     entries.forEach(function(item, i) {
+      var entrySessionId = item.entry && typeof item.entry === 'object' ? item.entry.sessionId : null;
+      if (entrySessionId && entrySessionId !== currentSessionId) {
+        var isNewSession = knownSessionIds.has(entrySessionId);
+        var label = isNewSession ? 'Current session' : ('Session ' + entrySessionId.slice(0, 8));
+        html += '<div class="session-divider' + (isNewSession ? ' session-new' : '') + '">';
+        html += '<div class="session-divider-line"></div>';
+        html += '<span class="session-divider-label"><span class="session-divider-dot"></span>' + label + '</span>';
+        html += '<div class="session-divider-line"></div>';
+        html += '</div>';
+        currentSessionId = entrySessionId;
+      }
       var absoluteIndex = startIndex + i;
       var rowId = getLogEntryKey(item.entry, item.type, absoluteIndex);
       html += renderLogEntryHtml(item.entry, item.type, rowId, i, expandedRows[rowId]);
@@ -1670,7 +1731,37 @@ mark{
     }
 
     var html = '';
+    var liveCurrentSessionId = null;
+    var liveKnownSessionIds = new Set();
+    if (currentDevice && currentDevice.session) {
+      liveKnownSessionIds.add(currentDevice.session.id);
+    }
+    // find existing sessionId from first entry in list for divider continuity
+    var existingFirst = list.querySelector('.log-entry');
+    if (existingFirst) {
+      var existingIndex = parseInt(existingFirst.getAttribute('data-index'), 10);
+      var existingEntries = collectLogEntries(
+        currentDevice.report ? currentDevice.report.logs : {},
+        readVisibleLogOptions().type,
+        readVisibleLogOptions().failedOnly
+      );
+      var existingSlice = existingEntries.slice(0, PAGE_SIZE);
+      if (existingSlice.length > 0 && existingSlice[0].entry && typeof existingSlice[0].entry === 'object') {
+        liveCurrentSessionId = existingSlice[0].entry.sessionId || null;
+      }
+    }
     items.forEach(function(item) {
+      var entrySessionId = item.entry && typeof item.entry === 'object' ? item.entry.sessionId : null;
+      if (entrySessionId && entrySessionId !== liveCurrentSessionId) {
+        var isNewSession = liveKnownSessionIds.has(entrySessionId);
+        var label = isNewSession ? 'Current session' : ('Session ' + entrySessionId.slice(0, 8));
+        html += '<div class="session-divider' + (isNewSession ? ' session-new' : '') + '">';
+        html += '<div class="session-divider-line"></div>';
+        html += '<span class="session-divider-label"><span class="session-divider-dot"></span>' + label + '</span>';
+        html += '<div class="session-divider-line"></div>';
+        html += '</div>';
+        liveCurrentSessionId = entrySessionId;
+      }
       var rowId = getLogEntryKey(item.entry, item.type, 'live-' + (liveSequence += 1));
       html += renderLogEntryHtml(item.entry, item.type, rowId, 0, false);
     });

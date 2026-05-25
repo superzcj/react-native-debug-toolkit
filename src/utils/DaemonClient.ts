@@ -6,6 +6,7 @@ import {
   createDebugDeviceReport,
   type DebugDeviceReport,
   type DebugDeviceReportOptions,
+  type SessionInfo,
 } from './deviceReport';
 import { safeStringify } from './safeStringify';
 
@@ -147,6 +148,7 @@ interface StreamState {
   debounceMs: number;
   timeoutMs: number;
   deviceId: string | null;
+  session: SessionInfo;
   sending: boolean;
   debounceTimer: ReturnType<typeof setTimeout> | null;
   retryTimer: ReturnType<typeof setTimeout> | null;
@@ -183,6 +185,7 @@ export class DaemonClient {
   private _featureProvider: FeatureDataProvider;
   private _onEndpointDetected: ((url: string) => void) | undefined;
   private _restorePromise: Promise<void> | null = null;
+  private _sessionId: SessionInfo | null = null;
 
   constructor(options: DaemonClientOptions) {
     this._fetch = options.fetch;
@@ -264,6 +267,10 @@ export class DaemonClient {
   connect(options: StreamToDaemonOptions = {}): void {
     if (this._stream) return;
 
+    if (!this._sessionId) {
+      this._sessionId = { id: generateSessionId(), startedAt: Date.now() };
+    }
+
     const endpoint = options.endpoint || this.resolveEndpoint();
     const reportUrl = buildDaemonUrl(endpoint, '/report');
     const ingestUrl = buildDaemonUrl(endpoint, '/ingest');
@@ -280,6 +287,7 @@ export class DaemonClient {
       debounceMs: options.debounceMs || DEFAULT_DEBOUNCE_MS,
       timeoutMs: Math.max(0, options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       deviceId: null,
+      session: this._sessionId,
       sending: false,
       debounceTimer: null,
       retryTimer: null,
@@ -315,6 +323,7 @@ export class DaemonClient {
     if (!this._stream) return;
     const state = this._stream;
     this._stream = null;
+    this._sessionId = null;
 
     if (state.debounceTimer) clearTimeout(state.debounceTimer);
     if (state.retryTimer) clearTimeout(state.retryTimer);
@@ -458,6 +467,7 @@ export class DaemonClient {
     this._settings = { mode: 'simulator', endpoint: '', deviceHost: '', token: '' };
     this._streamingEnabled = null;
     this._restorePromise = null;
+    this._sessionId = null;
   }
 
   // ---- Private: Transport ----
@@ -629,7 +639,7 @@ export class DaemonClient {
   }
 
   private async doSendFullReport(state: StreamState): Promise<SendResult> {
-    const report = createDebugDeviceReport({ featureProvider: this._featureProvider });
+    const report = createDebugDeviceReport({ featureProvider: this._featureProvider, session: state.session });
     const response = await this.doPost(
       state.reportUrl,
       this.fetchHeaders(state),
@@ -842,4 +852,19 @@ function readLogCount(value: unknown): Record<string, number> | undefined {
 
 export function _resetDaemonClientForTesting(): void {
   daemonClient._resetForTesting();
+}
+
+function generateSessionId(): string {
+  try {
+    return (globalThis as { crypto?: { randomUUID?: () => string } }).crypto?.randomUUID?.() ?? fallbackSessionId();
+  } catch {
+    return fallbackSessionId();
+  }
+}
+
+function fallbackSessionId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
 }

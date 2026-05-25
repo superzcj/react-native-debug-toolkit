@@ -26,13 +26,16 @@ const formatSize = (data: unknown): string => {
   }
 };
 
+// Keep in sync with console.html buildCurlCommand()
 const buildCurl = (log: NetworkLogEntry): string => {
-  let c = `curl -X ${log.request.method} '${log.request.url}'`;
+  const q = (s: string) => s.replace(/'/g, "'\\''");
+  let c = `curl -X ${log.request.method} '${q(log.request.url)}'`;
   if (log.request.headers) {
-    Object.entries(log.request.headers).forEach(([k, v]) => (c += ` \\\n  -H '${k}: ${v}'`));
+    Object.entries(log.request.headers).forEach(([k, v]) => (c += ` \\\n  -H '${q(k)}: ${q(String(v))}'`));
   }
   if (log.request.body) {
-    c += ` \\\n  -d '${typeof log.request.body === 'string' ? log.request.body : JSON.stringify(log.request.body)}'`;
+    const bodyStr = typeof log.request.body === 'string' ? log.request.body : JSON.stringify(log.request.body);
+    c += ` \\\n  -d '${q(bodyStr)}'`;
   }
   return c;
 };
