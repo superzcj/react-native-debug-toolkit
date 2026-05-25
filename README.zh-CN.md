@@ -4,26 +4,21 @@
 
 [English](README.md)
 
-React Native 开发期调试面板 + 本地日志桥。
+React Native Debug Toolkit 是 React Native 开发期本地调试工具。
 
-它能在 App 内看日志，也能把同一台设备的日志流发到本机 daemon，供浏览器、curl、脚本、MCP 读取。
-
-## 模型
+它可以在 App 内查看日志，把模拟器或真机日志同步到桌面 Web Console，也可以让 AI 编程工具通过 HTTP 或 MCP 直接读取真实运行日志。
 
 ```text
-RN App logs -> Debug Panel -> local daemon -> Web Console / HTTP / MCP
+RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 ```
 
-采集：
+## 能做什么
 
-- Network
-- Console
-- Navigation
-- Track
-- Zustand
-
-CLI daemon 默认把设备日志持久化到 `~/.react-native-debug-toolkit/daemon-devices.json`。
-用 `DELETE /devices` 清空已存日志。
+- App 内调试面板：Network、Console、Navigation、Track、Zustand、Environment、Clipboard。
+- 桌面 Web Console：查看模拟器和真机日志。
+- 本地 HTTP API：给 curl、脚本、Codex、Claude Code、其他有 shell 的 AI 读取。
+- 可选 MCP：提供 `list_app_devices` 和 `get_app_logs`。
+- 本地优先：不接云服务，包内不调用 AI API。
 
 ## 安装
 
@@ -31,14 +26,16 @@ CLI daemon 默认把设备日志持久化到 `~/.react-native-debug-toolkit/daem
 npm install react-native-debug-toolkit
 ```
 
-可选：
+可选依赖：
 
 ```bash
 npm install @react-native-clipboard/clipboard
 npm install @react-native-async-storage/async-storage
 ```
 
-## App 接入
+## 快速开始
+
+包住你的 App：
 
 ```tsx
 import { DebugView } from 'react-native-debug-toolkit';
@@ -52,7 +49,101 @@ export function App() {
 }
 ```
 
-开发模式打开 App。点击 `DBG`。
+开发模式打开 App，点击 `DBG`。
+
+启动桌面 daemon：
+
+```bash
+npx debug-toolkit --daemon-only
+```
+
+打开 Web Console：
+
+```text
+http://127.0.0.1:3799/console
+```
+
+App 内打开 Debug Panel -> 齿轮 -> `Send Once` 或 `Start Live Sync`。
+
+## 设备连接
+
+| 运行时 | App endpoint |
+| --- | --- |
+| iOS simulator | `http://localhost:3799` |
+| Android emulator | `http://10.0.2.2:3799` |
+| 真机 | `http://<mac-ip>:3799` |
+
+真机先用手机浏览器打开：
+
+```text
+http://<mac-ip>:3799/health
+```
+
+打不开就检查 Mac 防火墙、Wi-Fi 隔离、VPN、本地网络权限、明文 HTTP 配置。
+
+daemon 默认日志文件：
+
+```text
+~/.react-native-debug-toolkit/daemon-devices.json
+```
+
+自定义存储路径：
+
+```bash
+npx debug-toolkit --daemon-only --store /path/to/devices.json
+DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npx debug-toolkit --daemon-only
+```
+
+## 用 HTTP 读取日志
+
+AI 或脚本有 shell 时，优先用 HTTP。
+
+```bash
+BASE=http://127.0.0.1:3799
+
+curl "$BASE/health"
+curl "$BASE/devices"
+curl "$BASE/devices/latest"
+
+DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log((JSON.parse(s).devices||[])[0]?.deviceId||''))")
+
+curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
+curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
+curl "$BASE/devices/$DEVICE_ID/logs?entryId=<entryId>"
+curl "$BASE/devices/$DEVICE_ID/logs?limit=100&includeBodies=true"
+curl -X DELETE "$BASE/devices"
+```
+
+主要端点：
+
+```text
+GET    /health
+POST   /report
+POST   /ingest
+GET    /devices
+GET    /devices/latest
+GET    /devices/:deviceId
+GET    /devices/:deviceId/logs?type=&limit=&failedOnly=&includeBodies=&entryId=
+DELETE /devices
+GET    /events
+GET    /console
+```
+
+## 使用 MCP
+
+```bash
+claude mcp add debug-toolkit -- npx debug-toolkit
+```
+
+工具：
+
+- `list_app_devices`
+- `get_app_logs`
+
+`get_app_logs` 默认不返回 body，减少 token。设置 `includeBodies=true` 或传 `entryId` 可读取单条完整日志。
+
+## App 配置
 
 禁用功能：
 
@@ -86,83 +177,6 @@ import { addTrackLog } from 'react-native-debug-toolkit';
 addTrackLog({ eventName: 'button_click' });
 ```
 
-## Desktop Logs
-
-启动 daemon：
-
-```bash
-npx debug-toolkit --daemon-only
-```
-
-默认设备日志存储文件：`~/.react-native-debug-toolkit/daemon-devices.json`。
-可用 `--store /path/to/devices.json` 或 `DEBUG_TOOLKIT_DAEMON_STORE` 覆盖。
-
-打开：
-
-```text
-http://127.0.0.1:3799/console
-```
-
-App 内：Debug Panel -> 齿轮 -> `Send Once` 或 `Start Live Sync`。
-
-Endpoint：
-
-| 运行时 | Endpoint |
-| --- | --- |
-| iOS simulator | `http://localhost:3799` |
-| Android emulator | `http://10.0.2.2:3799` |
-| 真机 | `http://<mac-ip>:3799` |
-
-真机规则：手机浏览器必须能打开 `http://<mac-ip>:3799/health`。打不开就查防火墙、Wi-Fi 隔离、VPN、明文 HTTP。
-
-## HTTP
-
-```bash
-BASE=http://127.0.0.1:3799
-
-curl "$BASE/health"
-curl "$BASE/devices"
-curl "$BASE/devices/latest"
-
-DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log((JSON.parse(s).devices||[])[0]?.deviceId||''))")
-
-curl "$BASE/devices/$DEVICE_ID"
-curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
-curl "$BASE/devices/$DEVICE_ID/logs?limit=100&includeBodies=true"
-curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
-curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
-curl "$BASE/devices/$DEVICE_ID/logs?entryId=<entryId>"
-curl -X DELETE "$BASE/devices"
-```
-
-主要端点：
-
-```text
-GET    /health
-POST   /report
-POST   /ingest
-GET    /devices
-GET    /devices/latest
-GET    /devices/:deviceId
-GET    /devices/:deviceId/logs?type=&limit=&failedOnly=&includeBodies=&entryId=
-DELETE /devices
-GET    /events
-GET    /console
-```
-
-## MCP
-
-```bash
-claude mcp add debug-toolkit -- npx debug-toolkit
-```
-
-工具：
-
-- `list_app_devices`
-- `get_app_logs` — 默认不含 body；设置 `includeBodies=true` 或传 `entryId` 获取详情
-
-有 shell 时优先 curl。
-
 ## 导出
 
 - `DebugView`
@@ -181,7 +195,7 @@ claude mcp add debug-toolkit -- npx debug-toolkit
 
 - 开发工具，不是生产监控。
 - 本地 daemon，不是云 replay。
-- Network 日志只是监测流量，不做 auth/token 分析。
+- Network 只观察流量，不自动分析 auth、token、业务错误。
 - 不默认脱敏。
 - 不替代 React Native DevTools。
 

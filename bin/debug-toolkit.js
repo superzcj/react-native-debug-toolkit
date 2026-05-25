@@ -6,6 +6,7 @@ const {
   DAEMON_NAME,
   DEFAULT_HOST,
   DEFAULT_PORT,
+  getDefaultDeviceStorePath,
   getLanIPs,
 } = require('../node/daemon/src/constants');
 const { createDaemonServer } = require('../node/daemon/src/server');
@@ -25,7 +26,7 @@ function hasHelpFlag(args) {
 
 function printHelp() {
   process.stderr.write(
-    'Usage: debug-toolkit [--host 0.0.0.0] [--port 3799] [--token dev-token] [--daemon-only]\n'
+    'Usage: debug-toolkit [--host 0.0.0.0] [--port 3799] [--token dev-token] [--store ~/.react-native-debug-toolkit/daemon-devices.json] [--daemon-only]\n'
   + '\n'
   + 'Starts the debug toolkit: daemon (HTTP + Web Console) and MCP stdio server.\n'
   + '\n'
@@ -33,6 +34,7 @@ function printHelp() {
   + '  --host <addr>   Host to bind (default: 0.0.0.0)\n'
     + '  --port <port>   Port to bind (default: 3799)\n'
   + '  --token <str>   Auth token for daemon endpoints\n'
+  + '  --store <path>  Device log store path\n'
   + '  --daemon-only   Start only the HTTP daemon and Web Console\n'
   + '  -h, --help      Show this help\n',
   );
@@ -58,6 +60,11 @@ async function main() {
   const host = readOption(args, '--host', process.env.DEBUG_TOOLKIT_DAEMON_HOST || DEFAULT_HOST);
   const port = Number(readOption(args, '--port', process.env.DEBUG_TOOLKIT_DAEMON_PORT || DEFAULT_PORT));
   const token = readOption(args, '--token', process.env.DEBUG_TOOLKIT_DAEMON_TOKEN || '');
+  const deviceStorePath = readOption(
+    args,
+    '--store',
+    process.env.DEBUG_TOOLKIT_DAEMON_STORE || getDefaultDeviceStorePath(),
+  );
   const daemonOnly = hasDaemonOnlyFlag(args);
 
   if (!Number.isFinite(port) || port <= 0) {
@@ -67,7 +74,7 @@ async function main() {
   }
 
   // Start daemon HTTP server in-process
-  const { server } = createDaemonServer({ token });
+  const { server } = createDaemonServer({ token, deviceStorePath });
 
   server.on('error', (error) => {
     process.stderr.write(`${DAEMON_NAME} failed to start: ${error.message}\n`);
@@ -79,6 +86,7 @@ async function main() {
       const consolePath = token ? `/console?token=${encodeURIComponent(token)}` : '/console';
       process.stderr.write(`${DAEMON_NAME} listening on http://${host}:${port}\n`);
       process.stderr.write(`Web Console: ${getLocalOrigin(host, port)}${consolePath}\n`);
+      process.stderr.write(`Device store: ${deviceStorePath}\n`);
       const lanIPs = getLanIPs();
       if (lanIPs.length > 0) {
         process.stderr.write(`LAN IPs: ${lanIPs.join(', ')}\n`);
