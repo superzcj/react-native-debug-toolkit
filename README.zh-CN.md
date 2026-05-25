@@ -1,5 +1,7 @@
 # React Native Debug Toolkit
 
+![demo](demo.gif)
+
 [English](README.md)
 
 React Native 开发期调试面板 + 本地日志桥。

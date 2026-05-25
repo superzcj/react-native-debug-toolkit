@@ -1,5 +1,7 @@
 # React Native Debug Toolkit
 
+![demo](demo.gif)
+
 [中文](README.zh-CN.md)
 
 Dev-only React Native inspector with a local log bridge.
