@@ -65,6 +65,9 @@ module.exports = {
     ),
   useColorScheme: () => 'light',
   NativeModules: {},
+  DevSettings: {
+    reload: jest.fn(),
+  },
   TurboModuleRegistry: { get: () => null },
   Platform: {
     OS: 'ios',

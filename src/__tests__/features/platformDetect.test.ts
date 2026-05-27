@@ -2,7 +2,7 @@ describe('platformDetect', () => {
   let isSimulator: () => boolean;
 
   function loadWithPlatform(
-    platform: { OS: string; constants: Record<string, unknown> },
+    platform: { OS: string; constants?: Record<string, unknown> },
     nativeModules: Record<string, unknown> = {},
   ) {
     jest.resetModules();
@@ -15,7 +15,6 @@ describe('platformDetect', () => {
       Animated: { Value: class {}, ValueXY: class {}, spring: jest.fn(() => ({ start: jest.fn() })), timing: jest.fn(() => ({ start: jest.fn() })), parallel: jest.fn(() => ({ start: jest.fn() })) },
       PanResponder: { create: () => ({ panHandlers: {} }) },
     }));
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('../../features/devConnect/platformDetect');
     isSimulator = mod.isSimulator;
   }
@@ -40,6 +39,13 @@ describe('platformDetect', () => {
     loadWithPlatform({
       OS: 'ios',
       constants: { forceTouchAvailable: true, systemName: 'iOS' },
+    });
+    expect(isSimulator()).toBe(false);
+  });
+
+  it('returns false when Platform.constants is missing', () => {
+    loadWithPlatform({
+      OS: 'ios',
     });
     expect(isSimulator()).toBe(false);
   });

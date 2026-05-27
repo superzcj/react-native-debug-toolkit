@@ -14,7 +14,7 @@ import {
   type CameraKitReadCodeEvent,
   type ExpoCameraScanResult,
 } from './cameraKit';
-import { parseMetroQrPayload } from './devConnectUtils';
+import { parseMetroQrPayload, type ParsedComputerTarget } from './devConnectUtils';
 
 // ─── Camera Error Boundary ─────────────────────────────────
 
@@ -40,7 +40,9 @@ class CameraErrorBoundary extends Component<CameraBoundaryProps, CameraBoundaryS
   }
 
   render() {
-    if (this.state.hasError) return null;
+    if (this.state.hasError) {
+      return null;
+    }
     return this.props.children;
   }
 }
@@ -50,10 +52,10 @@ class CameraErrorBoundary extends Component<CameraBoundaryProps, CameraBoundaryS
 interface DevConnectQrScannerProps {
   visible: boolean;
   onClose: () => void;
-  onScanHost: (host: string) => void;
+  onScanTarget: (target: ParsedComputerTarget) => void;
 }
 
-export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnectQrScannerProps) {
+export function DevConnectQrScanner({ visible, onClose, onScanTarget }: DevConnectQrScannerProps) {
   const scannedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [cameraFailed, setCameraFailed] = useState(false);
@@ -68,8 +70,12 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
   }, [visible]);
 
   const handleScanned = useCallback((rawValue: string) => {
-    if (scannedRef.current) return;
-    if (typeof rawValue !== 'string') return;
+    if (scannedRef.current) {
+      return;
+    }
+    if (typeof rawValue !== 'string') {
+      return;
+    }
 
     const parsed = parseMetroQrPayload(rawValue);
     if (!parsed) {
@@ -79,9 +85,12 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
 
     scannedRef.current = true;
     setError(null);
-    onScanHost(parsed.computerHost);
+    onScanTarget({
+      computerHost: parsed.computerHost,
+      metroPort: parsed.metroPort,
+    });
     onClose();
-  }, [onClose, onScanHost]);
+  }, [onClose, onScanTarget]);
 
   const handleCameraKitRead = useCallback((event: CameraKitReadCodeEvent) => {
     handleScanned(event.nativeEvent?.codeStringValue ?? '');
@@ -95,7 +104,9 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
     setCameraFailed(true);
   }, []);
 
-  if (!visible || !scanner) return null;
+  if (!visible || !scanner) {
+    return null;
+  }
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>

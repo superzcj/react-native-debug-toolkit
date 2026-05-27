@@ -12,7 +12,6 @@ import {
 
 import type { DebugFeatureRenderProps } from '../../types';
 import { Colors } from '../../ui/theme/colors';
-import { copyToComputer } from '../../utils/copyToComputer';
 import {
   buildDeviceDaemonEndpoint,
   daemonClient,
@@ -20,53 +19,115 @@ import {
   normalizeDaemonSettings,
   type DaemonSettings,
 } from '../../utils/DaemonClient';
-import { buildMetroUrls, normalizeComputerHost } from './devConnectUtils';
-import { saveComputerHost } from './devConnectPreferences';
+import {
+  DEFAULT_DAEMON_PORT,
+  DEFAULT_METRO_PORT,
+  buildDaemonDeviceHost,
+  buildMetroTarget,
+  buildMetroUrls,
+  normalizeComputerHost,
+  normalizePort,
+  parseComputerTarget,
+  type ParsedComputerTarget,
+} from './devConnectUtils';
+import {
+  saveComputerTarget,
+  saveDaemonPort,
+  saveMetroPort,
+} from './devConnectPreferences';
+import { applyMetroBundle, resetMetroBundle } from './nativeDevConnect';
 import type { DevConnectState } from './types';
 import { DevConnectQrScanner } from './DevConnectQrScanner';
 
 const CONNECTION_TIMEOUT_MS = 2000;
-const METRO_PORT = '8081';
 
 type SyncUiState = 'idle' | 'checking' | 'connected' | 'retrying' | 'failed' | 'running';
+
+function getSimulatorMetroHost(): string {
+  return Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+}
+
+function describeMetroFailure(result: { reason: string; error?: string }): string {
+  if (result.reason === 'native_unavailable') {
+    return 'Native DevConnect not installed. Rebuild app after installing native module.';
+  }
+  if (result.reason === 'metro_unreachable') {
+    return result.error ? `Metro not reachable: ${result.error}` : 'Metro not reachable. Start Metro on that port.';
+  }
+  if (result.reason === 'fetch_unavailable') {
+    return 'Cannot check Metro because fetch is unavailable.';
+  }
+  if (result.reason === 'invalid_target') {
+    return 'Enter a valid computer IP and Metro port.';
+  }
+  return result.error ? `Metro switch failed: ${result.error}` : 'Metro switch failed.';
+}
 
 export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectState>) {
   const inputRef = useRef<TextInput>(null);
   const [computerHost, setComputerHost] = useState(snapshot.computerHost);
+  const [metroPort, setMetroPort] = useState(snapshot.metroPort);
+  const [daemonPort, setDaemonPort] = useState(snapshot.daemonPort);
   const [streaming, setStreaming] = useState(snapshot.streaming);
   const [syncState, setSyncState] = useState<SyncUiState>(snapshot.streaming ? 'running' : 'idle');
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [metroBusy, setMetroBusy] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
 
   const isSim = snapshot.isSimulator;
 
   useEffect(() => {
     setComputerHost(snapshot.computerHost);
+    setMetroPort(snapshot.metroPort);
+    setDaemonPort(snapshot.daemonPort);
     setStreaming(snapshot.streaming);
     setSyncState(snapshot.streaming ? 'running' : 'idle');
-  }, [snapshot.computerHost, snapshot.streaming]);
+  }, [snapshot.computerHost, snapshot.daemonPort, snapshot.metroPort, snapshot.streaming]);
 
+  const metroHost = isSim ? getSimulatorMetroHost() : computerHost;
+  const metroTarget = useMemo(
+    () => buildMetroTarget(metroHost, metroPort),
+    [metroHost, metroPort],
+  );
   const metroUrls = useMemo(
-    () => isSim
-      ? { expUrl: `exp://localhost:${METRO_PORT}`, httpUrl: `http://localhost:${METRO_PORT}` }
-      : buildMetroUrls(computerHost),
-    [isSim, computerHost],
+    () => buildMetroUrls(metroHost, metroPort),
+    [metroHost, metroPort],
   );
 
   const handleHostChange = useCallback((value: string) => {
     setComputerHost(value);
-    const normalized = normalizeComputerHost(value);
-    if (normalized) {
-      saveComputerHost(normalized).catch(() => {});
+    const target = parseComputerTarget(value);
+    if (target) {
+      setMetroPort(target.metroPort);
+      saveComputerTarget(value).catch(() => {});
     }
     setSyncState((prev) => (prev === 'failed' ? 'idle' : prev));
     setMessage(null);
   }, []);
 
-  const handleQrHost = useCallback((host: string) => {
-    setComputerHost(host);
-    saveComputerHost(host).catch(() => {});
+  const handleMetroPortChange = useCallback((value: string) => {
+    setMetroPort(value);
+    const normalized = normalizePort(value);
+    if (normalized) {
+      saveMetroPort(normalized).catch(() => {});
+    }
+    setMessage(null);
+  }, []);
+
+  const handleDaemonPortChange = useCallback((value: string) => {
+    setDaemonPort(value);
+    const normalized = normalizePort(value);
+    if (normalized) {
+      saveDaemonPort(normalized).catch(() => {});
+    }
+    setMessage(null);
+  }, []);
+
+  const handleQrTarget = useCallback((target: ParsedComputerTarget) => {
+    setComputerHost(target.computerHost);
+    setMetroPort(target.metroPort);
+    saveComputerTarget(`${target.computerHost}:${target.metroPort}`).catch(() => {});
     setMessage('Computer IP updated from QR code.');
   }, []);
 
@@ -75,22 +136,28 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
       setMessage('Enter your computer IP first.');
       return false;
     }
+    if (!normalizePort(daemonPort)) {
+      setMessage('Enter a valid desktop logs port.');
+      return false;
+    }
     return true;
-  }, [computerHost, isSim]);
+  }, [computerHost, daemonPort, isSim]);
 
   const configureDaemon = useCallback(() => {
     const normalizedHost = isSim ? '' : (normalizeComputerHost(computerHost) ?? '');
+    const normalizedDaemonPort = normalizePort(daemonPort) ?? DEFAULT_DAEMON_PORT;
+    const deviceHost = isSim ? '' : buildDaemonDeviceHost(normalizedHost, normalizedDaemonPort);
     const settings: DaemonSettings = {
       mode: isSim ? 'simulator' : 'device',
       endpoint: '',
-      deviceHost: normalizedHost,
+      deviceHost,
       token: '',
     };
     daemonClient.configure(settings);
     const normalized = normalizeDaemonSettings(settings);
-    const endpoint = normalized.endpoint || (isSim ? getDefaultDaemonEndpoint() : buildDeviceDaemonEndpoint(normalizedHost));
+    const endpoint = normalized.endpoint || (isSim ? getDefaultDaemonEndpoint() : buildDeviceDaemonEndpoint(deviceHost));
     return { ...normalized, endpoint };
-  }, [computerHost, isSim]);
+  }, [computerHost, daemonPort, isSim]);
 
   const toggleLiveSync = useCallback(async () => {
     if (streaming) {
@@ -102,7 +169,9 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
       return;
     }
 
-    if (!validateSettings()) return;
+    if (!validateSettings()) {
+      return;
+    }
 
     const daemonOptions = configureDaemon();
     setMessage('Checking desktop connection...');
@@ -144,7 +213,9 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
   }, [configureDaemon, streaming, validateSettings]);
 
   const sendOnce = useCallback(async () => {
-    if (!validateSettings()) return;
+    if (!validateSettings()) {
+      return;
+    }
 
     const daemonOptions = configureDaemon();
     setSending(true);
@@ -177,18 +248,51 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     }
   }, [configureDaemon, validateSettings]);
 
-  const messageTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const applyRemoteBundle = useCallback(async () => {
+    if (!metroTarget) {
+      setMessage('Enter a valid computer IP and Metro port.');
+      return;
+    }
+    if (!snapshot.nativeMetroAvailable) {
+      setMessage(describeMetroFailure({ reason: 'native_unavailable' }));
+      return;
+    }
 
-  const copyUrl = useCallback((label: string, url: string) => {
-    copyToComputer(url, { label });
-    setMessage('Copied to computer output.');
-    clearTimeout(messageTimerRef.current);
-    messageTimerRef.current = setTimeout(() => setMessage(null), 1500);
-  }, []);
+    setMetroBusy(true);
+    setMessage('Checking Metro...');
+    try {
+      const result = await applyMetroBundle(metroTarget.host, metroTarget.port);
+      if (result.ok) {
+        setMessage(`Using Metro at ${result.hostPort}. Reloading...`);
+      } else {
+        setMessage(describeMetroFailure(result));
+      }
+    } finally {
+      setMetroBusy(false);
+    }
+  }, [metroTarget, snapshot.nativeMetroAvailable]);
 
-  useEffect(() => () => clearTimeout(messageTimerRef.current), []);
+  const resetRemoteBundle = useCallback(async () => {
+    if (!snapshot.nativeMetroAvailable) {
+      setMessage(describeMetroFailure({ reason: 'native_unavailable' }));
+      return;
+    }
 
-  const canConnect = isSim || Boolean(normalizeComputerHost(computerHost));
+    setMetroBusy(true);
+    try {
+      const result = await resetMetroBundle();
+      if (result.ok) {
+        setMessage('Metro host reset. Reloading...');
+      } else {
+        setMessage(describeMetroFailure(result));
+      }
+    } finally {
+      setMetroBusy(false);
+    }
+  }, [snapshot.nativeMetroAvailable]);
+
+  const canConnect = isSim || (Boolean(normalizeComputerHost(computerHost)) && Boolean(normalizePort(daemonPort)));
+  const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy;
   const busy = sending || syncState === 'checking';
 
   return (
@@ -197,7 +301,7 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
 
         {isSim ? (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>Simulator — using localhost</Text>
+            <Text style={styles.badgeText}>Simulator/emulator - using {getSimulatorMetroHost()}</Text>
           </View>
         ) : (
           <View style={styles.section}>
@@ -225,6 +329,40 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
             </View>
           </View>
         )}
+
+        <View style={styles.section}>
+          <Text style={styles.label}>Ports</Text>
+          <View style={styles.portRow}>
+            <View style={styles.portField}>
+              <Text style={styles.portLabel}>Metro</Text>
+              <TextInput
+                style={styles.portInput}
+                value={metroPort}
+                onChangeText={handleMetroPortChange}
+                placeholder={DEFAULT_METRO_PORT}
+                placeholderTextColor={Colors.textLight}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+            </View>
+            <View style={styles.portField}>
+              <Text style={styles.portLabel}>Logs</Text>
+              <TextInput
+                style={styles.portInput}
+                value={daemonPort}
+                onChangeText={handleDaemonPortChange}
+                placeholder={DEFAULT_DAEMON_PORT}
+                placeholderTextColor={Colors.textLight}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+            </View>
+          </View>
+        </View>
 
         <View style={styles.actions}>
           <TouchableOpacity
@@ -254,65 +392,56 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
           <Text style={styles.sectionDesc}>
-            Load JavaScript from your computer instead of the bundled file. Requires app restart.
+            Apply this Metro host to React Native dev settings and reload the app.
           </Text>
 
           {!metroUrls ? (
             <View style={styles.stepCard}>
-              <Text style={styles.stepHint}>Enter your computer IP above to get started.</Text>
+              <Text style={styles.stepHint}>Enter your computer IP and Metro port to get started.</Text>
             </View>
           ) : (
-            <>
-              <View style={styles.stepCard}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>1</Text>
-                  <Text style={styles.stepTitle}>Copy bundle URL</Text>
-                </View>
-                <Text style={styles.stepDesc}>Use this URL as your remote JS bundle location:</Text>
-                <View style={styles.urlRow}>
-                  <Text style={styles.urlText} numberOfLines={1}>{metroUrls.httpUrl}</Text>
-                  <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Metro URL', metroUrls.httpUrl)} activeOpacity={0.7}>
-                    <Text style={styles.copyButtonText}>Copy</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.urlRow}>
-                  <Text style={styles.urlLabel}>Expo</Text>
-                  <Text style={styles.urlText} numberOfLines={1}>{metroUrls.expUrl}</Text>
-                  <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Expo URL', metroUrls.expUrl)} activeOpacity={0.7}>
-                    <Text style={styles.copyButtonText}>Copy</Text>
-                  </TouchableOpacity>
-                </View>
+            <View style={styles.stepCard}>
+              <View style={styles.urlRow}>
+                <Text style={styles.urlLabel}>HTTP</Text>
+                <Text style={styles.urlText} numberOfLines={1}>{metroUrls.httpUrl}</Text>
               </View>
-
-              <View style={styles.stepCard}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>2</Text>
-                  <Text style={styles.stepTitle}>Configure remote debugging</Text>
-                </View>
-                <Text style={styles.stepDesc}>
-                  {isSim
-                    ? 'Simulator uses localhost automatically. Enable remote debugging in Dev Menu.'
-                    : 'In Dev Menu, set the bundle URL to the copied address.'}
-                </Text>
+              <View style={styles.urlRow}>
+                <Text style={styles.urlLabel}>Expo</Text>
+                <Text style={styles.urlText} numberOfLines={1}>{metroUrls.expUrl}</Text>
               </View>
-
-              <View style={styles.stepCard}>
-                <View style={styles.stepHeader}>
-                  <Text style={styles.stepNumber}>3</Text>
-                  <Text style={styles.stepTitle}>Restart the app</Text>
-                </View>
-                <Text style={styles.stepDesc}>
-                  Close and reopen the app to load from Metro. Make sure Metro is running on your computer.
-                </Text>
-              </View>
-            </>
+            </View>
           )}
+
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.primaryButton, !canUseMetro && styles.buttonDisabled]}
+              onPress={applyRemoteBundle}
+              disabled={!canUseMetro}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.primaryButtonText}>
+                {metroBusy ? 'Checking...' : 'Use Metro Bundle'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryButton, (!snapshot.nativeMetroAvailable || metroBusy) && styles.buttonDisabled]}
+              onPress={resetRemoteBundle}
+              disabled={!snapshot.nativeMetroAvailable || metroBusy}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.secondaryButtonText}>Reset</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!snapshot.nativeMetroAvailable ? (
+            <Text style={styles.hint}>Native DevConnect requires pod install / Gradle sync and app rebuild.</Text>
+          ) : null}
         </View>
       </ScrollView>
       <DevConnectQrScanner
         visible={qrVisible}
         onClose={() => setQrVisible(false)}
-        onScanHost={handleQrHost}
+        onScanTarget={handleQrTarget}
       />
     </KeyboardAvoidingView>
   );
@@ -360,6 +489,20 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   scanButtonText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
+  portRow: { flexDirection: 'row', gap: 10 },
+  portField: { flex: 1 },
+  portLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
+  portInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: 'Courier',
+  },
   actions: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 12 },
   primaryButton: {
     flex: 1,
@@ -383,7 +526,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: Colors.primary, fontSize: 14, fontWeight: '600' },
   buttonDisabled: { opacity: 0.5 },
   message: { fontSize: 12, lineHeight: 17, color: Colors.textSecondary, marginBottom: 12 },
-  hint: { fontSize: 12, color: Colors.textLight },
+  hint: { fontSize: 12, color: Colors.textLight, lineHeight: 17 },
   stepCard: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -393,23 +536,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stepHint: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-  stepHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  stepNumber: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginRight: 8,
-    overflow: 'hidden',
-  },
-  stepTitle: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  stepDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 8 },
   urlLabel: {
+    minWidth: 40,
     fontSize: 10,
     fontWeight: '600',
     color: Colors.primary,
@@ -417,21 +545,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginRight: 6,
+    marginRight: 8,
+    textAlign: 'center',
   },
   urlRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingLeft: 12,
-    paddingRight: 4,
-    paddingVertical: 4,
-    marginBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    paddingVertical: 7,
   },
-  urlText: { flex: 1, fontSize: 13, fontFamily: 'Courier', color: Colors.text, paddingVertical: 6 },
-  copyButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors.primary },
-  copyButtonText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  urlText: { flex: 1, fontSize: 13, fontFamily: 'Courier', color: Colors.text },
 });

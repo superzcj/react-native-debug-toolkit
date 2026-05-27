@@ -212,7 +212,7 @@ test('provides a raw XMLHttpRequest smoke action for network capture', async () 
   }
 });
 
-test('shows DevConnect tab with IP input, sync buttons, and Metro URLs', async () => {
+test('shows DevConnect tab with IP input, sync buttons, native Metro action, and no copy flow', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     json: async () => [],
   }) as unknown as typeof fetch;
@@ -248,8 +248,10 @@ test('shows DevConnect tab with IP input, sync buttons, and Metro URLs', async (
 
   expect(findText(renderer!.root, 'Live Sync')).toBeTruthy();
   expect(findText(renderer!.root, 'Send Once')).toBeTruthy();
-  expect(findText(renderer!.root, 'Metro Bundler')).toBeTruthy();
+  expect(findText(renderer!.root, 'Remote JS Bundle')).toBeTruthy();
   expect(findText(renderer!.root, 'Computer IP')).toBeTruthy();
+  expect(findText(renderer!.root, 'Use Metro Bundle')).toBeTruthy();
+  expect(findText(renderer!.root, 'Reset')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');
@@ -259,6 +261,9 @@ test('shows DevConnect tab with IP input, sync buttons, and Metro URLs', async (
 
   expect(findText(renderer!.root, 'exp://192.168.1.10:8081')).toBeTruthy();
   expect(findText(renderer!.root, 'http://192.168.1.10:8081')).toBeTruthy();
+  expect(renderer!.root.findAll((node) => (
+    (node.type as unknown) === 'Text' && node.props.children === 'Copy'
+  ))).toHaveLength(0);
   expect(renderer!.root.findByProps({ placeholder: '192.168.1.10' }).props).toMatchObject({
     keyboardType: 'numbers-and-punctuation',
     returnKeyType: 'done',

@@ -1,6 +1,9 @@
 // Minimal React Native mock for testing pure JS/TS logic
 module.exports = {
   NativeModules: {},
+  DevSettings: {
+    reload: jest.fn(),
+  },
   Platform: { OS: 'ios' },
   AppState: {
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),

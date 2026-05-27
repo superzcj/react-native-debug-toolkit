@@ -26,6 +26,15 @@ RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 npm install react-native-debug-toolkit
 ```
 
+安装原生部分并重新构建 App：
+
+```bash
+cd ios && pod install
+# Android：下次构建时 Gradle autolinking 生效
+```
+
+Expo Go 不能加载这个原生模块。Expo 项目需用 development build、prebuild，或 bare React Native。
+
 可选依赖：
 
 ```bash
@@ -64,9 +73,11 @@ npm exec debug-toolkit --daemon-only
 http://127.0.0.1:3799/console
 ```
 
-App 内打开 Debug Panel -> `DevConnect` -> `Send Once` 或 `Start Live Sync`。
+App 内打开 Debug Panel -> `DevConnect` -> `Send Once` 或 `Start Live Sync` 同步桌面日志。
 
-DevConnect 自动识别模拟器/真机，模拟器下自动使用 `localhost`。真机需输入电脑 IP 地址。
+DevConnect 自动识别模拟器/真机，模拟器下自动使用本机 Metro/daemon 地址。真机需输入电脑 IP 地址。
+
+Remote JS Bundle：先在电脑启动 Metro，在 `DevConnect` 输入电脑 IP 和 Metro 端口，然后点 `Use Metro Bundle`。DevConnect 会写入 React Native 原生 dev-server host 设置并 reload App。IP 和端口会通过 AsyncStorage 持久化；如果没装 AsyncStorage，则在重建后通过本库原生模块持久化。
 
 扫码是可选能力。App 安装 `react-native-camera-kit` 或 `expo-camera` 后，DevConnect 才显示扫码按钮。App 仍需自己配置相机权限文案，并在使用扫码前申请相机权限。
 

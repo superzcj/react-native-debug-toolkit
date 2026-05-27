@@ -26,6 +26,15 @@ RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 npm install react-native-debug-toolkit
 ```
 
+Install the native part and rebuild the app:
+
+```bash
+cd ios && pod install
+# Android: Gradle autolinking runs on the next build
+```
+
+Expo Go cannot load this native module. Use a development build, prebuild, or bare React Native app.
+
 Optional dependencies:
 
 ```bash
@@ -64,9 +73,11 @@ Open the Web Console:
 http://127.0.0.1:3799/console
 ```
 
-In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`.
+In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync` for desktop logs.
 
-DevConnect auto-detects simulator/emulator and uses `localhost` automatically. On real devices, enter your computer IP to connect.
+DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
+
+For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect writes React Native's native dev-server host setting and reloads the app. The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
 
 QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the app to enable the scan button. The app must request camera permission before scanning.
 

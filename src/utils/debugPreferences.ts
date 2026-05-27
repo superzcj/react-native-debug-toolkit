@@ -1,13 +1,31 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AsyncStorageLike = { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void> };
+type NativePreferencesLike = { getPreference: (k: string) => Promise<string | null>; setPreference: (k: string, v: string) => Promise<void> };
 
 const memoryStore = new Map<string, string>();
 
 function loadAsyncStorage(): AsyncStorageLike | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('@react-native-async-storage/async-storage');
-    if (mod && typeof mod.getItem === 'function') return mod;
+    if (mod && typeof mod.getItem === 'function') {
+      return mod;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function loadNativePreferences(): NativePreferencesLike | null {
+  try {
+    const { NativeModules } = require('react-native') as { NativeModules?: { DebugToolkitDevConnect?: Partial<NativePreferencesLike> } };
+    const mod = NativeModules?.DebugToolkitDevConnect;
+    if (
+      mod &&
+      typeof mod.getPreference === 'function' &&
+      typeof mod.setPreference === 'function'
+    ) {
+      return mod as NativePreferencesLike;
+    }
     return null;
   } catch {
     return null;
@@ -20,6 +38,16 @@ export async function setPreference(key: string, value: string): Promise<void> {
   if (AsyncStorage) {
     try {
       await AsyncStorage.setItem(key, value);
+      return;
+    } catch {
+      // degrade to memory only
+    }
+  }
+
+  const nativePreferences = loadNativePreferences();
+  if (nativePreferences) {
+    try {
+      await nativePreferences.setPreference(key, value);
     } catch {
       // degrade to memory only
     }
@@ -31,11 +59,26 @@ export async function getPreference(key: string): Promise<string | null> {
   if (AsyncStorage) {
     try {
       const val = await AsyncStorage.getItem(key);
-      if (val !== null) return val;
+      if (val !== null) {
+        return val;
+      }
     } catch {
       // fall through to memory
     }
   }
+
+  const nativePreferences = loadNativePreferences();
+  if (nativePreferences) {
+    try {
+      const val = await nativePreferences.getPreference(key);
+      if (val !== null) {
+        return val;
+      }
+    } catch {
+      // fall through to memory
+    }
+  }
+
   return memoryStore.get(key) ?? null;
 }
 
@@ -46,4 +89,6 @@ export const KEYS = {
   networkLogs: '@react_native_debug_toolkit/network_logs',
   trackLogs: '@react_native_debug_toolkit/track_logs',
   computerHost: '@react_native_debug_toolkit/computer_host',
+  metroPort: '@react_native_debug_toolkit/metro_port',
+  daemonPort: '@react_native_debug_toolkit/daemon_port',
 } as const;
