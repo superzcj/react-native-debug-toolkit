@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -47,9 +47,12 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     setSyncState(snapshot.streaming ? 'running' : 'idle');
   }, [snapshot.computerHost, snapshot.streaming]);
 
-  const metroUrls = isSim
-    ? { expUrl: `exp://localhost:${METRO_PORT}`, httpUrl: `http://localhost:${METRO_PORT}` }
-    : buildMetroUrls(computerHost);
+  const metroUrls = useMemo(
+    () => isSim
+      ? { expUrl: `exp://localhost:${METRO_PORT}`, httpUrl: `http://localhost:${METRO_PORT}` }
+      : buildMetroUrls(computerHost),
+    [isSim, computerHost],
+  );
 
   const handleHostChange = useCallback((value: string) => {
     setComputerHost(value);
@@ -174,11 +177,16 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     }
   }, [configureDaemon, validateSettings]);
 
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   const copyUrl = useCallback((label: string, url: string) => {
     copyToComputer(url, { label });
     setMessage('Copied to computer output.');
-    setTimeout(() => setMessage(null), 1500);
+    clearTimeout(messageTimerRef.current);
+    messageTimerRef.current = setTimeout(() => setMessage(null), 1500);
   }, []);
+
+  useEffect(() => () => clearTimeout(messageTimerRef.current), []);
 
   const canConnect = isSim || Boolean(normalizeComputerHost(computerHost));
   const busy = sending || syncState === 'checking';
@@ -244,24 +252,60 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
         {message ? <Text style={styles.message}>{message}</Text> : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Metro Bundler</Text>
-          {metroUrls ? (
+          <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
+          <Text style={styles.sectionDesc}>
+            Load JavaScript from your computer instead of the bundled file. Requires app restart.
+          </Text>
+
+          {!metroUrls ? (
+            <View style={styles.stepCard}>
+              <Text style={styles.stepHint}>Enter your computer IP above to get started.</Text>
+            </View>
+          ) : (
             <>
-              <View style={styles.urlRow}>
-                <Text style={styles.urlText} numberOfLines={1}>{metroUrls.expUrl}</Text>
-                <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Metro exp URL', metroUrls.expUrl)} activeOpacity={0.7}>
-                  <Text style={styles.copyButtonText}>Copy</Text>
-                </TouchableOpacity>
+              <View style={styles.stepCard}>
+                <View style={styles.stepHeader}>
+                  <Text style={styles.stepNumber}>1</Text>
+                  <Text style={styles.stepTitle}>Copy bundle URL</Text>
+                </View>
+                <Text style={styles.stepDesc}>Use this URL as your remote JS bundle location:</Text>
+                <View style={styles.urlRow}>
+                  <Text style={styles.urlText} numberOfLines={1}>{metroUrls.httpUrl}</Text>
+                  <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Metro URL', metroUrls.httpUrl)} activeOpacity={0.7}>
+                    <Text style={styles.copyButtonText}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.urlRow}>
+                  <Text style={styles.urlLabel}>Expo</Text>
+                  <Text style={styles.urlText} numberOfLines={1}>{metroUrls.expUrl}</Text>
+                  <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Expo URL', metroUrls.expUrl)} activeOpacity={0.7}>
+                    <Text style={styles.copyButtonText}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.urlRow}>
-                <Text style={styles.urlText} numberOfLines={1}>{metroUrls.httpUrl}</Text>
-                <TouchableOpacity style={styles.copyButton} onPress={() => copyUrl('Metro HTTP URL', metroUrls.httpUrl)} activeOpacity={0.7}>
-                  <Text style={styles.copyButtonText}>Copy</Text>
-                </TouchableOpacity>
+
+              <View style={styles.stepCard}>
+                <View style={styles.stepHeader}>
+                  <Text style={styles.stepNumber}>2</Text>
+                  <Text style={styles.stepTitle}>Configure remote debugging</Text>
+                </View>
+                <Text style={styles.stepDesc}>
+                  {isSim
+                    ? 'Simulator uses localhost automatically. Enable remote debugging in Dev Menu.'
+                    : 'In Dev Menu, set the bundle URL to the copied address.'}
+                </Text>
+              </View>
+
+              <View style={styles.stepCard}>
+                <View style={styles.stepHeader}>
+                  <Text style={styles.stepNumber}>3</Text>
+                  <Text style={styles.stepTitle}>Restart the app</Text>
+                </View>
+                <Text style={styles.stepDesc}>
+                  Close and reopen the app to load from Metro. Make sure Metro is running on your computer.
+                </Text>
               </View>
             </>
-          ) : (
-            <Text style={styles.hint}>Enter a computer IP to show Metro URLs.</Text>
           )}
         </View>
       </ScrollView>
@@ -288,7 +332,8 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 13, fontWeight: '500', color: Colors.primary },
   section: { marginBottom: 14 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 8 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  sectionDesc: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10, lineHeight: 17 },
   label: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary, marginBottom: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
@@ -339,6 +384,41 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   message: { fontSize: 12, lineHeight: 17, color: Colors.textSecondary, marginBottom: 12 },
   hint: { fontSize: 12, color: Colors.textLight },
+  stepCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  stepHint: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  stepHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  stepNumber: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginRight: 8,
+    overflow: 'hidden',
+  },
+  stepTitle: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  stepDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginBottom: 8 },
+  urlLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.primary,
+    backgroundColor: `${Colors.primary}15`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
   urlRow: {
     flexDirection: 'row',
     alignItems: 'center',
