@@ -1,8 +1,22 @@
 #import <Foundation/Foundation.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTBundleURLProvider.h>
+#import <React/RCTReloadCommand.h>
 
 static NSString *const DebugToolkitRCTJsLocationKey = @"RCT_jsLocation";
+static NSString *const DebugToolkitBundleRoot = @"index";
+
+static void DebugToolkitResolveAfterReload(NSString *reason, id result, RCTPromiseResolveBlock resolve)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+    if (bundleURL) {
+      RCTReloadCommandSetBundleURL(bundleURL);
+    }
+    RCTTriggerReloadCommandListeners(reason);
+    resolve(result ?: [NSNull null]);
+  });
+}
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -33,7 +47,7 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
   }
 
   [RCTBundleURLProvider sharedSettings].jsLocation = hostPort;
-  resolve(@{ @"hostPort" : hostPort });
+  DebugToolkitResolveAfterReload(@"DebugToolkit DevConnect Metro host changed", @{ @"hostPort" : hostPort }, resolve);
 }
 
 RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
@@ -43,7 +57,7 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
   [defaults removeObjectForKey:DebugToolkitRCTJsLocationKey];
   [defaults synchronize];
   [[NSNotificationCenter defaultCenter] postNotificationName:RCTBundleURLProviderUpdatedNotification object:nil];
-  resolve([NSNull null]);
+  DebugToolkitResolveAfterReload(@"DebugToolkit DevConnect Metro host reset", [NSNull null], resolve);
 }
 
 RCT_EXPORT_METHOD(getPreference:(NSString *)key

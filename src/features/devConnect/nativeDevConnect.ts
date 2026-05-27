@@ -1,4 +1,4 @@
-import { DevSettings, NativeModules } from 'react-native';
+import { NativeModules } from 'react-native';
 
 import { buildMetroTarget } from './devConnectUtils';
 
@@ -94,7 +94,6 @@ export async function applyMetroBundle(host: string, port: string): Promise<Metr
 
   try {
     const result = await nativeModule.applyMetroHost(target.hostPort);
-    DevSettings.reload?.('DebugToolkit DevConnect Metro host changed');
     return {
       ok: true,
       hostPort: result && typeof result.hostPort === 'string' ? result.hostPort : target.hostPort,
@@ -116,7 +115,6 @@ export async function resetMetroBundle(): Promise<MetroBundleResult | { ok: true
 
   try {
     await nativeModule.resetMetroHost();
-    DevSettings.reload?.('DebugToolkit DevConnect Metro host reset');
     return { ok: true };
   } catch (error) {
     return {

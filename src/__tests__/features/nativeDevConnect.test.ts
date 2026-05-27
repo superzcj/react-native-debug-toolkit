@@ -17,7 +17,7 @@ describe('nativeDevConnect', () => {
     expect(isNativeDevConnectAvailable()).toBe(false);
   });
 
-  it('applies Metro host through native module and reloads JS', async () => {
+  it('delegates Metro host apply and reload to the native module', async () => {
     NativeModules.DebugToolkitDevConnect = {
       applyMetroHost: jest.fn(async () => ({ hostPort: '192.168.1.10:8082' })),
       resetMetroHost: jest.fn(),
@@ -37,7 +37,7 @@ describe('nativeDevConnect', () => {
       method: 'GET',
     }));
     expect(NativeModules.DebugToolkitDevConnect.applyMetroHost).toHaveBeenCalledWith('192.168.1.10:8082');
-    expect(DevSettings.reload).toHaveBeenCalledWith('DebugToolkit DevConnect Metro host changed');
+    expect(DevSettings.reload).not.toHaveBeenCalled();
   });
 
   it('does not apply native host when Metro status is not reachable', async () => {
@@ -60,7 +60,7 @@ describe('nativeDevConnect', () => {
     expect(DevSettings.reload).not.toHaveBeenCalled();
   });
 
-  it('resets Metro host through native module and reloads JS', async () => {
+  it('delegates Metro host reset and reload to the native module', async () => {
     NativeModules.DebugToolkitDevConnect = {
       applyMetroHost: jest.fn(),
       resetMetroHost: jest.fn(async () => undefined),
@@ -69,6 +69,6 @@ describe('nativeDevConnect', () => {
     await expect(resetMetroBundle()).resolves.toEqual({ ok: true });
 
     expect(NativeModules.DebugToolkitDevConnect.resetMetroHost).toHaveBeenCalledTimes(1);
-    expect(DevSettings.reload).toHaveBeenCalledWith('DebugToolkit DevConnect Metro host reset');
+    expect(DevSettings.reload).not.toHaveBeenCalled();
   });
 });
