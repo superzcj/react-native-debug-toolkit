@@ -54,7 +54,8 @@ export function App() {
 启动桌面 daemon：
 
 ```bash
-npx debug-toolkit --daemon-only
+npm exec debug-toolkit --daemon-only
+# 或：npx debug-toolkit --daemon-only
 ```
 
 打开 Web Console：
@@ -90,8 +91,9 @@ daemon 默认日志文件：
 自定义存储路径：
 
 ```bash
-npx debug-toolkit --daemon-only --store /path/to/devices.json
-DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npx debug-toolkit --daemon-only
+npm exec debug-toolkit --daemon-only --store /path/to/devices.json
+# 或：npx debug-toolkit --daemon-only --store /path/to/devices.json
+DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec debug-toolkit --daemon-only
 ```
 
 ## 用 HTTP 读取日志
@@ -133,7 +135,8 @@ GET    /console
 ## 使用 MCP
 
 ```bash
-claude mcp add debug-toolkit -- npx debug-toolkit
+claude mcp add debug-toolkit -- npm exec debug-toolkit
+# 或：claude mcp add debug-toolkit -- npx debug-toolkit
 ```
 
 工具：

@@ -54,7 +54,8 @@ Run the app in dev mode, then tap `DBG`.
 Start the desktop daemon:
 
 ```bash
-npx debug-toolkit --daemon-only
+npm exec debug-toolkit --daemon-only
+# or: npx debug-toolkit --daemon-only
 ```
 
 Open the Web Console:
@@ -90,8 +91,9 @@ The daemon stores logs at:
 Custom store path:
 
 ```bash
-npx debug-toolkit --daemon-only --store /path/to/devices.json
-DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npx debug-toolkit --daemon-only
+npm exec debug-toolkit --daemon-only --store /path/to/devices.json
+# or: npx debug-toolkit --daemon-only --store /path/to/devices.json
+DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec debug-toolkit --daemon-only
 ```
 
 ## Read Logs With HTTP
@@ -133,7 +135,8 @@ GET    /console
 ## Use MCP
 
 ```bash
-claude mcp add debug-toolkit -- npx debug-toolkit
+claude mcp add debug-toolkit -- npm exec debug-toolkit
+# or: claude mcp add debug-toolkit -- npx debug-toolkit
 ```
 
 Tools:
