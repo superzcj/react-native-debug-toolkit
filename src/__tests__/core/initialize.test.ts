@@ -6,13 +6,16 @@ import { initializeDebugToolkit } from '../../core/initialize';
 import { _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
 import { KEYS, setPreference } from '../../utils/debugPreferences';
 
+jest.mock('../../features/devConnect/platformDetect', () => ({
+  isSimulator: jest.fn().mockReturnValue(false),
+}));
+
 describe('initializeDebugToolkit', () => {
   beforeEach(async () => {
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
     _resetDaemonClientForTesting();
     await setPreference(KEYS.computerHost, '');
-    await setPreference(KEYS.connectionMode, '');
   });
 
   afterEach(() => {
@@ -40,9 +43,8 @@ describe('initializeDebugToolkit', () => {
     expect(DebugToolkit.features.map((feature) => feature.name)).toEqual(['network', 'console']);
   });
 
-  it('restores persisted DevConnect settings before daemon restore can use them', async () => {
+  it('restores persisted DevConnect host and configures daemon', async () => {
     await setPreference(KEYS.computerHost, '192.168.1.10');
-    await setPreference(KEYS.connectionMode, 'device');
 
     initializeDebugToolkit({ enabled: true });
     await Promise.resolve();

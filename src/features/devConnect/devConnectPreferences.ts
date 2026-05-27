@@ -1,28 +1,16 @@
-import {
-  daemonClient,
-  type DaemonConnectionMode,
-} from '../../utils/DaemonClient';
+import { daemonClient } from '../../utils/DaemonClient';
 import { getPreference, KEYS, setPreference } from '../../utils/debugPreferences';
 import { normalizeComputerHost } from './devConnectUtils';
+import { isSimulator } from './platformDetect';
 
 export interface DevConnectPreferences {
   computerHost: string;
-  mode: DaemonConnectionMode;
-}
-
-function normalizeMode(value: string | null): DaemonConnectionMode {
-  return value === 'device' || value === 'simulator' ? value : 'simulator';
 }
 
 export async function loadDevConnectPreferences(): Promise<DevConnectPreferences> {
-  const [storedHost, storedMode] = await Promise.all([
-    getPreference(KEYS.computerHost),
-    getPreference(KEYS.connectionMode),
-  ]);
-
+  const storedHost = await getPreference(KEYS.computerHost);
   return {
     computerHost: storedHost ? normalizeComputerHost(storedHost) ?? '' : '',
-    mode: normalizeMode(storedMode),
   };
 }
 
@@ -33,17 +21,13 @@ export async function saveComputerHost(value: string): Promise<string | null> {
   return normalized;
 }
 
-export async function saveConnectionMode(mode: DaemonConnectionMode): Promise<void> {
-  await setPreference(KEYS.connectionMode, mode);
-}
-
-export async function restoreDevConnectSettingsToDaemon(): Promise<DevConnectPreferences> {
+export async function restoreDevConnectSettingsToDaemon(): Promise<void> {
   const preferences = await loadDevConnectPreferences();
+  const mode = isSimulator() ? 'simulator' as const : 'device' as const;
   daemonClient.configure({
-    mode: preferences.mode,
+    mode,
     endpoint: '',
-    deviceHost: preferences.computerHost,
+    deviceHost: mode === 'simulator' ? '' : preferences.computerHost,
     token: '',
   });
-  return preferences;
 }

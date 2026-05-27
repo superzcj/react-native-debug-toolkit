@@ -1,8 +1,6 @@
-import type { DaemonConnectionMode } from '../../utils/DaemonClient';
-
 export interface DevConnectState {
+  isSimulator: boolean;
   computerHost: string;
-  mode: DaemonConnectionMode;
   qrAvailable: boolean;
   streaming: boolean;
 }

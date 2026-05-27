@@ -53,13 +53,17 @@
     "@react-native-clipboard/clipboard": ">=1.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.72.0",
-    "react-native-camera-kit": ">=18.0.0"
+    "react-native-camera-kit": ">=18.0.0",
+    "expo-camera": ">=15.0.0"
   },
   "peerDependenciesMeta": {
     "@react-native-clipboard/clipboard": {
       "optional": true
     },
     "react-native-camera-kit": {
+      "optional": true
+    },
+    "expo-camera": {
       "optional": true
     }
   },

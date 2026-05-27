@@ -1,6 +1,7 @@
 import { DevConnectTab } from './DevConnectTab';
 import { isCameraKitAvailable } from './cameraKit';
 import { loadDevConnectPreferences } from './devConnectPreferences';
+import { isSimulator } from './platformDetect';
 import { daemonClient } from '../../utils/DaemonClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
 import type { DevConnectState } from './types';
@@ -15,14 +16,13 @@ export {
   loadDevConnectPreferences,
   restoreDevConnectSettingsToDaemon,
   saveComputerHost,
-  saveConnectionMode,
 } from './devConnectPreferences';
 
 export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
   const listeners = new Set<DebugFeatureListener>();
   let state: DevConnectState = {
+    isSimulator: isSimulator(),
     computerHost: '',
-    mode: daemonClient.getSettings().mode,
     qrAvailable: isCameraKitAvailable(),
     streaming: daemonClient.isConnected(),
   };
@@ -30,7 +30,6 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
   const notify = () => {
     state = {
       ...state,
-      mode: daemonClient.getSettings().mode,
       streaming: daemonClient.isConnected(),
     };
     listeners.forEach((listener) => listener());
@@ -45,7 +44,6 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
         state = {
           ...state,
           computerHost: preferences.computerHost,
-          mode: preferences.mode,
         };
         notify();
       }).catch(() => {

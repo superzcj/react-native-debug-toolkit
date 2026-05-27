@@ -46,5 +46,4 @@ export const KEYS = {
   networkLogs: '@react_native_debug_toolkit/network_logs',
   trackLogs: '@react_native_debug_toolkit/track_logs',
   computerHost: '@react_native_debug_toolkit/computer_host',
-  connectionMode: '@react_native_debug_toolkit/connection_mode',
 } as const;

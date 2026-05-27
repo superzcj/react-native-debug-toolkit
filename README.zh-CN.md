@@ -66,6 +66,10 @@ http://127.0.0.1:3799/console
 
 App 内打开 Debug Panel -> `DevConnect` -> `Send Once` 或 `Start Live Sync`。
 
+DevConnect 自动识别模拟器/真机，模拟器下自动使用 `localhost`。真机需输入电脑 IP 地址。
+
+扫码是可选能力。App 安装 `react-native-camera-kit` 或 `expo-camera` 后，DevConnect 才显示扫码按钮。App 仍需自己配置相机权限文案，并在使用扫码前申请相机权限。
+
 ## 设备连接
 
 | 运行时 | App endpoint |

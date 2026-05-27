@@ -66,6 +66,10 @@ http://127.0.0.1:3799/console
 
 In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`.
 
+DevConnect auto-detects simulator/emulator and uses `localhost` automatically. On real devices, enter your computer IP to connect.
+
+QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the app to enable the scan button. The app must request camera permission before scanning.
+
 ## Device Setup
 
 | Runtime | App endpoint |

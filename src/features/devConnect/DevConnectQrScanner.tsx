@@ -9,7 +9,11 @@ import {
 } from 'react-native';
 
 import { Colors } from '../../ui/theme/colors';
-import { getCameraKitModule, type CameraKitReadCodeEvent } from './cameraKit';
+import {
+  getScannerModule,
+  type CameraKitReadCodeEvent,
+  type ExpoCameraScanResult,
+} from './cameraKit';
 import { parseMetroQrPayload } from './devConnectUtils';
 
 interface DevConnectQrScannerProps {
@@ -21,7 +25,7 @@ interface DevConnectQrScannerProps {
 export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnectQrScannerProps) {
   const scannedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const cameraKit = getCameraKitModule();
+  const scanner = getScannerModule();
 
   useEffect(() => {
     if (visible) {
@@ -30,9 +34,8 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
     }
   }, [visible]);
 
-  const handleReadCode = useCallback((event: CameraKitReadCodeEvent) => {
+  const handleScanned = useCallback((rawValue: string) => {
     if (scannedRef.current) return;
-    const rawValue = event.nativeEvent?.codeStringValue;
     if (typeof rawValue !== 'string') return;
 
     const parsed = parseMetroQrPayload(rawValue);
@@ -47,23 +50,37 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
     onClose();
   }, [onClose, onScanHost]);
 
-  if (!visible || !cameraKit) return null;
+  const handleCameraKitRead = useCallback((event: CameraKitReadCodeEvent) => {
+    handleScanned(event.nativeEvent?.codeStringValue ?? '');
+  }, [handleScanned]);
 
-  const Camera = cameraKit.Camera;
+  const handleExpoScanned = useCallback((result: ExpoCameraScanResult) => {
+    handleScanned(result.value ?? '');
+  }, [handleScanned]);
+
+  if (!visible || !scanner) return null;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <Camera
-          style={styles.camera}
-          cameraType={cameraKit.CameraType?.Back}
-          scanBarcode
-          onReadCode={handleReadCode}
-          showFrame
-          laserColor={Colors.primary}
-          frameColor={Colors.primary}
-          allowedBarcodeTypes={['qr']}
-        />
+        {scanner.kind === 'camera-kit' && scanner.CameraKit ? (
+          <scanner.CameraKit.Camera
+            style={styles.camera}
+            cameraType={scanner.CameraKit.CameraType?.Back}
+            scanBarcode
+            onReadCode={handleCameraKitRead}
+            showFrame
+            laserColor={Colors.primary}
+            frameColor={Colors.primary}
+            allowedBarcodeTypes={['qr']}
+          />
+        ) : scanner.kind === 'expo-camera' && scanner.ExpoCamera ? (
+          <scanner.ExpoCamera.Camera
+            style={styles.camera}
+            onBarCodeScanned={handleExpoScanned}
+            barCodeScannerSettings={{ barCodeTypes: ['qr'] }}
+          />
+        ) : null}
         <View style={styles.footer}>
           {error ? <Text style={styles.error}>{error}</Text> : <Text style={styles.hint}>Scan a Metro QR code.</Text>}
           <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
@@ -81,10 +98,7 @@ export function DevConnectQrScanner({ visible, onClose, onScanHost }: DevConnect
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1 },
-  footer: {
-    padding: 16,
-    backgroundColor: Colors.surface,
-  },
+  footer: { padding: 16, backgroundColor: Colors.surface },
   hint: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
   error: { fontSize: 13, color: Colors.error, marginBottom: 12 },
   closeButton: {
