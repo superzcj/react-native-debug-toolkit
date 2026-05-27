@@ -4,151 +4,268 @@
 
 当前问题：
 1. 日志存储硬编码 AsyncStorage + 内存回退，无法使用更快的 MMKV
-2. 日志跨 app 启动混在一起，无法区分本次/上次/上上次的日志
-3. 没有存储上限清理机制，日志无限增长
+2. console/network/track 使用全局 key，跨 app 启动日志混在一起
+3. 已有单类日志条数上限，但没有 session 数量轮转和旧 session 清理
+4. feature cleanup 当前会清空持久化日志，不能安全保留历史 session
+5. DaemonClient 已有 streaming session，新日志 session 需要统一来源，避免两个 session id
 
 目标：
-- 抽象存储层，支持 MMKV / AsyncStorage / 内存，运行时自动检测最优
-- 日志按 app 启动会话隔离，支持查询历史会话
-- 性能优化：同步写入、自动清理、懒加载
+- 抽象存储层，支持 MMKV / AsyncStorage / 内存
+- 每次 app 启动生成一个 runtime session，日志按 session 隔离
+- 历史 session 懒加载，运行时只恢复当前 session
+- 超过保留数量后删除旧 session 日志
+- feature cleanup 只释放订阅和 timer，不删除历史日志
+
+## 明确边界
+
+- 不迁移旧全局日志 key：`@react_native_debug_toolkit/console_logs` 等旧数据直接废弃
+- MMKV 自动优先：装了 `react-native-mmkv` 就用 MMKV；否则 AsyncStorage；否则内存
+- `KEYS` 不再暴露日志 key，只保留全局配置 key
+- 用户手动 Clear 只清当前 session 的该 feature 日志
+- feature cleanup / toolkit reset / replaceFeatures 不清磁盘日志
 
 ## 变更文件
 
 | 文件 | 操作 |
 |------|------|
-| `src/utils/StorageAdapter.ts` | **新建** — 接口 + 3个实现 + 工厂 |
-| `src/utils/SessionManager.ts` | **新建** — 会话 ID 生成、会话索引、清理 |
-| `src/utils/debugPreferences.ts` | **修改** — 委托 StorageAdapter |
-| `src/utils/createPersistedObservableStore.ts` | **修改** — 支持会话隔离 key |
-| `src/core/initialize.ts` | **修改** — 接受 storage 配置 |
-| `src/index.ts` | **修改** — 导出新类型 |
-| `src/types/index.ts` | **修改** — 添加存储/会话类型 |
+| `src/utils/StorageAdapter.ts` | **新建** — 接口 + Memory/AsyncStorage/MMKV 实现 + 工厂 |
+| `src/utils/SessionManager.ts` | **新建** — runtime session、session index、日志 key、历史读取、清理 |
+| `src/utils/debugPreferences.ts` | **修改** — 委托 StorageAdapter，只保留全局配置 key |
+| `src/utils/createPersistedObservableStore.ts` | **修改** — 支持 `dispose()`，cleanup 不再写空数组 |
+| `src/utils/createChannelFeature.ts` | **修改** — feature cleanup 调 `dispose()`，clear 才清当前 session |
+| `src/features/console/index.ts` | **修改** — 使用 session 日志 key，cleanup 不清历史 |
+| `src/features/network/index.ts` | **修改** — 使用 session 日志 key，持久化前截断 body |
+| `src/features/track/index.ts` | **修改** — 使用 session 日志 key |
+| `src/utils/DaemonClient.ts` | **修改** — streaming report 使用同一个 runtime session |
+| `src/core/initialize.ts` | **修改** — 创建 storage/session，再创建 feature |
+| `src/index.ts` | **修改** — 导出新类型和工具 |
+| `src/types/index.ts` | **修改** — 导出存储/session 类型 |
 | `package.json` | **修改** — 添加 optional peerDependencies |
+| `package-lock.json` | **修改** — 同步 optional peerDependencies 元数据 |
 
 ## 实现步骤
 
-### Step 1: StorageAdapter 接口（`src/utils/StorageAdapter.ts`）
+### Step 1: StorageAdapter 接口
+
+`src/utils/StorageAdapter.ts`
 
 ```typescript
 export interface StorageAdapter {
   getItem(key: string): string | null | Promise<string | null>;
   setItem(key: string, value: string): void | Promise<void>;
-  removeItem?(key: string): void | Promise<void>;
-  getAllKeys?(): string[] | Promise<string[]>;
+  removeItem(key: string): void | Promise<void>;
 }
 ```
 
-三个内置实现：
+内置实现：
+- `MemoryStorageAdapter`：`Map<string, string>`，同步，零依赖
+- `AsyncStorageAdapter`：包装 `@react-native-async-storage/async-storage`
+- `MMKVStorageAdapter`：包装 `react-native-mmkv`，`new MMKV({ id: 'debug-toolkit' })`
 
-**MemoryStorageAdapter** — `Map<string, string>`，纯同步，零依赖
+工厂：
+```typescript
+export function createDefaultStorage(): StorageAdapter {
+  // 1. react-native-mmkv
+  // 2. @react-native-async-storage/async-storage
+  // 3. MemoryStorageAdapter
+}
+```
 
-**AsyncStorageAdapter** — 包装 `@react-native-async-storage/async-storage`，异步
+要求：
+- `removeItem` 必须存在，旧 session 清理依赖它
+- dynamic `require` 包在 try/catch 内，缺依赖不报错
+- AsyncStorage 要兼容 `default` export 和 named export 两种 mock/运行形态
 
-**MMKVStorageAdapter** — 包装 `react-native-mmkv`，同步（关键性能优势）
-- MMKV 实例通过 `new MMKV({ id: 'debug-toolkit' })` 创建
-- 利用同步 `getString` / `set` 避免异步开销
+### Step 2: SessionManager
 
-工厂函数 `createDefaultStorage(): StorageAdapter`：
-1. `require('react-native-mmkv')` 成功 → MMKVAdapter
-2. `require('@react-native-async-storage/async-storage')` 成功 → AsyncStorageAdapter
-3. 回退 MemoryAdapter
-
-### Step 2: 会话管理（`src/utils/SessionManager.ts`）
-
-**会话 ID**: app 每次启动生成一个 `{timestamp}-{random}` 格式的 session ID
+`src/utils/SessionManager.ts`
 
 ```typescript
+export type LogFeatureKey = 'console_logs' | 'network_logs' | 'track_logs';
+
 export interface LogSession {
-  id: string;           // "1716800000000-a3f2"
-  startedAt: number;    // Date.now()
-  label?: string;       // 可选，用户标记
+  id: string;
+  startedAt: number;
+  label?: string;
 }
-```
 
-**会话索引**: 存储在固定 key `@react_native_debug_toolkit/sessions`
-```typescript
-// 索引结构
-{
+export interface SessionIndex {
   currentSessionId: string;
-  sessions: LogSession[];  // 按时间倒序
-  maxSessions: 5;          // 默认保留最近5个会话
+  sessions: LogSession[];
+  maxSessions: number;
+}
+
+export interface SessionManagerOptions {
+  maxSessions?: number;
+  featureKeys?: LogFeatureKey[];
 }
 ```
 
-**存储 key 规则**: 日志按会话隔离
-```
-@react_native_debug_toolkit/sessions                    ← 会话索引
-@react_native_debug_toolkit/{sessionId}/console_logs    ← 该会话的控制台日志
-@react_native_debug_toolkit/{sessionId}/network_logs    ← 该会话的网络日志
-@react_native_debug_toolkit/{sessionId}/track_logs      ← 该会话的追踪日志
-@react_native_debug_toolkit/fab_position                ← 全局配置（不按会话隔离）
-@react_native_debug_toolkit/last_tab                    ← 全局配置
-```
+规则：
+- constructor 同步生成 current session，保证 feature 创建时已有 key
+- `initialize()` 异步写 session index + 清理旧 session；不阻塞 `initializeDebugToolkit()` 返回
+- session id 格式：`${Date.now()}-${randomHex}`
+- session index key：`@react_native_debug_toolkit/sessions`
+- 默认 `maxSessions = 5`
+- 默认 feature keys：`console_logs` / `network_logs` / `track_logs`
 
-**自动清理**: 启动时检查，超过 `maxSessions` 的旧会话：
-1. 删除该会话的所有日志 key
-2. 从会话索引中移除
-
-**API**:
+API：
 ```typescript
 class SessionManager {
-  constructor(storage: StorageAdapter, maxSessions?: number);
+  constructor(storage: StorageAdapter, options?: SessionManagerOptions);
+  initialize(): Promise<void>;
   getCurrentSession(): LogSession;
-  getSessionHistory(): LogSession[];          // 历史会话列表
-  loadSessionLogs(sessionId: string, featureKey: string): Promise<T[]>;
-  cleanupOldSessions(): Promise<number>;      // 返回清理的会话数
+  getSessionHistory(): Promise<LogSession[]>;
+  getLogStorageKey(featureKey: LogFeatureKey, sessionId?: string): string;
+  loadSessionLogs<T>(sessionId: string, featureKey: LogFeatureKey): Promise<T[]>;
+  clearCurrentSessionLogs(featureKey: LogFeatureKey): Promise<void>;
+  cleanupOldSessions(): Promise<number>;
 }
 ```
 
-### Step 3: 重构 debugPreferences.ts
+key 规则：
+```text
+@react_native_debug_toolkit/sessions
+@react_native_debug_toolkit/{sessionId}/console_logs
+@react_native_debug_toolkit/{sessionId}/network_logs
+@react_native_debug_toolkit/{sessionId}/track_logs
+@react_native_debug_toolkit/fab_position
+@react_native_debug_toolkit/last_tab
+@react_native_debug_toolkit/computer_host
+@react_native_debug_toolkit/connection_mode
+```
 
-- 移除 `loadAsyncStorage()` 和 `AsyncStorageLike`
-- 内部持有 `StorageAdapter` 实例（默认 `createDefaultStorage()`）
-- 新增 `configureStorage(adapter)` 供外部注入
-- `getPreference` / `setPreference` 委托给 adapter
-- `KEYS` 只保留全局配置 key（如 `fab_position` / `last_tab` / DevConnect 配置）
-- 日志 key 不再从 `KEYS` 读取，由 `SessionManager` 根据当前 session 生成完整 key
+### Step 3: debugPreferences
 
-### Step 4: 修改 createPersistedObservableStore.ts
+`src/utils/debugPreferences.ts`
 
-- `storageKey` 支持会话隔离：外部传入带 sessionId 的完整 key
-- 恢复数据时只恢复当前会话的日志
-- 历史会话日志不加载到内存（懒加载，通过 SessionManager.loadSessionLogs）
+- 删除 `loadAsyncStorage()` / `AsyncStorageLike`
+- 模块内持有当前 `StorageAdapter`
+- 新增：
+```typescript
+export function configureStorage(adapter: StorageAdapter): void;
+export function getConfiguredStorage(): StorageAdapter;
+```
+- `getPreference` / `setPreference` / `removePreference` 委托 adapter
+- `KEYS` 只保留全局配置：
+  - `fabPosition`
+  - `lastTab`
+  - `computerHost`
+  - `connectionMode`
+- 删除 `consoleLogs` / `networkLogs` / `trackLogs`
 
-### Step 5: 初始化入口（`src/core/initialize.ts`）
+### Step 4: createPersistedObservableStore
+
+问题：当前 `destroy()` 会 `setPreference(storageKey, '[]')`，feature cleanup 会误删历史。
+
+调整：
+```typescript
+export interface PersistedObservableStore<T> extends ObservableStore<T> {
+  nextId: () => string;
+  ready: Promise<void>;
+  clearPersisted: () => void;
+  dispose: () => void;
+}
+```
+
+语义：
+- `clearPersisted()`：清内存 + 异步写当前 `storageKey = []`
+- `dispose()`：清 timer + 清内存，不写 storage
+- `cleanup()` 只能走 `dispose()`
+- 用户点击 Clear 走 `clearPersisted()`
+
+### Step 5: feature 日志 key 接入
+
+新增 feature 创建参数：
+```typescript
+interface LogStorageConfig {
+  sessionManager: SessionManager;
+}
+```
+
+console：
+- `storageKey = sessionManager.getLogStorageKey('console_logs')`
+- `clear()` 清当前 session console logs
+- `cleanup()` 只释放 console hook + dispose store
+
+network：
+- `storageKey = sessionManager.getLogStorageKey('network_logs')`
+- `serialize` 持久化前截断 `request.body` / `response.data`
+- 截断规则复用 device report 的 sanitize 思路，避免大 body 直接写入本地存储
+
+track：
+- `storageKey = sessionManager.getLogStorageKey('track_logs')`
+
+navigation/zustand：
+- 当前不持久化，不接入 session
+
+### Step 6: initialize 组装顺序
+
+`src/core/initialize.ts`
 
 ```typescript
 interface InitializeOptions {
-  // ...existing
-  storage?: StorageAdapter;           // 自定义存储
-  maxLogSessions?: number;            // 最大保留会话数，默认 5
+  features?: FeatureConfigs;
+  enabled?: boolean;
+  storage?: StorageAdapter;
+  maxLogSessions?: number;
 }
 ```
 
-初始化流程：
-1. 确定 StorageAdapter（用户传入 or 自动检测）
-2. SessionManager 启动新会话 + 清理旧会话
-3. 各 feature store 使用带 sessionId 的 key
+流程：
+1. 先解析 `enabled`
+2. 如果 disabled：`DebugToolkit.reset()` 后返回，不创建新 session
+3. `storage = options.storage ?? createDefaultStorage()`
+4. `configureStorage(storage)`
+5. `sessionManager = new SessionManager(storage, { maxSessions })`
+6. `daemonClient.setSessionProvider(() => sessionManager.getCurrentSession())`
+7. 创建 feature 时传入 `sessionManager`
+8. `DebugToolkit.replaceFeatures(resolvedFeatures)`
+9. `sessionManager.initialize().catch(...)`
+10. restore DevConnect + daemon streaming
 
-### Step 6: 导出 + package.json
+注意：
+- `initializeDebugToolkit()` 仍同步返回 `DebugToolkit`
+- 不等待 session index 写入；当前 session id 已同步可用
+- disabled 不创建新 session，不启动清理
+
+### Step 7: DaemonClient session 统一
+
+当前 DaemonClient 内部自己生成 streaming session。改为：
+
+```typescript
+type SessionProvider = () => SessionInfo;
+
+daemonClient.setSessionProvider(provider);
+```
+
+规则：
+- streaming full report 使用 provider 返回的 runtime session
+- `reportOnce()` 默认也带当前 session
+- 没有 provider 时再 fallback 内部生成，防止低层 API 单独使用崩溃
+- `disconnect()` 不清 provider session，只断 stream
+
+### Step 8: 导出 + package.json
 
 `src/index.ts` 新增导出：
-- `StorageAdapter` 接口
-- `createDefaultStorage` 工厂
-- `SessionManager` 类
-- `LogSession` 类型
+- `StorageAdapter`
+- `createDefaultStorage`
+- `MemoryStorageAdapter`
+- `AsyncStorageAdapter`
+- `MMKVStorageAdapter`
+- `SessionManager`
+- `LogSession`
+- `LogFeatureKey`
 
 `package.json`：
 ```json
 "peerDependencies": {
   "@react-native-async-storage/async-storage": ">=1.0.0",
-  "react-native-mmkv": ">=2.0.0",
-  ...
+  "react-native-mmkv": ">=2.0.0"
 },
 "peerDependenciesMeta": {
   "@react-native-async-storage/async-storage": { "optional": true },
-  "react-native-mmkv": { "optional": true },
-  ...
+  "react-native-mmkv": { "optional": true }
 }
 ```
 
@@ -156,20 +273,27 @@ interface InitializeOptions {
 
 | 关注点 | 方案 |
 |--------|------|
-| **写入性能** | MMKV 同步写入 + 现有 2s debounce，避免每条日志触发 IO |
-| **启动恢复** | 只恢复当前会话日志（最多 50 条/类型），历史会话不加载 |
-| **内存占用** | 运行时只持当前会话数据，历史按需从磁盘读取 |
-| **磁盘清理** | 每次启动自动清理超限旧会话，默认保留 5 个 |
-| **大日志过滤** | network log body 在持久化时通过 `serialize` 截断（现有机制） |
-| **MMKV 同步优势** | 日志写入不经 async 等待，debounce timer 回调直接 sync setItem |
+| 写入性能 | 保留 2s debounce；MMKV 路径同步写 |
+| 启动恢复 | 只读当前 session 的持久化日志 |
+| 历史读取 | `loadSessionLogs()` 按 session + feature 懒加载 |
+| 内存占用 | runtime store 只持当前 session |
+| 磁盘清理 | `cleanupOldSessions()` 删除超限 session 的已知 feature key |
+| 大日志 | network persist 前截断 body/data |
+| reset/replaceFeatures | 只释放订阅和 timer，不删除磁盘日志 |
 
 ## 验证
 
-1. `npm run typecheck` 通过
-2. `npm run build` 通过
-3. Demo app 不装 MMKV → AsyncStorage 或内存，功能正常
-4. Demo app 装 MMKV → 自动检测，同步写入
-5. 连续启动 app 3 次 → 会话索引记录 3 个会话，日志互不干扰
-6. 第 6 次启动 → 自动清理第 1 个会话的日志
-7. 调用 `SessionManager.loadSessionLogs` → 能读取历史会话日志
-8. 注入自定义 adapter → 正确使用注入实例
+1. `npm run typecheck`
+2. `npm test -- --runInBand --watchman=false`
+3. `npm run build`
+4. `npm pack --dry-run`
+5. 单测：StorageAdapter fallback 顺序 MMKV -> AsyncStorage -> memory
+6. 单测：AsyncStorage default/named export 都可用
+7. 单测：SessionManager constructor 同步生成 current session
+8. 单测：连续 3 次 session 初始化后 index 倒序保存
+9. 单测：第 6 次启动清理第 1 个 session 的 console/network/track key
+10. 单测：feature cleanup 不写 `[]`，历史 session 仍可 load
+11. 单测：用户 Clear 只清当前 session 当前 feature
+12. 单测：DaemonClient reportOnce/streaming 使用同一个 runtime session
+13. Demo：重启 app 3 次后日志互不混淆
+14. Demo：装 MMKV 后自动走 MMKV，同步读写正常
