@@ -1,8 +1,7 @@
 import { DevConnectTab } from './DevConnectTab';
-import { isCameraKitAvailable } from './cameraKit';
 import { loadDevConnectPreferences } from './devConnectPreferences';
-import { DEFAULT_DAEMON_PORT, DEFAULT_METRO_PORT } from './devConnectUtils';
-import { isNativeDevConnectAvailable } from './nativeDevConnect';
+import { DEFAULT_DAEMON_PORT, DEFAULT_METRO_PORT, extractSubnetPrefix } from './devConnectUtils';
+import { getDeviceLocalIp, isNativeDevConnectAvailable } from './nativeDevConnect';
 import { isSimulator } from './platformDetect';
 import { daemonClient } from '../../utils/DaemonClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
@@ -24,6 +23,7 @@ export {
   saveDaemonPort,
   saveMetroPort,
 } from './devConnectPreferences';
+export { nativeIsDebugBuild } from './nativeDevConnect';
 
 export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
   const listeners = new Set<DebugFeatureListener>();
@@ -32,7 +32,6 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
     computerHost: '',
     metroPort: DEFAULT_METRO_PORT,
     daemonPort: DEFAULT_DAEMON_PORT,
-    qrAvailable: isCameraKitAvailable(),
     nativeMetroAvailable: isNativeDevConnectAvailable(),
     streaming: daemonClient.isConnected(),
   };
@@ -50,7 +49,8 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
     label: 'DevConnect',
     renderContent: DevConnectTab,
     setup() {
-      loadDevConnectPreferences().then((preferences) => {
+      daemonClient.setOnConnectionChange(() => notify());
+      loadDevConnectPreferences().then(async (preferences) => {
         state = {
           ...state,
           computerHost: preferences.computerHost,
@@ -58,6 +58,19 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
           daemonPort: preferences.daemonPort,
           nativeMetroAvailable: isNativeDevConnectAvailable(),
         };
+
+        if (!state.isSimulator) {
+          try {
+            const localIp = await getDeviceLocalIp();
+            if (localIp) {
+              const prefix = extractSubnetPrefix(localIp);
+              if (prefix) {
+                state = { ...state, subnetPrefix: prefix };
+              }
+            }
+          } catch { /* subnetPrefix stays undefined */ }
+        }
+
         notify();
       }).catch(() => {
         notify();

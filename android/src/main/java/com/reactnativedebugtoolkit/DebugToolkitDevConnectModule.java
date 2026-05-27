@@ -7,6 +7,7 @@ import android.preference.PreferenceManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.reactnativedebugtoolkit.BuildConfig;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -16,6 +17,10 @@ import com.facebook.react.bridge.UiThreadUtil;
 import com.facebook.react.bridge.WritableMap;
 
 import java.lang.reflect.Method;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 
 public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   private static final String MODULE_NAME = "DebugToolkitDevConnect";
@@ -89,18 +94,13 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   }
 
   private void resolveAfterReload(String reason, @Nullable WritableMap result, Promise promise) {
+    promise.resolve(result);
     UiThreadUtil.runOnUiThread(() -> {
       try {
         Context applicationContext = getReactApplicationContext().getApplicationContext();
-        boolean reloaded = reloadFromReactHost(applicationContext, reason)
+        reloadFromReactHost(applicationContext, reason)
             || reloadFromReactNativeHost(applicationContext);
-        if (!reloaded) {
-          promise.reject("reload_unavailable", "Unable to trigger React Native reload after updating Metro host.");
-          return;
-        }
-        promise.resolve(result);
-      } catch (Exception error) {
-        promise.reject("reload_failed", "Unable to trigger React Native reload after updating Metro host.", error);
+      } catch (Exception ignored) {
       }
     });
   }
@@ -150,5 +150,40 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   public void setPreference(String key, String value, Promise promise) {
     getPreferences().edit().putString(key, value).apply();
     promise.resolve(null);
+  }
+
+  @ReactMethod
+  public void isDebugBuild(Promise promise) {
+    promise.resolve("debug".equals(BuildConfig.BUILD_TYPE));
+  }
+
+  @ReactMethod
+  public void getLocalIp(Promise promise) {
+    try {
+      Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+      String fallback = null;
+      while (interfaces != null && interfaces.hasMoreElements()) {
+        NetworkInterface iface = interfaces.nextElement();
+        if (iface.isLoopback() || !iface.isUp()) continue;
+        String name = iface.getName();
+        Enumeration<InetAddress> addresses = iface.getInetAddresses();
+        while (addresses.hasMoreElements()) {
+          InetAddress addr = addresses.nextElement();
+          if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+            String ip = addr.getHostAddress();
+            if (name != null && (name.startsWith("wlan") || name.startsWith("eth"))) {
+              promise.resolve(ip);
+              return;
+            }
+            if (fallback == null) {
+              fallback = ip;
+            }
+          }
+        }
+      }
+      promise.resolve(fallback);
+    } catch (Exception e) {
+      promise.resolve(null);
+    }
   }
 }

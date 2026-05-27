@@ -6,6 +6,8 @@ interface DebugToolkitDevConnectNativeModule {
   applyMetroHost: (hostPort: string) => Promise<{ hostPort?: string } | void>;
   resetMetroHost: () => Promise<void>;
   getMetroHost?: () => Promise<string | null>;
+  getLocalIp?: () => Promise<string | null>;
+  isDebugBuild?: () => Promise<boolean>;
 }
 
 type MetroBundleFailureReason =
@@ -122,5 +124,31 @@ export async function resetMetroBundle(): Promise<MetroBundleResult | { ok: true
       reason: 'native_error',
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+}
+
+export async function getDeviceLocalIp(): Promise<string | null> {
+  const nativeModule = getNativeModule();
+  if (!nativeModule?.getLocalIp) {
+    return null;
+  }
+  try {
+    const ip = await nativeModule.getLocalIp();
+    return typeof ip === 'string' ? ip : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function nativeIsDebugBuild(): Promise<boolean | null> {
+  const nativeModule = getNativeModule();
+  if (!nativeModule?.isDebugBuild) {
+    return null;
+  }
+  try {
+    const result = await nativeModule.isDebugBuild();
+    return typeof result === 'boolean' ? result : null;
+  } catch {
+    return null;
   }
 }

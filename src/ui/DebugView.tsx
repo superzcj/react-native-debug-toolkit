@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { DebugToolkitProvider } from '../core/DebugToolkitProvider';
 import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
@@ -42,6 +42,8 @@ export function DebugView({
   environments,
   enabled,
 }: DebugViewProps) {
+  const destroyRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     // Build feature config: all enabled by default, user overrides take precedence
     const resolvedFeatures: FeatureConfigs = {
@@ -61,13 +63,20 @@ export function DebugView({
     }
 
     // Initialize toolkit
-    const toolkit = initializeDebugToolkit({
+    let cancelled = false;
+    initializeDebugToolkit({
       features: resolvedFeatures,
       enabled,
+    }).then((toolkit) => {
+      if (!cancelled) {
+        destroyRef.current = () => toolkit.destroy();
+      }
     });
 
     return () => {
-      toolkit.destroy();
+      cancelled = true;
+      destroyRef.current?.();
+      destroyRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

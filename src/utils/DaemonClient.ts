@@ -186,6 +186,7 @@ export class DaemonClient {
   private _onEndpointDetected: ((url: string) => void) | undefined;
   private _restorePromise: Promise<void> | null = null;
   private _sessionId: SessionInfo | null = null;
+  private _onConnectionChange: (() => void) | undefined;
 
   constructor(options: DaemonClientOptions) {
     this._fetch = options.fetch;
@@ -315,6 +316,7 @@ export class DaemonClient {
     ).remove;
 
     this._stream = state;
+    this._onConnectionChange?.();
     this.emitStatus({ state: 'connecting' });
     this.enqueueSendFullReport();
   }
@@ -324,6 +326,7 @@ export class DaemonClient {
     const state = this._stream;
     this._stream = null;
     this._sessionId = null;
+    this._onConnectionChange?.();
 
     if (state.debounceTimer) clearTimeout(state.debounceTimer);
     if (state.retryTimer) clearTimeout(state.retryTimer);
@@ -358,6 +361,10 @@ export class DaemonClient {
 
   setEndpointDetector(callback: (url: string) => void): void {
     this._onEndpointDetected = callback;
+  }
+
+  setOnConnectionChange(callback: (() => void) | undefined): void {
+    this._onConnectionChange = callback;
   }
 
   // --- Restore (init-time reconnect) ---

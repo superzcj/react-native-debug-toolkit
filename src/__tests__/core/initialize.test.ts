@@ -10,6 +10,11 @@ jest.mock('../../features/devConnect/platformDetect', () => ({
   isSimulator: jest.fn().mockReturnValue(false),
 }));
 
+jest.mock('../../features/devConnect/nativeDevConnect', () => ({
+  ...jest.requireActual('../../features/devConnect/nativeDevConnect'),
+  nativeIsDebugBuild: jest.fn().mockResolvedValue(null),
+}));
+
 describe('initializeDebugToolkit', () => {
   beforeEach(async () => {
     DebugToolkit.destroy();
@@ -24,14 +29,14 @@ describe('initializeDebugToolkit', () => {
     _resetDaemonClientForTesting();
   });
 
-  it('registers devConnect in default features', () => {
-    initializeDebugToolkit({ enabled: true });
+  it('registers devConnect in default features', async () => {
+    await initializeDebugToolkit({ enabled: true });
 
     expect(DebugToolkit.features.map((feature) => feature.name)).toContain('devConnect');
   });
 
-  it('allows devConnect to be disabled through feature config', () => {
-    initializeDebugToolkit({
+  it('allows devConnect to be disabled through feature config', async () => {
+    await initializeDebugToolkit({
       enabled: true,
       features: {
         network: true,
@@ -46,7 +51,7 @@ describe('initializeDebugToolkit', () => {
   it('restores persisted DevConnect host and configures daemon', async () => {
     await setPreference(KEYS.computerHost, '192.168.1.10');
 
-    initializeDebugToolkit({ enabled: true });
+    await initializeDebugToolkit({ enabled: true });
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();

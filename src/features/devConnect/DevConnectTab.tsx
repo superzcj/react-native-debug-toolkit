@@ -28,7 +28,6 @@ import {
   normalizeComputerHost,
   normalizePort,
   parseComputerTarget,
-  type ParsedComputerTarget,
 } from './devConnectUtils';
 import {
   saveComputerTarget,
@@ -37,7 +36,6 @@ import {
 } from './devConnectPreferences';
 import { applyMetroBundle, resetMetroBundle } from './nativeDevConnect';
 import type { DevConnectState } from './types';
-import { DevConnectQrScanner } from './DevConnectQrScanner';
 
 const CONNECTION_TIMEOUT_MS = 2000;
 
@@ -73,7 +71,6 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [metroBusy, setMetroBusy] = useState(false);
-  const [qrVisible, setQrVisible] = useState(false);
 
   const isSim = snapshot.isSimulator;
 
@@ -122,13 +119,6 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
       saveDaemonPort(normalized).catch(() => {});
     }
     setMessage(null);
-  }, []);
-
-  const handleQrTarget = useCallback((target: ParsedComputerTarget) => {
-    setComputerHost(target.computerHost);
-    setMetroPort(target.metroPort);
-    saveComputerTarget(`${target.computerHost}:${target.metroPort}`).catch(() => {});
-    setMessage('Computer IP updated from QR code.');
   }, []);
 
   const validateSettings = useCallback((): boolean => {
@@ -294,6 +284,8 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
   const canConnect = isSim || (Boolean(normalizeComputerHost(computerHost)) && Boolean(normalizePort(daemonPort)));
   const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy;
   const busy = sending || syncState === 'checking';
+  const subnetPrefix = snapshot.subnetPrefix;
+  const ipPlaceholder = subnetPrefix ? `${subnetPrefix}...` : '192.168.1.10';
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -312,7 +304,7 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
                 style={styles.input}
                 value={computerHost}
                 onChangeText={handleHostChange}
-                placeholder="192.168.1.10"
+                placeholder={ipPlaceholder}
                 placeholderTextColor={Colors.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -321,12 +313,19 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
                 onSubmitEditing={() => inputRef.current?.blur()}
                 editable={!streaming}
               />
-              {snapshot.qrAvailable ? (
-                <TouchableOpacity style={styles.scanButton} onPress={() => setQrVisible(true)} disabled={streaming} activeOpacity={0.7}>
-                  <Text style={styles.scanButtonText}>Scan</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
+            {subnetPrefix && !computerHost ? (
+              <TouchableOpacity
+                style={styles.subnetHint}
+                onPress={() => {
+                  setComputerHost(subnetPrefix);
+                  inputRef.current?.focus();
+                }}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.subnetHintText}>Tap to fill: {subnetPrefix}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
 
@@ -438,11 +437,6 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
           ) : null}
         </View>
       </ScrollView>
-      <DevConnectQrScanner
-        visible={qrVisible}
-        onClose={() => setQrVisible(false)}
-        onScanTarget={handleQrTarget}
-      />
     </KeyboardAvoidingView>
   );
 }
@@ -464,7 +458,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 4 },
   sectionDesc: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10, lineHeight: 17 },
   label: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary, marginBottom: 6 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  subnetHint: { marginTop: 6 },
+  subnetHintText: { fontSize: 12, color: Colors.primary, fontWeight: '500' },
   input: {
     flex: 1,
     backgroundColor: Colors.surface,
@@ -477,18 +473,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: 'Courier',
   },
-  scanButton: {
-    minWidth: 62,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  scanButtonText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
   portRow: { flexDirection: 'row', gap: 10 },
   portField: { flex: 1 },
   portLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },

@@ -3,7 +3,7 @@ export interface DevConnectState {
   computerHost: string;
   metroPort: string;
   daemonPort: string;
-  qrAvailable: boolean;
+  subnetPrefix?: string;
   nativeMetroAvailable: boolean;
   streaming: boolean;
 }

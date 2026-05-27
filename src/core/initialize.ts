@@ -11,7 +11,7 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
-import { createDevConnectFeature, restoreDevConnectSettingsToDaemon } from '../features/devConnect';
+import { createDevConnectFeature, restoreDevConnectSettingsToDaemon, nativeIsDebugBuild } from '../features/devConnect';
 import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 
@@ -88,16 +88,28 @@ function resolveDefaultFeatures(): AnyDebugFeature[] {
 /**
  * Initialize the debug toolkit.
  *
+ * Detects debug/release mode via native bridge first, falls back to `__DEV__`.
+ *
  * @example
- * initializeDebugToolkit({
+ * await initializeDebugToolkit({
  *   features: { network: true, console: true },
  *   enabled: true,
  * });
  */
-export function initializeDebugToolkit(
+export async function initializeDebugToolkit(
   options?: InitializeOptions,
-): typeof DebugToolkit {
-  const enabled = options?.enabled ?? isDebugMode;
+): Promise<typeof DebugToolkit> {
+  let enabled: boolean;
+  if (options?.enabled !== undefined) {
+    enabled = options.enabled;
+  } else {
+    try {
+      const nativeResult = await nativeIsDebugBuild();
+      enabled = nativeResult !== null ? nativeResult : isDebugMode;
+    } catch {
+      enabled = isDebugMode;
+    }
+  }
 
   const resolvedFeatures = options?.features
     ? resolveFeatureConfigs(options.features)

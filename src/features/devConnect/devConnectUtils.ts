@@ -164,3 +164,11 @@ export function buildDaemonDeviceHost(computerHost: string, daemonPort: string):
   const port = normalizePort(daemonPort) ?? DEFAULT_DAEMON_PORT;
   return port === DEFAULT_DAEMON_PORT ? host : `${host}:${port}`;
 }
+
+export function extractSubnetPrefix(ip: string): string | null {
+  if (!isValidIpv4(ip)) {
+    return null;
+  }
+  const parts = ip.split('.');
+  return `${parts[0]}.${parts[1]}.${parts[2]}.`;
+}
