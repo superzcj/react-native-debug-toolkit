@@ -64,7 +64,7 @@ npm exec debug-toolkit --daemon-only
 http://127.0.0.1:3799/console
 ```
 
-App 内打开 Debug Panel -> 齿轮 -> `Send Once` 或 `Start Live Sync`。
+App 内打开 Debug Panel -> `DevConnect` -> `Send Once` 或 `Start Live Sync`。
 
 ## 设备连接
 

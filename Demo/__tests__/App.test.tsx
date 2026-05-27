@@ -17,6 +17,8 @@ const mockAsyncStorage = {
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: mockAsyncStorage,
+  getItem: mockAsyncStorage.getItem,
+  setItem: mockAsyncStorage.setItem,
 }), { virtual: true });
 
 const originalConsoleError = console.error;
@@ -210,7 +212,7 @@ test('provides a raw XMLHttpRequest smoke action for network capture', async () 
   }
 });
 
-test('shows desktop logs settings with simulator and real device choices', async () => {
+test('shows DevConnect tab with daemon controls and Metro URLs', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     json: async () => [],
   }) as unknown as typeof fetch;
@@ -236,40 +238,41 @@ test('shows desktop logs settings with simulator and real device choices', async
   });
 
   expect(renderer!.root.findAll((node) => (
-    (node.type as unknown) === 'Text' && node.props.children === 'Send Logs'
+    (node.type as unknown) === 'Text' && node.props.children === '⚙'
   ))).toHaveLength(0);
 
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, '⚙');
+    pressText(renderer!.root, 'DevConnect');
     await Promise.resolve();
   });
 
-  expect(findText(renderer!.root, 'Desktop Logs')).toBeTruthy();
+  expect(findText(renderer!.root, 'Desktop Sync')).toBeTruthy();
   expect(findText(renderer!.root, 'Simulator')).toBeTruthy();
   expect(findText(renderer!.root, 'Real device')).toBeTruthy();
   expect(findText(renderer!.root, 'Start Live Sync')).toBeTruthy();
   expect(findText(renderer!.root, 'Send Once')).toBeTruthy();
+  expect(findText(renderer!.root, 'Metro Bundler')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Real device');
+    typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');
+    await Promise.resolve();
     await Promise.resolve();
   });
 
-  expect(findText(renderer!.root, 'Detect')).toBeTruthy();
+  expect(findText(renderer!.root, 'exp://192.168.1.10:8081')).toBeTruthy();
+  expect(findText(renderer!.root, 'http://192.168.1.10:8081')).toBeTruthy();
   expect(renderer!.root.findByProps({ placeholder: '192.168.1.10' }).props).toMatchObject({
     keyboardType: 'numbers-and-punctuation',
     returnKeyType: 'done',
   });
-  expect(renderer!.root.findAll((node) => (
-    (node.type as unknown) === 'Text' && node.props.children === 'Done'
-  ))).toHaveLength(0);
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
   });
 });
 
-test('sends once from desktop logs settings to a real device endpoint', async () => {
+test('sends once from DevConnect tab to a real device endpoint', async () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === 'http://192.168.1.10:3799/health') {
@@ -315,16 +318,12 @@ test('sends once from desktop logs settings to a real device endpoint', async ()
   });
 
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, '⚙');
+    pressText(renderer!.root, 'DevConnect');
     await Promise.resolve();
   });
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Real device');
-    await Promise.resolve();
-  });
-
-  await ReactTestRenderer.act(async () => {
     typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');
     await Promise.resolve();
   });
@@ -336,8 +335,8 @@ test('sends once from desktop logs settings to a real device endpoint', async ()
   });
 
   expect(fetchMock.mock.calls.some(([url]) => String(url) === 'http://192.168.1.10:3799/report')).toBe(true);
-  expect(mockDaemonSettings.get('debugToolkit_connectionMode')).toBe('device');
-  expect(mockDaemonSettings.get('debugToolkit_deviceHost')).toBe('192.168.1.10');
+  expect(mockDaemonSettings.get('@react_native_debug_toolkit/connection_mode')).toBe('device');
+  expect(mockDaemonSettings.get('@react_native_debug_toolkit/computer_host')).toBe('192.168.1.10');
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
@@ -379,16 +378,12 @@ test('does not send logs when the real device endpoint health check fails', asyn
   });
 
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, '⚙');
+    pressText(renderer!.root, 'DevConnect');
     await Promise.resolve();
   });
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Real device');
-    await Promise.resolve();
-  });
-
-  await ReactTestRenderer.act(async () => {
     typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');
     await Promise.resolve();
   });

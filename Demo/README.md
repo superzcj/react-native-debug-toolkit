@@ -7,7 +7,7 @@ Demo for local development. Metro resolves package imports to repository `src/`.
 - shopping flow: list, detail, cart, profile
 - Network / Console / Zustand / Navigation / Track logs
 - raw XHR test: `Profile` -> `Dev Tools` -> `XHR GET`
-- Desktop Logs: `Send Once` / `Start Live Sync`
+- DevConnect: `Send Once` / `Start Live Sync`
 
 ## Run
 
@@ -33,7 +33,7 @@ bundle install
 bundle exec pod install
 ```
 
-## Test Desktop Logs
+## Test DevConnect
 
 From repository root:
 
@@ -47,6 +47,6 @@ Open:
 http://127.0.0.1:3799/console
 ```
 
-In app: `DBG` -> gear -> `Send Once` or `Start Live Sync`.
+In app: `DBG` -> `DevConnect` -> `Send Once` or `Start Live Sync`.
 
 Real device: phone browser must open `http://<mac-ip>:3799/health`.

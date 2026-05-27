@@ -20,6 +20,8 @@ export type { TrackFeatureConfig, TrackEventData } from './features/track';
 export { createEnvironmentFeature } from './features/environment';
 export type { EnvironmentFeatureAPI } from './features/environment';
 export { createClipboardFeature } from './features/clipboard';
+export { createDevConnectFeature } from './features/devConnect';
+export type { DevConnectState } from './features/devConnect';
 
 // Hooks
 export { useNavigationLogger } from './features/navigation/useNavigationLogger';

@@ -11,6 +11,7 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
+import { createDevConnectFeature, restoreDevConnectSettingsToDaemon } from '../features/devConnect';
 import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 
@@ -25,6 +26,7 @@ export interface FeatureConfigs {
   track?: boolean | TrackFeatureConfig;
   environment?: Parameters<typeof createEnvironmentFeature>[0];
   clipboard?: boolean;
+  devConnect?: boolean;
 }
 
 export interface InitializeOptions {
@@ -43,6 +45,7 @@ const featureRegistry: Record<BuiltInFeatureName, (config?: any) => AnyDebugFeat
   track: createTrackFeature,
   environment: createEnvironmentFeature,
   clipboard: createClipboardFeature,
+  devConnect: createDevConnectFeature,
 };
 
 const DEFAULT_FEATURES: BuiltInFeatureName[] = [
@@ -52,6 +55,7 @@ const DEFAULT_FEATURES: BuiltInFeatureName[] = [
   'zustand',
   'track',
   'clipboard',
+  'devConnect',
 ];
 
 function resolveFeatureConfigs(configs: FeatureConfigs): AnyDebugFeature[] {
@@ -119,7 +123,9 @@ export function initializeDebugToolkit(
       DebugToolkit.hideLauncher();
     }
 
-    daemonClient.restore().catch(() => {});
+    restoreDevConnectSettingsToDaemon()
+      .then(() => daemonClient.restore(), () => daemonClient.restore())
+      .catch(() => {});
 
     return DebugToolkit;
   } catch (error) {

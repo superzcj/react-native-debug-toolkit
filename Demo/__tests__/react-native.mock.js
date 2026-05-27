@@ -87,6 +87,13 @@ module.exports = {
     parallel: jest.fn(animation),
     View: createComponent('AnimatedView'),
   },
+  Easing: {
+    out: (easing) => easing,
+    cubic: { factory: () => ((t) => t) },
+    bezier: () => ((t) => t),
+    linear: (t) => t,
+    ease: (t) => t,
+  },
   PanResponder: {
     create: () => ({ panHandlers: {} }),
   },

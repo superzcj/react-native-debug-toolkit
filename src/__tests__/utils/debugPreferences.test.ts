@@ -15,5 +15,7 @@ describe('debugPreferences', () => {
   it('exposes expected key constants', () => {
     expect(KEYS.fabPosition).toContain('fab_position');
     expect(KEYS.lastTab).toContain('last_tab');
+    expect(KEYS.computerHost).toContain('computer_host');
+    expect(KEYS.connectionMode).toContain('connection_mode');
   });
 });

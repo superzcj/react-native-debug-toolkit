@@ -64,7 +64,7 @@ Open the Web Console:
 http://127.0.0.1:3799/console
 ```
 
-In the app, open Debug Panel -> gear -> `Send Once` or `Start Live Sync`.
+In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`.
 
 ## Device Setup
 

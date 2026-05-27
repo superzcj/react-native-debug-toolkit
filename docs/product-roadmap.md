@@ -26,7 +26,7 @@ App 侧：
 - Network / Console / Navigation / Track / Zustand
 - Environment / Clipboard
 - XHR + fetch 捕获
-- Desktop Logs：`Send Once` / `Start Live Sync`
+- DevConnect：真机电脑 IP、Metro URL 复制、Desktop Logs `Send Once` / `Start Live Sync`
 - `/health` 预检
 - 真机 Mac IP 输入
 - daemon 请求 blacklist，避免自污染

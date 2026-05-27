@@ -9,7 +9,8 @@ export type BuiltInFeatureName =
   | 'navigation'
   | 'track'
   | 'environment'
-  | 'clipboard';
+  | 'clipboard'
+  | 'devConnect';
 
 export interface DebugFeatureRenderProps<TSnapshot = unknown> {
   snapshot: TSnapshot;

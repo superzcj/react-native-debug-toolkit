@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
-import { StreamingSettingsModal } from './StreamingSettingsModal';
 
 interface DebugPanelProps {
   onClose: () => void;
@@ -22,7 +21,6 @@ export function DebugPanel({ onClose, onClearAll, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const [settingsVisible, setSettingsVisible] = useState(false);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -104,13 +102,6 @@ export function DebugPanel({ onClose, onClearAll, children }: DebugPanelProps) {
             <Text style={styles.headerTitle}>Debug Toolkit</Text>
             <View style={styles.headerButtons}>
               <TouchableOpacity
-                onPress={() => setSettingsVisible(true)}
-                style={styles.settingsButton}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.settingsButtonText}>⚙</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
                 onPress={() => {
                   onClearAll();
                   closePanel();
@@ -128,7 +119,6 @@ export function DebugPanel({ onClose, onClearAll, children }: DebugPanelProps) {
         </View>
         <View style={styles.panelContent}>{children}</View>
       </Animated.View>
-      <StreamingSettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
     </View>
   );
 }
@@ -207,18 +197,6 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: 14,
     fontWeight: '500',
-  },
-  settingsButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsButtonText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
   },
   closeButton: {
     width: 30,
