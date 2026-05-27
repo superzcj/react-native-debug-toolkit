@@ -346,6 +346,7 @@ header h1 span{color:var(--text3);font-weight:400}
   padding:0 8px;height:100%;display:flex;align-items:center;justify-content:center;
   color:var(--text3);font-size:10px;transition:transform .2s,color .15s;
 }
+.log-expand.open{transform:rotate(90deg)}
 .log-entry:hover .log-expand{color:var(--cyan)}
 .log-entry.expanded .log-expand{transform:rotate(90deg);color:var(--cyan)}
 
@@ -363,15 +364,20 @@ header h1 span{color:var(--text3);font-weight:400}
 .detail-sections{display:flex;flex-direction:column;gap:10px}
 .detail-section{
   border:1px solid var(--border);border-radius:var(--radius);
-  background:rgba(8,12,22,.35);overflow:hidden;
+  background:var(--bg);overflow:hidden;
 }
 .detail-section-header{
   display:flex;align-items:center;justify-content:space-between;
-  padding:7px 12px;border-bottom:1px solid var(--border);
-  background:rgba(0,229,255,.03);
+  padding:9px 14px 9px 18px;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,rgba(0,229,255,.07) 0%,rgba(0,229,255,.02) 100%);
+  position:relative;
+}
+.detail-section-header::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--cyan);border-radius:0 2px 2px 0;
 }
 .detail-section-title{
-  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
   color:var(--cyan);font-family:var(--font-mono);
 }
 .detail-section-copy{
@@ -380,7 +386,7 @@ header h1 span{color:var(--text3);font-weight:400}
   transition:color .15s;
 }
 .detail-section-copy:hover{color:var(--cyan)}
-.detail-section-body{padding:0}
+.detail-section-body{padding:10px 14px 10px 18px}
 
 /* Detail key-value table */
 .detail-table{width:100%;border-collapse:collapse}
@@ -429,25 +435,30 @@ header h1 span{color:var(--text3);font-weight:400}
 .network-meta-line span{white-space:nowrap}
 
 /* Collapsible sections */
-.collapse-section{border:1px solid var(--border);border-radius:var(--radius);background:rgba(8,12,22,.35);overflow:hidden;margin-bottom:0}
+.collapse-section{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);overflow:hidden;margin-bottom:0}
 .collapse-header{
   display:flex;align-items:center;justify-content:space-between;
-  padding:7px 12px;border-bottom:1px solid var(--border);
-  background:rgba(0,229,255,.03);cursor:pointer;user-select:none;
+  padding:9px 14px 9px 18px;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,rgba(0,229,255,.07) 0%,rgba(0,229,255,.02) 100%);
+  cursor:pointer;user-select:none;position:relative;
 }
-.collapse-header:hover{background:rgba(0,229,255,.06)}
-.collapse-header-left{display:flex;align-items:center;gap:6px}
+.collapse-header::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--cyan);border-radius:0 2px 2px 0;
+}
+.collapse-header:hover{background:linear-gradient(135deg,rgba(0,229,255,.12) 0%,rgba(0,229,255,.04) 100%)}
+.collapse-header-left{display:flex;align-items:center;gap:8px}
 .collapse-arrow{
-  font-size:9px;color:var(--text3);transition:transform .2s;display:inline-block;
+  font-size:10px;color:var(--cyan);transition:transform .2s;display:inline-block;opacity:.7;
 }
-.collapse-arrow.open{transform:rotate(90deg)}
+.collapse-arrow.open{transform:rotate(90deg);opacity:1}
 .collapse-title{
-  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
   color:var(--cyan);font-family:var(--font-mono);
 }
 .collapse-body{display:none;padding:0}
 .collapse-body.open{display:block}
-.section-body-inner{padding:4px 0}
+.section-body-inner{padding:10px 14px 10px 18px}
 .method-badge{
   font-family:var(--font-mono);font-size:11px;font-weight:700;
   padding:3px 10px;border-radius:3px;letter-spacing:.04em;
@@ -908,6 +919,35 @@ mark{
       entry.data);
   }
 
+  function estimateByteSize(value) {
+    if (value == null) return 0;
+    if (typeof value === 'string') return new Blob([value]).size;
+    try { return new Blob([JSON.stringify(value)]).size; } catch { return 0; }
+  }
+
+  function formatSize(bytes) {
+    if (!bytes || bytes <= 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function getNetworkSize(entry) {
+    var request = readObject(entry.request) || entry;
+    var response = readObject(entry.response);
+    var respSize = 0;
+    if (response) {
+      var headers = response.headers;
+      if (headers) {
+        var cl = headers['content-length'] || headers['Content-Length'] || headers['contentLength'] || headers['ContentLength'];
+        if (cl) { var n = parseInt(cl, 10); if (n > 0) respSize = n; }
+      }
+      if (!respSize && response.data != null) respSize = estimateByteSize(response.data);
+    }
+    var reqSize = request.body != null ? estimateByteSize(request.body) : 0;
+    return { req: reqSize, res: respSize };
+  }
+
   function renderNetworkDetails(entry) {
     var request = readObject(entry.request) || entry;
     var response = readObject(entry.response);
@@ -924,6 +964,11 @@ mark{
       metaParts.push(response.status + (response.statusText ? ' ' + response.statusText : ''));
     }
     if (entry.duration !== undefined) metaParts.push(entry.duration + 'ms');
+    var sizes = getNetworkSize(entry);
+    var sizeParts = [];
+    if (sizes.req > 0) sizeParts.push('req: ' + formatSize(sizes.req));
+    if (sizes.res > 0) sizeParts.push('res: ' + formatSize(sizes.res));
+    if (sizeParts.length) metaParts.push(sizeParts.join(' / '));
     if (entry.timestamp) metaParts.push(formatTimeShort(new Date(entry.timestamp).toISOString()));
     if (metaParts.length) {
       html += '<div class="network-meta-line">' + metaParts.map(function(p) { return '<span>' + escapeHtml(p) + '</span>'; }).join('') + '</div>';
@@ -1308,7 +1353,7 @@ mark{
     html += '</div>';
     html += '<div class="log-status">' + statusBadge(entry) + '</div>';
     html += '<div class="log-copy" onclick="event.stopPropagation();copyEntryJSON(\'' + rowId + '\')"><button class="copy-btn" title="Copy entry JSON">&#9112;</button></div>';
-    html += '<div class="log-expand">' + (isExpanded ? '&#9654;' : '&#9654;') + '</div>';
+    html += '<div class="log-expand' + (isExpanded ? ' open' : '') + '" id="arrow-' + rowId + '">&#9654;</div>';
     html += '</div>';
     html += '<div class="log-detail" id="detail-' + rowId + '">';
     html += '<div class="log-detail-inner"><div class="detail-sections">';
@@ -1479,12 +1524,15 @@ mark{
   window.toggleRow = function(rowId) {
     var entry = document.getElementById('entry-' + rowId);
     var detail = document.getElementById('detail-' + rowId);
+    var arrow = document.getElementById('arrow-' + rowId);
     if (!entry || !detail) return;
     expandedRows[rowId] = !expandedRows[rowId];
     if (expandedRows[rowId]) {
       entry.classList.add('expanded');
+      if (arrow) arrow.classList.add('open');
     } else {
       entry.classList.remove('expanded');
+      if (arrow) arrow.classList.remove('open');
     }
   };
 
