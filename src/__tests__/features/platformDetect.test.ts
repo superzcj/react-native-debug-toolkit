@@ -20,19 +20,27 @@ describe('platformDetect', () => {
     isSimulator = mod.isSimulator;
   }
 
-  it('detects iOS simulator via DeviceInfo model', () => {
-    loadWithPlatform(
-      { OS: 'ios', constants: { forceTouchAvailable: true, systemName: 'iOS' } },
-      { DeviceInfo: { model: 'iPhone Simulator' } },
-    );
+  it('detects iOS simulator via Platform.constants.model', () => {
+    loadWithPlatform({
+      OS: 'ios',
+      constants: { forceTouchAvailable: true, systemName: 'iOS', model: 'iPhone Simulator' },
+    });
     expect(isSimulator()).toBe(true);
   });
 
   it('returns false for real iOS device', () => {
-    loadWithPlatform(
-      { OS: 'ios', constants: { forceTouchAvailable: true, systemName: 'iOS' } },
-      { DeviceInfo: { model: 'iPhone 16 Pro' } },
-    );
+    loadWithPlatform({
+      OS: 'ios',
+      constants: { forceTouchAvailable: true, systemName: 'iOS', model: 'iPhone 16 Pro' },
+    });
+    expect(isSimulator()).toBe(false);
+  });
+
+  it('returns false for iOS when model is missing', () => {
+    loadWithPlatform({
+      OS: 'ios',
+      constants: { forceTouchAvailable: true, systemName: 'iOS' },
+    });
     expect(isSimulator()).toBe(false);
   });
 

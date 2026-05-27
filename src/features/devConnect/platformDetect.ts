@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 export function isSimulator(): boolean {
   const { OS } = Platform;
@@ -11,15 +11,10 @@ export function isSimulator(): boolean {
   }
 
   if (OS === 'ios') {
-    // NativeModules.KCKFCSupportManager is absent on simulator,
-    // but the most reliable check is the DeviceInfo model name.
-    const deviceInfo = NativeModules.DeviceInfo
-      ?? NativeModules.PlatformConstants;
-    if (deviceInfo) {
-      const model = String(deviceInfo.model ?? '').toLowerCase();
-      if (model.includes('simulator')) return true;
-    }
-    return false;
+    const model = String(
+      (Platform.constants as Record<string, unknown>).model ?? '',
+    ).toLowerCase();
+    return model.includes('simulator');
   }
 
   return false;
