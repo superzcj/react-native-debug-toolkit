@@ -52,7 +52,27 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
     }
   }
 
-  private boolean triggerDevSupportReload(@Nullable Object devSupportManager) throws Exception {
+  private void setDebugServerHost(@Nullable Object devSupportManager, String hostPort) throws Exception {
+    if (devSupportManager == null) {
+      return;
+    }
+
+    Object devSettings = callGetter(devSupportManager, "getDevSettings");
+    Object packagerConnectionSettings = devSettings == null
+        ? null
+        : callGetter(devSettings, "getPackagerConnectionSettings");
+    if (packagerConnectionSettings == null) {
+      return;
+    }
+
+    Method setter = packagerConnectionSettings.getClass().getMethod("setDebugServerHost", String.class);
+    setter.invoke(packagerConnectionSettings, hostPort);
+  }
+
+  private boolean triggerDevSupportReload(
+      @Nullable Object devSupportManager,
+      String hostPort
+  ) throws Exception {
     if (devSupportManager == null) {
       return false;
     }
@@ -62,18 +82,23 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
       return false;
     }
 
+    setDebugServerHost(devSupportManager, hostPort);
     Method reloadMethod = devSupportManager.getClass().getMethod("handleReloadJS");
     reloadMethod.invoke(devSupportManager);
     return true;
   }
 
-  private boolean reloadFromReactHost(Context applicationContext, String reason) throws Exception {
+  private boolean reloadFromReactHost(
+      Context applicationContext,
+      String reason,
+      String hostPort
+  ) throws Exception {
     Object reactHost = callGetter(applicationContext, "getReactHost");
     if (reactHost == null) {
       return false;
     }
 
-    if (triggerDevSupportReload(callGetter(reactHost, "getDevSupportManager"))) {
+    if (triggerDevSupportReload(callGetter(reactHost, "getDevSupportManager"), hostPort)) {
       return true;
     }
 
@@ -82,7 +107,7 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
     return true;
   }
 
-  private boolean reloadFromReactNativeHost(Context applicationContext) throws Exception {
+  private boolean reloadFromReactNativeHost(Context applicationContext, String hostPort) throws Exception {
     Object reactNativeHost = callGetter(applicationContext, "getReactNativeHost");
     Object instanceManager = reactNativeHost == null
         ? null
@@ -90,17 +115,27 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
     Object devSupportManager = instanceManager == null
         ? null
         : callGetter(instanceManager, "getDevSupportManager");
-    return triggerDevSupportReload(devSupportManager);
+    return triggerDevSupportReload(devSupportManager, hostPort);
   }
 
-  private void resolveAfterReload(String reason, @Nullable WritableMap result, Promise promise) {
-    promise.resolve(result);
+  private void resolveAfterReload(
+      String reason,
+      @Nullable WritableMap result,
+      String hostPort,
+      Promise promise
+  ) {
     UiThreadUtil.runOnUiThread(() -> {
       try {
         Context applicationContext = getReactApplicationContext().getApplicationContext();
-        reloadFromReactHost(applicationContext, reason)
-            || reloadFromReactNativeHost(applicationContext);
-      } catch (Exception ignored) {
+        boolean reloaded = reloadFromReactHost(applicationContext, reason, hostPort)
+            || reloadFromReactNativeHost(applicationContext, hostPort);
+        if (!reloaded) {
+          promise.reject("reload_unavailable", "Unable to trigger React Native reload after updating Metro host.");
+          return;
+        }
+        promise.resolve(result);
+      } catch (Exception error) {
+        promise.reject("reload_failed", "Unable to trigger React Native reload after updating Metro host.", error);
       }
     });
   }
@@ -126,7 +161,7 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
 
     WritableMap result = Arguments.createMap();
     result.putString("hostPort", hostPort);
-    resolveAfterReload(APPLY_RELOAD_REASON, result, promise);
+    resolveAfterReload(APPLY_RELOAD_REASON, result, hostPort, promise);
   }
 
   @ReactMethod
@@ -137,7 +172,7 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
       return;
     }
 
-    resolveAfterReload(RESET_RELOAD_REASON, null, promise);
+    resolveAfterReload(RESET_RELOAD_REASON, null, "", promise);
   }
 
   @ReactMethod

@@ -40,8 +40,13 @@ export async function saveComputerTarget(value: string): Promise<ParsedComputerT
 }
 
 export async function saveComputerHost(value: string): Promise<string | null> {
-  const target = await saveComputerTarget(value);
-  return target?.computerHost ?? null;
+  const host = normalizeComputerHost(value);
+  if (!host) {
+    return null;
+  }
+
+  await setPreference(KEYS.computerHost, host);
+  return host;
 }
 
 export async function saveMetroPort(value: string): Promise<string | null> {

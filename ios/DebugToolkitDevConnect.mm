@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <React/RCTBundleManager.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTReloadCommand.h>
@@ -6,20 +7,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
-static NSString *const DebugToolkitRCTJsLocationKey = @"RCT_jsLocation";
 static NSString *const DebugToolkitBundleRoot = @"index";
-
-static void DebugToolkitResolveAfterReload(NSString *reason, id result, RCTPromiseResolveBlock resolve)
-{
-  resolve(result ?: [NSNull null]);
-  dispatch_async(dispatch_get_main_queue(), ^{
-    NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
-    if (bundleURL) {
-      RCTReloadCommandSetBundleURL(bundleURL);
-    }
-    RCTTriggerReloadCommandListeners(reason);
-  });
-}
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -28,9 +16,28 @@ static void DebugToolkitResolveAfterReload(NSString *reason, id result, RCTPromi
 
 RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 
+@synthesize bundleManager = _bundleManager;
+
 + (BOOL)requiresMainQueueSetup
 {
   return NO;
+}
+
+- (void)applyBundleURL:(NSURL *)bundleURL
+                reason:(NSString *)reason
+                result:(id)result
+               resolve:(RCTPromiseResolveBlock)resolve
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (bundleURL) {
+      if (self->_bundleManager) {
+        self->_bundleManager.bundleURL = bundleURL;
+      }
+      RCTReloadCommandSetBundleURL(bundleURL);
+    }
+    resolve(result ?: [NSNull null]);
+    RCTTriggerReloadCommandListeners(reason);
+  });
 }
 
 RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
@@ -50,17 +57,22 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
   }
 
   [RCTBundleURLProvider sharedSettings].jsLocation = hostPort;
-  DebugToolkitResolveAfterReload(@"DebugToolkit DevConnect Metro host changed", @{ @"hostPort" : hostPort }, resolve);
+  NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+  [self applyBundleURL:bundleURL
+                reason:@"DebugToolkit DevConnect Metro host changed"
+                result:@{ @"hostPort" : hostPort }
+               resolve:resolve];
 }
 
 RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
-  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-  [defaults removeObjectForKey:DebugToolkitRCTJsLocationKey];
-  [defaults synchronize];
-  [[NSNotificationCenter defaultCenter] postNotificationName:RCTBundleURLProviderUpdatedNotification object:nil];
-  DebugToolkitResolveAfterReload(@"DebugToolkit DevConnect Metro host reset", [NSNull null], resolve);
+  [[RCTBundleURLProvider sharedSettings] resetToDefaults];
+  NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForFallbackExtension:nil];
+  [self applyBundleURL:bundleURL
+                reason:@"DebugToolkit DevConnect Metro host reset"
+                result:[NSNull null]
+               resolve:resolve];
 }
 
 RCT_EXPORT_METHOD(getPreference:(NSString *)key

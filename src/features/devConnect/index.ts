@@ -5,7 +5,7 @@ import { getDeviceLocalIp, isNativeDevConnectAvailable } from './nativeDevConnec
 import { isSimulator } from './platformDetect';
 import { daemonClient } from '../../utils/DaemonClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
-import type { DevConnectState } from './types';
+import type { DevConnectFeatureControls, DevConnectSettingsPatch, DevConnectState } from './types';
 
 export type { DevConnectState } from './types';
 export {
@@ -44,7 +44,15 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
     listeners.forEach((listener) => listener());
   };
 
-  return {
+  const updateSettings = (patch: DevConnectSettingsPatch) => {
+    state = {
+      ...state,
+      ...patch,
+    };
+    notify();
+  };
+
+  const feature: DebugFeature<DevConnectState> & DevConnectFeatureControls = {
     name: 'devConnect',
     label: 'DevConnect',
     renderContent: DevConnectTab,
@@ -86,5 +94,8 @@ export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
         listeners.delete(listener);
       };
     },
+    updateSettings,
   };
+
+  return feature;
 };

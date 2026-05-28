@@ -7,3 +7,11 @@ export interface DevConnectState {
   nativeMetroAvailable: boolean;
   streaming: boolean;
 }
+
+export type DevConnectSettingsPatch = Partial<
+  Pick<DevConnectState, 'computerHost' | 'metroPort' | 'daemonPort'>
+>;
+
+export interface DevConnectFeatureControls {
+  updateSettings?: (patch: DevConnectSettingsPatch) => void;
+}

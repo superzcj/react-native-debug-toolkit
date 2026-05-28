@@ -3,6 +3,7 @@ import { getPreference, KEYS, setPreference } from '../../utils/debugPreferences
 import {
   loadDevConnectPreferences,
   restoreDevConnectSettingsToDaemon,
+  saveComputerHost,
   saveComputerTarget,
   saveDaemonPort,
   saveMetroPort,
@@ -51,6 +52,15 @@ describe('devConnectPreferences', () => {
 
     expect(await getPreference(KEYS.metroPort)).toBe('8088');
     expect(await getPreference(KEYS.daemonPort)).toBe('3800');
+  });
+
+  it('saves computer host without changing the stored Metro port', async () => {
+    await setPreference(KEYS.metroPort, '8088');
+
+    await expect(saveComputerHost('192.168.1.11')).resolves.toBe('192.168.1.11');
+
+    expect(await getPreference(KEYS.computerHost)).toBe('192.168.1.11');
+    expect(await getPreference(KEYS.metroPort)).toBe('8088');
   });
 
   it('does not overwrite stored host when input is invalid', async () => {

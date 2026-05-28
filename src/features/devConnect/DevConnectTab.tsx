@@ -30,12 +30,13 @@ import {
   parseComputerTarget,
 } from './devConnectUtils';
 import {
+  saveComputerHost,
   saveComputerTarget,
   saveDaemonPort,
   saveMetroPort,
 } from './devConnectPreferences';
 import { applyMetroBundle, resetMetroBundle } from './nativeDevConnect';
-import type { DevConnectState } from './types';
+import type { DevConnectFeatureControls, DevConnectSettingsPatch, DevConnectState } from './types';
 
 const CONNECTION_TIMEOUT_MS = 2000;
 
@@ -61,7 +62,7 @@ function describeMetroFailure(result: { reason: string; error?: string }): strin
   return result.error ? `Metro switch failed: ${result.error}` : 'Metro switch failed.';
 }
 
-export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectState>) {
+export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<DevConnectState>) {
   const inputRef = useRef<TextInput>(null);
   const [computerHost, setComputerHost] = useState(snapshot.computerHost);
   const [metroPort, setMetroPort] = useState(snapshot.metroPort);
@@ -74,13 +75,26 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
 
   const isSim = snapshot.isSimulator;
 
+  const updateFeatureSettings = useCallback((patch: DevConnectSettingsPatch) => {
+    (feature as unknown as DevConnectFeatureControls).updateSettings?.(patch);
+  }, [feature]);
+
   useEffect(() => {
     setComputerHost(snapshot.computerHost);
+  }, [snapshot.computerHost]);
+
+  useEffect(() => {
     setMetroPort(snapshot.metroPort);
+  }, [snapshot.metroPort]);
+
+  useEffect(() => {
     setDaemonPort(snapshot.daemonPort);
+  }, [snapshot.daemonPort]);
+
+  useEffect(() => {
     setStreaming(snapshot.streaming);
     setSyncState(snapshot.streaming ? 'running' : 'idle');
-  }, [snapshot.computerHost, snapshot.daemonPort, snapshot.metroPort, snapshot.streaming]);
+  }, [snapshot.streaming]);
 
   const metroHost = isSim ? getSimulatorMetroHost() : computerHost;
   const metroTarget = useMemo(
@@ -97,29 +111,97 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     const target = parseComputerTarget(value);
     if (target) {
       setMetroPort(target.metroPort);
-      saveComputerTarget(value).catch(() => {});
+      saveComputerTarget(value)
+        .then((savedTarget) => {
+          if (savedTarget) {
+            updateFeatureSettings({
+              computerHost: savedTarget.computerHost,
+              metroPort: savedTarget.metroPort,
+            });
+          }
+        })
+        .catch(() => {});
     }
     setSyncState((prev) => (prev === 'failed' ? 'idle' : prev));
     setMessage(null);
-  }, []);
+  }, [updateFeatureSettings]);
 
   const handleMetroPortChange = useCallback((value: string) => {
     setMetroPort(value);
     const normalized = normalizePort(value);
     if (normalized) {
-      saveMetroPort(normalized).catch(() => {});
+      saveMetroPort(normalized)
+        .then(() => updateFeatureSettings({ metroPort: normalized }))
+        .catch(() => {});
     }
     setMessage(null);
-  }, []);
+  }, [updateFeatureSettings]);
 
   const handleDaemonPortChange = useCallback((value: string) => {
     setDaemonPort(value);
     const normalized = normalizePort(value);
     if (normalized) {
-      saveDaemonPort(normalized).catch(() => {});
+      saveDaemonPort(normalized)
+        .then(() => updateFeatureSettings({ daemonPort: normalized }))
+        .catch(() => {});
     }
     setMessage(null);
-  }, []);
+  }, [updateFeatureSettings]);
+
+  const persistConnectionSettings = useCallback(async (): Promise<boolean> => {
+    const normalizedDaemonPort = normalizePort(daemonPort);
+    if (!normalizedDaemonPort) {
+      setMessage('Enter a valid desktop logs port.');
+      return false;
+    }
+
+    const patch: DevConnectSettingsPatch = { daemonPort: normalizedDaemonPort };
+    const writes: Array<Promise<unknown>> = [saveDaemonPort(normalizedDaemonPort)];
+    setDaemonPort(normalizedDaemonPort);
+
+    if (!isSim) {
+      const normalizedHost = normalizeComputerHost(computerHost);
+      if (!normalizedHost) {
+        setMessage('Enter your computer IP first.');
+        return false;
+      }
+      patch.computerHost = normalizedHost;
+      writes.push(saveComputerHost(normalizedHost));
+      setComputerHost(normalizedHost);
+    }
+
+    const normalizedMetroPort = normalizePort(metroPort);
+    if (normalizedMetroPort) {
+      patch.metroPort = normalizedMetroPort;
+      writes.push(saveMetroPort(normalizedMetroPort));
+      setMetroPort(normalizedMetroPort);
+    }
+
+    await Promise.all(writes);
+    updateFeatureSettings(patch);
+    return true;
+  }, [computerHost, daemonPort, isSim, metroPort, updateFeatureSettings]);
+
+  const persistMetroSettings = useCallback(async (): Promise<boolean> => {
+    if (!metroTarget) {
+      setMessage('Enter a valid computer IP and Metro port.');
+      return false;
+    }
+
+    const patch: DevConnectSettingsPatch = { metroPort: metroTarget.port };
+    const writes: Array<Promise<unknown>> = [saveMetroPort(metroTarget.port)];
+    setMetroPort(metroTarget.port);
+
+    if (!isSim) {
+      patch.computerHost = metroTarget.host;
+      writes.push(saveComputerTarget(metroTarget.hostPort));
+      setComputerHost(metroTarget.host);
+    }
+
+    await Promise.all(writes);
+    updateFeatureSettings(patch);
+    return true;
+  }, [isSim, metroTarget, updateFeatureSettings]);
 
   const validateSettings = useCallback((): boolean => {
     if (!isSim && !normalizeComputerHost(computerHost)) {
@@ -162,6 +244,9 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     if (!validateSettings()) {
       return;
     }
+    if (!(await persistConnectionSettings())) {
+      return;
+    }
 
     const daemonOptions = configureDaemon();
     setMessage('Checking desktop connection...');
@@ -200,10 +285,13 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
       },
     });
     setStreaming(true);
-  }, [configureDaemon, streaming, validateSettings]);
+  }, [configureDaemon, persistConnectionSettings, streaming, validateSettings]);
 
   const sendOnce = useCallback(async () => {
     if (!validateSettings()) {
+      return;
+    }
+    if (!(await persistConnectionSettings())) {
       return;
     }
 
@@ -236,7 +324,7 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     } finally {
       setSending(false);
     }
-  }, [configureDaemon, validateSettings]);
+  }, [configureDaemon, persistConnectionSettings, validateSettings]);
 
   const applyRemoteBundle = useCallback(async () => {
     if (!metroTarget) {
@@ -251,6 +339,9 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     setMetroBusy(true);
     setMessage('Checking Metro...');
     try {
+      if (!(await persistMetroSettings())) {
+        return;
+      }
       const result = await applyMetroBundle(metroTarget.host, metroTarget.port);
       if (result.ok) {
         setMessage(`Using Metro at ${result.hostPort}. Reloading...`);
@@ -260,7 +351,7 @@ export function DevConnectTab({ snapshot }: DebugFeatureRenderProps<DevConnectSt
     } finally {
       setMetroBusy(false);
     }
-  }, [metroTarget, snapshot.nativeMetroAvailable]);
+  }, [metroTarget, persistMetroSettings, snapshot.nativeMetroAvailable]);
 
   const resetRemoteBundle = useCallback(async () => {
     if (!snapshot.nativeMetroAvailable) {

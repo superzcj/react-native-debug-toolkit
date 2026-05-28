@@ -5,6 +5,9 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
+import { DebugToolkit } from '../../src/core/DebugToolkit';
+import { KEYS, setPreference } from '../../src/utils/debugPreferences';
+import { daemonClient } from '../../src/utils/DaemonClient';
 
 const mockDaemonSettings = new Map<string, string>();
 const mockAsyncStorage = {
@@ -120,10 +123,23 @@ afterAll(() => {
   consoleInfoSpy.mockRestore();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  DebugToolkit.destroy();
+  daemonClient._resetForTesting();
   mockDaemonSettings.clear();
   mockAsyncStorage.getItem.mockClear();
   mockAsyncStorage.setItem.mockClear();
+  await setPreference(KEYS.computerHost, '');
+  await setPreference(KEYS.metroPort, '');
+  await setPreference(KEYS.daemonPort, '');
+  await setPreference(KEYS.lastTab, '');
+});
+
+afterEach(async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  daemonClient._resetForTesting();
+  DebugToolkit.destroy();
 });
 
 test('renders correctly', async () => {
@@ -337,6 +353,82 @@ test('sends once from DevConnect tab to a real device endpoint', async () => {
 
   expect(fetchMock.mock.calls.some(([url]) => String(url) === 'http://192.168.1.10:3799/report')).toBe(true);
   expect(mockDaemonSettings.get('@react_native_debug_toolkit/computer_host')).toBe('192.168.1.10');
+
+  await ReactTestRenderer.act(async () => {
+    renderer!.unmount();
+  });
+});
+
+test('keeps and persists the computer IP when live sync starts', async () => {
+  const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === 'http://192.168.1.10:3799/health') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, name: 'react-native-debug-toolkit-daemon' }),
+      };
+    }
+    if (url === 'http://192.168.1.10:3799/report') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          deviceId: 'desktop-settings-device',
+          logCount: { navigation: 1 },
+        }),
+      };
+    }
+    return { json: async () => [] };
+  }) as unknown as jest.MockedFunction<typeof fetch>;
+  global.fetch = fetchMock;
+
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Profile');
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Open Panel');
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'DevConnect');
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Live Sync');
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(renderer!.root.findByProps({ placeholder: '192.168.1.10' }).props.value).toBe('192.168.1.10');
+  expect(mockDaemonSettings.get('@react_native_debug_toolkit/computer_host')).toBe('192.168.1.10');
+  expect(fetchMock.mock.calls.some(([url]) => String(url) === 'http://192.168.1.10:3799/report')).toBe(true);
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Stop');
+    await Promise.resolve();
+  });
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();

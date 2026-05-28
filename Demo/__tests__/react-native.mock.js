@@ -68,6 +68,9 @@ module.exports = {
   DevSettings: {
     reload: jest.fn(),
   },
+  AppState: {
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
   TurboModuleRegistry: { get: () => null },
   Platform: {
     OS: 'ios',
