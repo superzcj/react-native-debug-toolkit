@@ -195,7 +195,7 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
     if (getifaddrs(&interfaces) == 0) {
       struct ifaddrs *iface = interfaces;
       while (iface != NULL) {
-        if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
+        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
           if (strcmp(iface->ifa_name, "en0") == 0) {
             char addrStr[INET_ADDRSTRLEN];
             struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
@@ -210,7 +210,7 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
       }
       iface = interfaces;
       while (iface != NULL) {
-        if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
+        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
           char addrStr[INET_ADDRSTRLEN];
           struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
           inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
