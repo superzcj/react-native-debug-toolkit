@@ -9,6 +9,10 @@
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
 
 static NSString *const DebugToolkitBundleRoot = @"index";
 static NSString *const kDevConnectMetroHost = @"_devconnect_metro_host";
@@ -48,20 +52,66 @@ static NSURL *buildMetroURL(NSString *metroHost)
   return [NSURL URLWithString:urlStr];
 }
 
+#pragma mark - Metro Reachability (synchronous, used inside NSBundle hook)
+
+// Synchronous TCP probe on host:port with a tight timeout.
+// Deliberately avoids any ObjC/Foundation that could re-enter the NSBundle hook.
+static BOOL isMetroHostReachable(NSString *hostPort, int timeoutMs)
+{
+  if (!hostPort.length) return NO;
+
+  NSRange sep = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
+  const char *hostCStr;
+  int port;
+  if (sep.location == NSNotFound) {
+    hostCStr = hostPort.UTF8String;
+    port = 8081;
+  } else {
+    hostCStr = [[hostPort substringToIndex:sep.location] UTF8String];
+    port = [[hostPort substringFromIndex:sep.location + 1] intValue];
+  }
+  if (!hostCStr || port <= 0 || port > 65535) return NO;
+  if (strcmp(hostCStr, "localhost") == 0) hostCStr = "127.0.0.1";
+
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, hostCStr, &addr.sin_addr) != 1) return NO;
+
+  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (fd < 0) return NO;
+
+  int flags = fcntl(fd, F_GETFL, 0);
+  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+  connect(fd, (struct sockaddr *)&addr, sizeof(addr));
+
+  fd_set wfds; FD_ZERO(&wfds); FD_SET(fd, &wfds);
+  struct timeval tv = { 0, (__darwin_suseconds_t)(timeoutMs * 1000) };
+  BOOL reachable = NO;
+  if (select(fd + 1, NULL, &wfds, NULL, &tv) > 0) {
+    int err = 0; socklen_t len = sizeof(err);
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+    reachable = (err == 0);
+  }
+  close(fd);
+  return reachable;
+}
+
 #pragma mark - NSBundle Swizzle (universal Release hook)
 
-// In Release builds that use [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"],
-// intercept the lookup and return a Metro URL when a host is persisted.
-// This works regardless of AppDelegate language/class/hierarchy — covers Expo, Swift, custom setups.
+// Intercepts [[NSBundle mainBundle] URLForResource:name withExtension:@"jsbundle"] in Release.
+// ONLY matches the "jsbundle" extension — never ".js" which is used by WebKit/JSC at startup.
+// Guards with a TCP reachability check so a stale persisted host doesn't crash the app.
 static NSURL *devconnect_URLForResource(id self, SEL _cmd, NSString *name, NSString *ext)
 {
-  if ([ext isEqualToString:@"jsbundle"] || [ext isEqualToString:@"js"]) {
+  if ([ext isEqualToString:@"jsbundle"]) {
     NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-    if (metroHost.length > 0) {
+    if (metroHost.length > 0 && isMetroHostReachable(metroHost, 150)) {
       nsBundleInvoked = YES;
-      NSURL *url = buildMetroURL(metroHost);
-      appendDiag(@"NSBundle", [NSString stringWithFormat:@"name=%@.%@ host=%@", name, ext, metroHost]);
-      return url;
+      NSLog(@"[DevConnect] NSBundle hook: %@.jsbundle → metro:%@", name, metroHost);
+      return buildMetroURL(metroHost);
     }
   }
   return ((NSURL *(*)(id, SEL, NSString *, NSString *))original_URLForResource)(self, _cmd, name, ext);
