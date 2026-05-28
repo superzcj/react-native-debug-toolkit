@@ -2,6 +2,7 @@
 #import <React/RCTBundleManager.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTBundleURLProvider.h>
+#import <React/RCTDefines.h>
 #import <React/RCTReloadCommand.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
@@ -29,10 +30,13 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
                resolve:(RCTPromiseResolveBlock)resolve
 {
   dispatch_async(dispatch_get_main_queue(), ^{
-    if (bundleURL) {
-      if (self->_bundleManager) {
+    if (self->_bundleManager) {
+      if (bundleURL) {
         self->_bundleManager.bundleURL = bundleURL;
+      } else {
+        [self->_bundleManager resetBundleURL];
       }
+    } else {
       RCTReloadCommandSetBundleURL(bundleURL);
     }
     resolve(result ?: [NSNull null]);
@@ -56,11 +60,44 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     return;
   }
 
-  [RCTBundleURLProvider sharedSettings].jsLocation = hostPort;
-  NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+  RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
+  NSRange separator = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
+  NSString *host = separator.location == NSNotFound ? hostPort : [hostPort substringToIndex:separator.location];
+  NSString *port = separator.location == NSNotFound ? @"" : [hostPort substringFromIndex:separator.location + 1];
+
+  if (host.length == 0 && port.length == 0) {
+    [self resetMetroHost:resolve rejecter:reject];
+    return;
+  }
+
+  NSNumberFormatter *formatter = [NSNumberFormatter new];
+  formatter.numberStyle = NSNumberFormatterDecimalStyle;
+  NSNumber *portNumber = [formatter numberFromString:port];
+  if (portNumber == nil) {
+    portNumber = [NSNumber numberWithInt:RCT_METRO_PORT];
+  }
+
+  NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
+  settings.jsLocation = normalizedHostPort;
+
+  NSURL *bundleURL = nil;
+  if (DebugToolkitBundleRoot.length == 0) {
+    if (_bundleManager) {
+      [_bundleManager resetBundleURL];
+      bundleURL = _bundleManager.bundleURL;
+    }
+  } else {
+    bundleURL = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+  }
+
+  NSMutableDictionary *result = [@{ @"hostPort" : normalizedHostPort } mutableCopy];
+  if (bundleURL.absoluteString) {
+    result[@"bundleURL"] = bundleURL.absoluteString;
+  }
+
   [self applyBundleURL:bundleURL
-                reason:@"DebugToolkit DevConnect Metro host changed"
-                result:@{ @"hostPort" : hostPort }
+                reason:@"Dev menu - apply changes"
+                result:result
                resolve:resolve];
 }
 
@@ -70,7 +107,7 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
   [[RCTBundleURLProvider sharedSettings] resetToDefaults];
   NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForFallbackExtension:nil];
   [self applyBundleURL:bundleURL
-                reason:@"DebugToolkit DevConnect Metro host reset"
+                reason:@"Dev menu - reset to default"
                 result:[NSNull null]
                resolve:resolve];
 }

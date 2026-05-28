@@ -17,6 +17,7 @@ import com.facebook.react.bridge.UiThreadUtil;
 import com.facebook.react.bridge.WritableMap;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -24,7 +25,9 @@ import java.util.Enumeration;
 
 public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   private static final String MODULE_NAME = "DebugToolkitDevConnect";
+  private static final String BUNDLE_ROOT = "index";
   private static final String DEBUG_SERVER_HOST_KEY = "debug_http_host";
+  private static final String KOTLIN_FUNCTION1_CLASS = "kotlin.jvm.functions.Function1";
   private static final String APPLY_RELOAD_REASON = "DebugToolkit DevConnect Metro host changed";
   private static final String RESET_RELOAD_REASON = "DebugToolkit DevConnect Metro host reset";
 
@@ -69,6 +72,46 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
     setter.invoke(packagerConnectionSettings, hostPort);
   }
 
+  private boolean setReactHostBundleSource(Object reactHost, String hostPort) throws Exception {
+    if (hostPort.length() == 0) {
+      return false;
+    }
+
+    try {
+      Class<?> function1Class = Class.forName(KOTLIN_FUNCTION1_CLASS);
+      Method setBundleSourceMethod = reactHost.getClass().getMethod(
+          "setBundleSource",
+          String.class,
+          String.class,
+          function1Class
+      );
+      Object queryMapper = Proxy.newProxyInstance(
+          function1Class.getClassLoader(),
+          new Class<?>[] { function1Class },
+          (proxy, method, args) -> {
+            String methodName = method.getName();
+            if ("invoke".equals(methodName)) {
+              return args != null && args.length > 0 ? args[0] : null;
+            }
+            if ("toString".equals(methodName)) {
+              return "DebugToolkitIdentityQueryMapper";
+            }
+            if ("hashCode".equals(methodName)) {
+              return System.identityHashCode(proxy);
+            }
+            if ("equals".equals(methodName)) {
+              return proxy == (args != null && args.length > 0 ? args[0] : null);
+            }
+            return null;
+          }
+      );
+      setBundleSourceMethod.invoke(reactHost, hostPort, BUNDLE_ROOT, queryMapper);
+      return true;
+    } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+      return false;
+    }
+  }
+
   private boolean triggerDevSupportReload(
       @Nullable Object devSupportManager,
       String hostPort
@@ -96,6 +139,10 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
     Object reactHost = callGetter(applicationContext, "getReactHost");
     if (reactHost == null) {
       return false;
+    }
+
+    if (setReactHostBundleSource(reactHost, hostPort)) {
+      return true;
     }
 
     if (triggerDevSupportReload(callGetter(reactHost, "getDevSupportManager"), hostPort)) {
