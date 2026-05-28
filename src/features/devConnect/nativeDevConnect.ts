@@ -2,6 +2,13 @@ import { NativeModules } from 'react-native';
 
 import { buildMetroTarget } from './devConnectUtils';
 
+export interface NativeDiagnostics {
+  log: string[];
+  swizzleInstalled: boolean;
+  swizzleInvoked: boolean;
+  persistedMetroHost: string | null;
+}
+
 interface DebugToolkitDevConnectNativeModule {
   applyMetroHost: (hostPort: string) => Promise<{ hostPort?: string } | void>;
   resetMetroHost: () => Promise<void>;
@@ -9,6 +16,8 @@ interface DebugToolkitDevConnectNativeModule {
   getLocalIp?: () => Promise<string | null>;
   isDebugBuild?: () => Promise<boolean>;
   getPreference?: (key: string) => Promise<string | null>;
+  getDiagnostics?: () => Promise<NativeDiagnostics>;
+  clearDiagnostics?: () => Promise<void>;
 }
 
 type MetroBundleFailureReason =
@@ -154,17 +163,26 @@ export async function nativeIsDebugBuild(): Promise<boolean | null> {
   }
 }
 
-export async function flushNativeDiagnostic(key: string, label: string): Promise<void> {
+export async function getNativeDiagnostics(): Promise<NativeDiagnostics | null> {
   const nativeModule = getNativeModule();
-  if (!nativeModule?.getPreference) {
+  if (!nativeModule?.getDiagnostics) {
+    return null;
+  }
+  try {
+    return await nativeModule.getDiagnostics();
+  } catch {
+    return null;
+  }
+}
+
+export async function clearNativeDiagnostics(): Promise<void> {
+  const nativeModule = getNativeModule();
+  if (!nativeModule?.clearDiagnostics) {
     return;
   }
   try {
-    const raw = await nativeModule.getPreference(key);
-    if (raw && typeof raw === 'string') {
-      console.info(`[${label}] Last native diagnostic:`, raw);
-    }
+    await nativeModule.clearDiagnostics();
   } catch {
-    // Silent - diagnostic is best-effort
+    // best-effort
   }
 }

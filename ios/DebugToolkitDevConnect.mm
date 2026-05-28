@@ -12,21 +12,28 @@
 
 static NSString *const DebugToolkitBundleRoot = @"index";
 static NSString *const kDevConnectMetroHost = @"_devconnect_metro_host";
-static NSString *const kDevConnectDiag = @"_devconnect_diag";
+static NSString *const kDevConnectDiagLog = @"_devconnect_diag_log";
 
-static void saveDiag(NSString *stage, NSString *detail)
+// Forward-declared so appendDiag can reference them before the definitions below.
+static IMP original_sourceURLForBridge;
+static BOOL swizzleInvoked;
+
+static void appendDiag(NSString *stage, NSString *detail)
 {
-  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | swizzle=%@", stage, detail,
-                    original_sourceURLForBridge ? @"YES" : @"NO"];
-  [[NSUserDefaults standardUserDefaults] setObject:msg forKey:kDevConnectDiag];
+  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | installed=%@ invoked=%@",
+                   stage, detail,
+                   original_sourceURLForBridge ? @"YES" : @"NO",
+                   swizzleInvoked ? @"YES" : @"NO"];
+  NSMutableArray *log = [[[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] mutableCopy]
+                        ?: [NSMutableArray new];
+  [log addObject:msg];
+  if (log.count > 30) [log removeObjectAtIndex:0];
+  [[NSUserDefaults standardUserDefaults] setObject:[log copy] forKey:kDevConnectDiagLog];
   [[NSUserDefaults standardUserDefaults] synchronize];
   NSLog(@"[DevConnect] diag: %@", msg);
 }
 
 #pragma mark - AppDelegate Swizzling
-
-static IMP original_sourceURLForBridge = NULL;
-static BOOL swizzleInvoked = NO;
 
 static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
 {
@@ -36,7 +43,7 @@ static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge
     NSString *urlStr = [NSString stringWithFormat:
         @"http://%@/%@.bundle?platform=ios&dev=true&minify=false&lazy=true", metroHost, DebugToolkitBundleRoot];
     NSURL *url = [NSURL URLWithString:urlStr];
-    saveDiag(@"swizzle-called", [NSString stringWithFormat:@"host=%@ url=%@", metroHost, url]);
+    appendDiag(@"swizzle-called", [NSString stringWithFormat:@"host=%@ url=%@", metroHost, url]);
     return url;
   }
   if (original_sourceURLForBridge) {
@@ -48,22 +55,31 @@ static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge
 static void swizzleSourceURLForBridge(Class targetClass, NSString *stage)
 {
   if (!targetClass) {
-    saveDiag(stage, @"class=nil");
+    appendDiag(stage, @"class=nil");
     return;
   }
   NSString *className = NSStringFromClass(targetClass);
   SEL selector = @selector(sourceURLForBridge:);
   Method method = class_getInstanceMethod(targetClass, selector);
   if (!method) {
-    saveDiag(stage, [NSString stringWithFormat:@"class=%@ method=NOT_FOUND", className]);
+    appendDiag(stage, [NSString stringWithFormat:@"class=%@ method=NOT_FOUND", className]);
     return;
   }
   if (original_sourceURLForBridge) {
-    saveDiag(stage, [NSString stringWithFormat:@"class=%@ already_swizzled", className]);
+    appendDiag(stage, [NSString stringWithFormat:@"class=%@ already_swizzled", className]);
     return;
   }
-  original_sourceURLForBridge = method_setImplementation(method, (IMP)devconnect_sourceURLForBridge);
-  saveDiag(stage, [NSString stringWithFormat:@"class=%@ SUCCESS", className]);
+  // class_addMethod ensures the replacement lands on targetClass even when the method
+  // is inherited — avoids modifying the parent class's IMP for all subclasses.
+  IMP origIMP = method_getImplementation(method);
+  const char *types = method_getTypeEncoding(method);
+  BOOL added = class_addMethod(targetClass, selector, (IMP)devconnect_sourceURLForBridge, types);
+  if (!added) {
+    // Method already exists directly on targetClass; replace in place.
+    method_setImplementation(method, (IMP)devconnect_sourceURLForBridge);
+  }
+  original_sourceURLForBridge = origIMP;
+  appendDiag(stage, [NSString stringWithFormat:@"class=%@ added=%@ SUCCESS", className, added ? @"YES" : @"NO"]);
 }
 
 #pragma mark - Module
@@ -124,7 +140,11 @@ RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
-    NSString *host = [RCTBundleURLProvider sharedSettings].jsLocation;
+    // kDevConnectMetroHost is written by applyMetroHost and survives restart in both Debug+Release.
+    // jsLocation is only meaningful in Debug (bypassed in Release); use it as a fallback only.
+    NSString *persisted = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
+    NSString *jsLocation = [RCTBundleURLProvider sharedSettings].jsLocation;
+    NSString *host = persisted.length > 0 ? persisted : jsLocation;
     resolve(host ?: [NSNull null]);
   } @catch (NSException *exception) {
     reject(@"native_error", exception.reason, nil);
@@ -233,6 +253,27 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
     NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", exception.reason);
     reject(@"native_error", exception.reason, nil);
   }
+}
+
+RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  NSArray *log = [[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] ?: @[];
+  NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
+  resolve(@{
+    @"log": log,
+    @"swizzleInstalled": @(original_sourceURLForBridge != NULL),
+    @"swizzleInvoked": @(swizzleInvoked),
+    @"persistedMetroHost": metroHost ?: [NSNull null],
+  });
+}
+
+RCT_EXPORT_METHOD(clearDiagnostics:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  [[NSUserDefaults standardUserDefaults] removeObjectForKey:kDevConnectDiagLog];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+  resolve([NSNull null]);
 }
 
 RCT_EXPORT_METHOD(getPreference:(NSString *)key

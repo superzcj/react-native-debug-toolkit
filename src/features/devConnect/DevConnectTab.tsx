@@ -35,7 +35,13 @@ import {
   saveDaemonPort,
   saveMetroPort,
 } from './devConnectPreferences';
-import { applyMetroBundle, flushNativeDiagnostic, resetMetroBundle } from './nativeDevConnect';
+import {
+  applyMetroBundle,
+  clearNativeDiagnostics,
+  getNativeDiagnostics,
+  resetMetroBundle,
+  type NativeDiagnostics,
+} from './nativeDevConnect';
 import type { DevConnectFeatureControls, DevConnectSettingsPatch, DevConnectState } from './types';
 
 const CONNECTION_TIMEOUT_MS = 2000;
@@ -72,16 +78,15 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
   const [message, setMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [metroBusy, setMetroBusy] = useState(false);
+  const [diagData, setDiagData] = useState<NativeDiagnostics | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagBusy, setDiagBusy] = useState(false);
 
   const isSim = snapshot.isSimulator;
 
   const updateFeatureSettings = useCallback((patch: DevConnectSettingsPatch) => {
     (feature as unknown as DevConnectFeatureControls).updateSettings?.(patch);
   }, [feature]);
-
-  useEffect(() => {
-    flushNativeDiagnostic('_devconnect_last_diagnostic', 'DevConnect');
-  }, []);
 
   useEffect(() => {
     setComputerHost(snapshot.computerHost);
@@ -376,6 +381,22 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
     }
   }, [snapshot.nativeMetroAvailable]);
 
+  const readDiag = useCallback(async () => {
+    setDiagBusy(true);
+    try {
+      const result = await getNativeDiagnostics();
+      setDiagData(result);
+      setDiagOpen(true);
+    } finally {
+      setDiagBusy(false);
+    }
+  }, []);
+
+  const clearDiag = useCallback(async () => {
+    await clearNativeDiagnostics();
+    setDiagData(null);
+  }, []);
+
   const canConnect = isSim || (Boolean(normalizeComputerHost(computerHost)) && Boolean(normalizePort(daemonPort)));
   const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy;
   const busy = sending || syncState === 'checking';
@@ -531,6 +552,73 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
             <Text style={styles.hint}>Native DevConnect requires pod install / Gradle sync and app rebuild.</Text>
           ) : null}
         </View>
+
+        {snapshot.nativeMetroAvailable ? (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.diagHeader}
+              onPress={() => setDiagOpen((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Swizzle Diagnostics</Text>
+              <Text style={styles.diagChevron}>{diagOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+
+            {diagOpen ? (
+              <View style={styles.diagCard}>
+                {diagData ? (
+                  <>
+                    <View style={styles.diagRow}>
+                      <Text style={styles.diagKey}>swizzleInstalled</Text>
+                      <Text style={[styles.diagVal, diagData.swizzleInstalled ? styles.diagGood : styles.diagBad]}>
+                        {diagData.swizzleInstalled ? 'YES' : 'NO'}
+                      </Text>
+                    </View>
+                    <View style={styles.diagRow}>
+                      <Text style={styles.diagKey}>swizzleInvoked</Text>
+                      <Text style={[styles.diagVal, diagData.swizzleInvoked ? styles.diagGood : styles.diagWarn]}>
+                        {diagData.swizzleInvoked ? 'YES' : 'NO'}
+                      </Text>
+                    </View>
+                    <View style={styles.diagRow}>
+                      <Text style={styles.diagKey}>persistedHost</Text>
+                      <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>
+                    </View>
+                    {diagData.log.length > 0 ? (
+                      <View style={styles.diagLog}>
+                        {diagData.log.map((entry, i) => (
+                          <Text key={i} style={styles.diagLogEntry}>{entry}</Text>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={styles.diagEmpty}>No log entries yet.</Text>
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.diagEmpty}>Tap Read to fetch diagnostics.</Text>
+                )}
+
+                <View style={styles.diagActions}>
+                  <TouchableOpacity
+                    style={[styles.diagBtn, diagBusy && styles.buttonDisabled]}
+                    onPress={readDiag}
+                    disabled={diagBusy}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.diagBtnText}>{diagBusy ? 'Reading…' : 'Read'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.diagBtn, styles.diagBtnSecondary]}
+                    onPress={clearDiag}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.diagBtnText, styles.diagBtnSecondaryText]}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -635,4 +723,39 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   urlText: { flex: 1, fontSize: 13, fontFamily: 'Courier', color: Colors.text },
+  diagHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  diagChevron: { fontSize: 12, color: Colors.textSecondary },
+  diagCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: 10,
+  },
+  diagRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  diagKey: { fontSize: 12, color: Colors.textSecondary, fontFamily: 'Courier' },
+  diagVal: { fontSize: 12, color: Colors.text, fontFamily: 'Courier', fontWeight: '600' },
+  diagGood: { color: '#34C759' },
+  diagBad: { color: '#FF3B30' },
+  diagWarn: { color: '#FF9500' },
+  diagLog: {
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    paddingTop: 8,
+    gap: 4,
+  },
+  diagLogEntry: { fontSize: 11, fontFamily: 'Courier', color: Colors.textSecondary, lineHeight: 16 },
+  diagEmpty: { fontSize: 12, color: Colors.textLight, fontStyle: 'italic', paddingVertical: 4 },
+  diagActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  diagBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+  },
+  diagBtnSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
+  diagBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  diagBtnSecondaryText: { color: Colors.primary },
 });
