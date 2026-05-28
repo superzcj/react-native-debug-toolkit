@@ -24,24 +24,9 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
   return NO;
 }
 
-- (void)applyBundleURL:(NSURL *)bundleURL
-                reason:(NSString *)reason
-                result:(id)result
-               resolve:(RCTPromiseResolveBlock)resolve
+- (dispatch_queue_t)methodQueue
 {
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (self->_bundleManager) {
-      if (bundleURL) {
-        self->_bundleManager.bundleURL = bundleURL;
-      } else {
-        [self->_bundleManager resetBundleURL];
-      }
-    } else {
-      RCTReloadCommandSetBundleURL(bundleURL);
-    }
-    resolve(result ?: [NSNull null]);
-    RCTTriggerReloadCommandListeners(reason);
-  });
+  return dispatch_get_main_queue();
 }
 
 RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
@@ -80,25 +65,26 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
   NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
   settings.jsLocation = normalizedHostPort;
 
-  NSURL *bundleURL = nil;
   if (DebugToolkitBundleRoot.length == 0) {
     if (_bundleManager) {
       [_bundleManager resetBundleURL];
-      bundleURL = _bundleManager.bundleURL;
     }
   } else {
-    bundleURL = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+    NSURL *bundleURL = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+    if (_bundleManager) {
+      _bundleManager.bundleURL = bundleURL;
+    } else {
+      RCTReloadCommandSetBundleURL(bundleURL);
+    }
   }
 
-  NSMutableDictionary *result = [@{ @"hostPort" : normalizedHostPort } mutableCopy];
-  if (bundleURL.absoluteString) {
-    result[@"bundleURL"] = bundleURL.absoluteString;
+  NSMutableDictionary *result = [@{@"hostPort" : normalizedHostPort} mutableCopy];
+  if (_bundleManager && _bundleManager.bundleURL.absoluteString) {
+    result[@"bundleURL"] = _bundleManager.bundleURL.absoluteString;
   }
 
-  [self applyBundleURL:bundleURL
-                reason:@"Dev menu - apply changes"
-                result:result
-               resolve:resolve];
+  RCTTriggerReloadCommandListeners(@"DevConnect - apply changes");
+  resolve(result);
 }
 
 RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
@@ -106,10 +92,13 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
 {
   [[RCTBundleURLProvider sharedSettings] resetToDefaults];
   NSURL *bundleURL = [[RCTBundleURLProvider sharedSettings] jsBundleURLForFallbackExtension:nil];
-  [self applyBundleURL:bundleURL
-                reason:@"Dev menu - reset to default"
-                result:[NSNull null]
-               resolve:resolve];
+  if (_bundleManager) {
+    _bundleManager.bundleURL = bundleURL;
+  } else {
+    RCTReloadCommandSetBundleURL(bundleURL);
+  }
+  RCTTriggerReloadCommandListeners(@"DevConnect - reset to default");
+  resolve([NSNull null]);
 }
 
 RCT_EXPORT_METHOD(getPreference:(NSString *)key
@@ -145,7 +134,6 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
 {
   struct ifaddrs *interfaces = NULL;
   if (getifaddrs(&interfaces) == 0) {
-    // First pass: prefer Wi-Fi interface (en0)
     struct ifaddrs *iface = interfaces;
     while (iface != NULL) {
       if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
@@ -161,7 +149,6 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
       }
       iface = iface->ifa_next;
     }
-    // Second pass: any non-loopback IPv4
     iface = interfaces;
     while (iface != NULL) {
       if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
