@@ -169,9 +169,18 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
       result[@"bundleURL"] = bm.bundleURL.absoluteString;
     }
 
-    NSLog(@"[DevConnect] triggering reload...");
-    RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
+    // TEMP DIAGNOSTIC: skip reload, return diagnostic for UI inspection
+    NSLog(@"[DevConnect] DIAGNOSTIC mode: skipping reload, returning diagnostic");
+    NSDictionary *diagCopy = [diagnostic copy];
+    NSMutableString *debugMsg = [NSMutableString string];
+    [diagCopy enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *val, BOOL *stop) {
+      [debugMsg appendFormat:@"%@=%@  ", key, val];
+    }];
+    result[@"_debugDiagnostic"] = debugMsg;
     resolve(result);
+
+    // TODO: Restore reload after diagnosis
+    // RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
   } @catch (NSException *exception) {
     NSLog(@"[DevConnect] EXCEPTION: %@ - %@", exception.name, exception.reason);
     // Save exception diagnostic
