@@ -21,11 +21,9 @@ static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge
 {
   NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
   if (metroHost.length > 0) {
-    RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
-    NSString *saved = settings.jsLocation;
-    settings.jsLocation = metroHost;
-    NSURL *url = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
-    settings.jsLocation = saved;
+    NSString *urlStr = [NSString stringWithFormat:
+        @"http://%@/%@.bundle?platform=ios&dev=true&minify=false&lazy=true", metroHost, DebugToolkitBundleRoot];
+    NSURL *url = [NSURL URLWithString:urlStr];
     NSLog(@"[DevConnect] swizzle: returning Metro URL %@ (host=%@)", url, metroHost);
     return url;
   }
@@ -143,7 +141,11 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     formatter.numberStyle = NSNumberFormatterDecimalStyle;
     NSNumber *portNumber = [formatter numberFromString:port];
     if (portNumber == nil) {
+#ifdef RCT_METRO_PORT
       portNumber = [NSNumber numberWithInt:RCT_METRO_PORT];
+#else
+      portNumber = [NSNumber numberWithInt:8081];
+#endif
     }
 
     NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
@@ -163,9 +165,12 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     RCTBundleManager *bm = [self resolveBundleManager];
     if (bm) {
       bm.bundleURL = bundleURL;
-    } else if (bundleURL) {
+    }
+#ifdef RCTReloadCommandSetBundleURL
+    else if (bundleURL) {
       RCTReloadCommandSetBundleURL(bundleURL);
     }
+#endif
 
     NSLog(@"[DevConnect] applyMetroHost: %@ | bm=%@ | bridge=%@ | url=%@",
           normalizedHostPort, bm ? @"YES" : @"nil", _bridge ? @"YES" : @"nil", bundleURL);
