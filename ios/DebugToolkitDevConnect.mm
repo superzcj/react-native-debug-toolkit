@@ -12,19 +12,31 @@
 
 static NSString *const DebugToolkitBundleRoot = @"index";
 static NSString *const kDevConnectMetroHost = @"_devconnect_metro_host";
+static NSString *const kDevConnectDiag = @"_devconnect_diag";
+
+static void saveDiag(NSString *stage, NSString *detail)
+{
+  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | swizzle=%@", stage, detail,
+                    original_sourceURLForBridge ? @"YES" : @"NO"];
+  [[NSUserDefaults standardUserDefaults] setObject:msg forKey:kDevConnectDiag];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+  NSLog(@"[DevConnect] diag: %@", msg);
+}
 
 #pragma mark - AppDelegate Swizzling
 
 static IMP original_sourceURLForBridge = NULL;
+static BOOL swizzleInvoked = NO;
 
 static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
 {
+  swizzleInvoked = YES;
   NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
   if (metroHost.length > 0) {
     NSString *urlStr = [NSString stringWithFormat:
         @"http://%@/%@.bundle?platform=ios&dev=true&minify=false&lazy=true", metroHost, DebugToolkitBundleRoot];
     NSURL *url = [NSURL URLWithString:urlStr];
-    NSLog(@"[DevConnect] swizzle: returning Metro URL %@ (host=%@)", url, metroHost);
+    saveDiag(@"swizzle-called", [NSString stringWithFormat:@"host=%@ url=%@", metroHost, url]);
     return url;
   }
   if (original_sourceURLForBridge) {
@@ -33,15 +45,25 @@ static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge
   return nil;
 }
 
-static void swizzleSourceURLForBridge(Class targetClass)
+static void swizzleSourceURLForBridge(Class targetClass, NSString *stage)
 {
-  if (!targetClass) return;
+  if (!targetClass) {
+    saveDiag(stage, @"class=nil");
+    return;
+  }
+  NSString *className = NSStringFromClass(targetClass);
   SEL selector = @selector(sourceURLForBridge:);
   Method method = class_getInstanceMethod(targetClass, selector);
-  if (!method) return;
-  if (original_sourceURLForBridge) return; // Already swizzled
+  if (!method) {
+    saveDiag(stage, [NSString stringWithFormat:@"class=%@ method=NOT_FOUND", className]);
+    return;
+  }
+  if (original_sourceURLForBridge) {
+    saveDiag(stage, [NSString stringWithFormat:@"class=%@ already_swizzled", className]);
+    return;
+  }
   original_sourceURLForBridge = method_setImplementation(method, (IMP)devconnect_sourceURLForBridge);
-  NSLog(@"[DevConnect] swizzled sourceURLForBridge: on %@", NSStringFromClass(targetClass));
+  saveDiag(stage, [NSString stringWithFormat:@"class=%@ SUCCESS", className]);
 }
 
 #pragma mark - Module
@@ -59,17 +81,15 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 __attribute__((constructor))
 static void devconnect_swizzle_init(void)
 {
-  // Runs after all +load methods, before main() — same timing as +load but no conflict with RCT_EXPORT_MODULE
-  swizzleSourceURLForBridge(NSClassFromString(@"AppDelegate"));
+  swizzleSourceURLForBridge(NSClassFromString(@"AppDelegate"), @"constructor");
 }
 
 - (instancetype)init
 {
   if ((self = [super init])) {
-    // Fallback — use actual delegate class at runtime (covers custom class names / Swift)
     if (!original_sourceURLForBridge) {
       Class delegateClass = object_getClass([UIApplication sharedApplication].delegate);
-      swizzleSourceURLForBridge(delegateClass);
+      swizzleSourceURLForBridge(delegateClass, @"init");
     }
   }
   return self;
