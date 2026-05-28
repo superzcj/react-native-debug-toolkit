@@ -1,3 +1,87 @@
+# iOS DebugToolkitDevConnect Rewrite Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rewrite `ios/DebugToolkitDevConnect.mm` with defensive multi-strategy bundle URL management that doesn't crash on RN 0.76 new architecture.
+
+**Architecture:** Mirror Android's robust approach — resolve `bundleManager` via both property injection and bridge lookup, apply bundle URL with three fallback strategies, wrap everything in `@try/@catch`, execute on main queue via `methodQueue` override.
+
+**Tech Stack:** Objective-C++, React Native 0.76+ native module APIs
+
+---
+
+## File Structure
+
+| File | Action | Responsibility |
+|------|--------|----------------|
+| `ios/DebugToolkitDevConnect.mm` | Rewrite | Native module with multi-strategy bundle management |
+| `src/__tests__/features/nativeDevConnectSource.test.ts` | Modify | Update source contract assertions for new design |
+
+---
+
+### Task 1: Update source contract test
+
+**Files:**
+- Modify: `src/__tests__/features/nativeDevConnectSource.test.ts:19-29`
+
+- [ ] **Step 1: Update the iOS source contract test to expect new defensive patterns**
+
+Replace lines 19–29 of `src/__tests__/features/nativeDevConnectSource.test.ts` with:
+
+```typescript
+  it('mirrors React Native Configure Bundler apply/reset flow on iOS', () => {
+    const source = fs.readFileSync(path.join(repoRoot, 'ios/DebugToolkitDevConnect.mm'), 'utf8');
+
+    // Port normalization (mirrors RN DevMenu Configure Bundler)
+    expect(source).toContain('NSNumberFormatter');
+    expect(source).toContain('RCT_METRO_PORT');
+
+    // Bundle URL generation
+    expect(source).toContain('jsBundleURLForBundleRoot');
+    expect(source).toContain('jsBundleURLForFallbackExtension:nil');
+
+    // Multi-strategy bundle application
+    expect(source).toContain('resolveBundleManager');
+    expect(source).toContain('resetBundleURL');
+    expect(source).toContain('RCTReloadCommandSetBundleURL');
+
+    // Crash protection
+    expect(source).toContain('@try');
+    expect(source).toContain('@catch');
+
+    // Main queue thread safety
+    expect(source).toContain('dispatch_get_main_queue()');
+
+    // Reload reasons matching RN DevMenu
+    expect(source).toContain('Dev menu - apply changes');
+    expect(source).toContain('Dev menu - reset to default');
+  });
+```
+
+- [ ] **Step 2: Run test to verify it fails (old code doesn't have `resolveBundleManager`, `@try`, etc.)**
+
+Run: `npx jest src/__tests__/features/nativeDevConnectSource.test.ts --verbose 2>&1 | tail -20`
+Expected: FAIL — missing `resolveBundleManager`, `@try`, `@catch`, `dispatch_get_main_queue()`
+
+- [ ] **Step 3: Commit test update**
+
+```bash
+git add src/__tests__/features/nativeDevConnectSource.test.ts
+git commit -m "test: update iOS DevConnect source contract for defensive multi-strategy design"
+```
+
+---
+
+### Task 2: Rewrite iOS implementation
+
+**Files:**
+- Rewrite: `ios/DebugToolkitDevConnect.mm` (full file)
+
+- [ ] **Step 1: Write the complete rewritten file**
+
+Write the following to `ios/DebugToolkitDevConnect.mm`:
+
+```objc
 #import <Foundation/Foundation.h>
 #import <React/RCTBridge.h>
 #import <React/RCTBundleManager.h>
@@ -44,39 +128,28 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
   return nil;
 }
 
-- (void)saveDiagnostic:(NSDictionary *)info
-{
-  NSData *data = [NSJSONSerialization dataWithJSONObject:info options:0 error:nil];
-  if (data) {
-    NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    [[NSUserDefaults standardUserDefaults] setObject:json forKey:@"_devconnect_last_diagnostic"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-  }
-}
-
 #pragma mark - Apply Bundle URL (multi-strategy)
 
 - (BOOL)applyBundleURL:(NSURL *)bundleURL
 {
+  // Strategy 1: Use bundleManager (new arch property injection or bridge lookup)
   RCTBundleManager *bm = [self resolveBundleManager];
   if (bm) {
     if (bundleURL) {
       bm.bundleURL = bundleURL;
-      NSLog(@"[DevConnect] applyBundleURL strategy 1: set bm.bundleURL = %@", bundleURL);
     } else {
       [bm resetBundleURL];
-      NSLog(@"[DevConnect] applyBundleURL strategy 1: resetBundleURL");
     }
     return YES;
   }
 
+  // Strategy 2: Legacy reload command API
   if (bundleURL) {
     RCTReloadCommandSetBundleURL(bundleURL);
-    NSLog(@"[DevConnect] applyBundleURL strategy 2: RCTReloadCommandSetBundleURL = %@", bundleURL);
     return YES;
   }
 
-  NSLog(@"[DevConnect] applyBundleURL strategy 3: no URL, relying on jsLocation persistence");
+  // Strategy 3: No URL to set, rely on jsLocation persistence + reload trigger
   return NO;
 }
 
@@ -98,8 +171,6 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
   @try {
-    NSLog(@"[DevConnect] applyMetroHost called with: %@", hostPort);
-
     if (hostPort.length == 0) {
       reject(@"invalid_host", @"Metro host cannot be empty.", nil);
       return;
@@ -107,6 +178,7 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
 
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
 
+    // Parse host and port (mirrors RN DevMenu Configure Bundler)
     NSRange separator = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
     NSString *host = separator.location == NSNotFound
         ? hostPort
@@ -115,11 +187,13 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
         ? @""
         : [hostPort substringFromIndex:separator.location + 1];
 
+    // Empty host+port → reset
     if (host.length == 0 && port.length == 0) {
       [self resetMetroHost:resolve rejecter:reject];
       return;
     }
 
+    // Normalize port
     NSNumberFormatter *formatter = [NSNumberFormatter new];
     formatter.numberStyle = NSNumberFormatterDecimalStyle;
     NSNumber *portNumber = [formatter numberFromString:port];
@@ -128,57 +202,28 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     }
 
     NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
-    NSLog(@"[DevConnect] normalizedHostPort: %@", normalizedHostPort);
 
+    // Persist Metro host setting
     settings.jsLocation = normalizedHostPort;
-    NSLog(@"[DevConnect] jsLocation set, verify: %@", settings.jsLocation);
 
+    // Apply bundle URL
     NSURL *bundleURL = nil;
     if (DebugToolkitBundleRoot.length > 0) {
       bundleURL = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
     }
-    NSLog(@"[DevConnect] generated bundleURL: %@", bundleURL);
 
-    RCTBundleManager *bm = [self resolveBundleManager];
-    BOOL applied = [self applyBundleURL:bundleURL];
-    NSLog(@"[DevConnect] resolveBundleManager: %@", bm ? @"found" : @"nil");
-    NSLog(@"[DevConnect] applyBundleURL result: %@", applied ? @"YES" : @"NO");
-    NSLog(@"[DevConnect] _bundleManager injected: %@", _bundleManager ? @"YES" : @"nil");
-    NSLog(@"[DevConnect] _bridge available: %@", _bridge ? @"YES" : @"nil");
+    [self applyBundleURL:bundleURL];
 
-    if (bm) {
-      NSLog(@"[DevConnect] bm.bundleURL after apply: %@", bm.bundleURL);
-    }
-
-    // Save diagnostic before reload (survives restart)
-    NSMutableDictionary *diagnostic = [@{
-      @"hostPort" : normalizedHostPort ?: @"",
-      @"bundleManagerInjected" : _bundleManager ? @"YES" : @"nil",
-      @"bridgeAvailable" : _bridge ? @"YES" : @"nil",
-      @"resolvedBM" : bm ? @"YES" : @"nil",
-      @"bundleURL" : bundleURL.absoluteString ?: @"nil",
-      @"applied" : applied ? @"YES" : @"NO",
-    } mutableCopy];
-    if (bm) {
-      diagnostic[@"bmBundleURL"] = bm.bundleURL.absoluteString ?: @"nil";
-    }
-    [self saveDiagnostic:diagnostic];
-
+    // Build result
     NSMutableDictionary *result = [@{@"hostPort" : normalizedHostPort} mutableCopy];
+    RCTBundleManager *bm = [self resolveBundleManager];
     if (bm && bm.bundleURL.absoluteString) {
       result[@"bundleURL"] = bm.bundleURL.absoluteString;
     }
 
-    NSLog(@"[DevConnect] triggering reload...");
     RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
     resolve(result);
   } @catch (NSException *exception) {
-    NSLog(@"[DevConnect] EXCEPTION: %@ - %@", exception.name, exception.reason);
-    // Save exception diagnostic
-    [self saveDiagnostic:@{
-      @"error" : exception.reason ?: @"unknown",
-      @"exception" : exception.name ?: @"unknown",
-    }];
     reject(@"native_error", exception.reason, nil);
   }
 }
@@ -187,17 +232,14 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
-    NSLog(@"[DevConnect] resetMetroHost called");
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     [settings resetToDefaults];
     NSURL *bundleURL = [settings jsBundleURLForFallbackExtension:nil];
-    NSLog(@"[DevConnect] reset bundleURL: %@", bundleURL);
 
     [self applyBundleURL:bundleURL];
     RCTTriggerReloadCommandListeners(@"Dev menu - reset to default");
     resolve([NSNull null]);
   } @catch (NSException *exception) {
-    NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", exception.reason);
     reject(@"native_error", exception.reason, nil);
   }
 }
@@ -244,9 +286,10 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
   @try {
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) == 0) {
+      // First pass: prefer Wi-Fi interface (en0)
       struct ifaddrs *iface = interfaces;
       while (iface != NULL) {
-        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
+        if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
           if (strcmp(iface->ifa_name, "en0") == 0) {
             char addrStr[INET_ADDRSTRLEN];
             struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
@@ -259,9 +302,10 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
         }
         iface = iface->ifa_next;
       }
+      // Second pass: any non-loopback IPv4
       iface = interfaces;
       while (iface != NULL) {
-        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
+        if (iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
           char addrStr[INET_ADDRSTRLEN];
           struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
           inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
@@ -281,3 +325,42 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
 }
 
 @end
+```
+
+- [ ] **Step 2: Run source contract test to verify it passes**
+
+Run: `npx jest src/__tests__/features/nativeDevConnectSource.test.ts --verbose 2>&1 | tail -20`
+Expected: PASS
+
+- [ ] **Step 3: Run all DevConnect tests to verify nothing broken**
+
+Run: `npx jest src/__tests__/features/ --verbose 2>&1 | tail -30`
+Expected: All PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add ios/DebugToolkitDevConnect.mm
+git commit -m "rewrite: iOS DevConnect with defensive multi-strategy bundle management
+
+- Resolve bundleManager via property injection + bridge fallback
+- Three-tier bundle URL apply strategy (bundleManager → RCTReloadCommand → jsLocation)
+- @try/@catch crash protection on all exported methods
+- methodQueue returns main queue for thread safety
+- Mirrors Android's robust multi-fallback approach"
+```
+
+---
+
+### Task 3: Verify JS integration tests still pass
+
+**Files:** None (verification only)
+
+- [ ] **Step 1: Run full JS test suite**
+
+Run: `npx jest --verbose 2>&1 | tail -30`
+Expected: All PASS — JS tests mock the native module so they're independent of ObjC changes.
+
+- [ ] **Step 2: Final commit if any adjustments needed**
+
+Only if tests revealed issues. Otherwise skip.
