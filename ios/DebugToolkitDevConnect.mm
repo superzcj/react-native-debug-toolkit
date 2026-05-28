@@ -58,16 +58,17 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 @synthesize bridge = _bridge;
 @synthesize bundleManager = _bundleManager;
 
-+ (void)load
+__attribute__((constructor))
+static void devconnect_swizzle_init(void)
 {
-  // Stage 1: Try standard AppDelegate class name (covers ObjC and most Swift apps)
+  // Runs after all +load methods, before main() — same timing as +load but no conflict with RCT_EXPORT_MODULE
   swizzleSourceURLForBridge(NSClassFromString(@"AppDelegate"));
 }
 
 - (instancetype)init
 {
   if ((self = [super init])) {
-    // Stage 2: Fallback — use actual delegate class at runtime
+    // Fallback — use actual delegate class at runtime (covers custom class names / Swift)
     if (!original_sourceURLForBridge) {
       Class delegateClass = object_getClass([UIApplication sharedApplication].delegate);
       swizzleSourceURLForBridge(delegateClass);
