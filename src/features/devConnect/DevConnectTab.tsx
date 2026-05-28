@@ -35,7 +35,7 @@ import {
   saveDaemonPort,
   saveMetroPort,
 } from './devConnectPreferences';
-import { applyMetroBundle, resetMetroBundle } from './nativeDevConnect';
+import { applyMetroBundle, flushNativeDiagnostic, resetMetroBundle } from './nativeDevConnect';
 import type { DevConnectFeatureControls, DevConnectSettingsPatch, DevConnectState } from './types';
 
 const CONNECTION_TIMEOUT_MS = 2000;
@@ -78,6 +78,10 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
   const updateFeatureSettings = useCallback((patch: DevConnectSettingsPatch) => {
     (feature as unknown as DevConnectFeatureControls).updateSettings?.(patch);
   }, [feature]);
+
+  useEffect(() => {
+    flushNativeDiagnostic('_devconnect_last_diagnostic', 'DevConnect');
+  }, []);
 
   useEffect(() => {
     setComputerHost(snapshot.computerHost);

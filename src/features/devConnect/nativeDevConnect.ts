@@ -8,6 +8,7 @@ interface DebugToolkitDevConnectNativeModule {
   getMetroHost?: () => Promise<string | null>;
   getLocalIp?: () => Promise<string | null>;
   isDebugBuild?: () => Promise<boolean>;
+  getPreference?: (key: string) => Promise<string | null>;
 }
 
 type MetroBundleFailureReason =
@@ -150,5 +151,20 @@ export async function nativeIsDebugBuild(): Promise<boolean | null> {
     return typeof result === 'boolean' ? result : null;
   } catch {
     return null;
+  }
+}
+
+export async function flushNativeDiagnostic(key: string, label: string): Promise<void> {
+  const nativeModule = getNativeModule();
+  if (!nativeModule?.getPreference) {
+    return;
+  }
+  try {
+    const raw = await nativeModule.getPreference(key);
+    if (raw && typeof raw === 'string') {
+      console.info(`[${label}] Last native diagnostic:`, raw);
+    }
+  } catch {
+    // Silent - diagnostic is best-effort
   }
 }
