@@ -92,16 +92,14 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
     getNativeDiagnostics().then((result) => {
       if (result) {
         setDiagData(result);
+        const hookSummary = [
+          result.swizzleBundleURL && 'bundleURL',
+          result.swizzleSourceURL && 'sourceURL',
+          result.swizzleNSBundle && 'NSBundle',
+        ].filter(Boolean).join('+') || 'NONE';
         console.info(
-          '[DevConnect] swizzle status — bundleURL:',
-          result.swizzleBundleURL,
-          'sourceURL:',
-          result.swizzleSourceURL,
-          'invoked:',
-          result.swizzleInvoked,
-          'persistedHost:',
-          result.persistedMetroHost ?? 'none',
-          '\nlog:', result.log.join(' | '),
+          `[DevConnect] hooks=${hookSummary} invoked=${result.swizzleInvoked} nsBundleInvoked=${result.swizzleNSBundleInvoked} persistedHost=${result.persistedMetroHost ?? 'none'}`,
+          '\nlog:', result.log.slice(-5).join(' | '),
         );
       }
     }).catch(() => {});
@@ -528,9 +526,12 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
             <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
             {diagData ? (
               <View style={styles.swizzleBadge}>
-                <View style={[styles.swizzleDot, (diagData.swizzleBundleURL || diagData.swizzleSourceURL) ? styles.dotGreen : styles.dotRed]} />
+                <View style={[styles.swizzleDot, diagData.swizzleInstalled ? styles.dotGreen : styles.dotRed]} />
                 <Text style={styles.swizzleBadgeText}>
-                  {diagData.swizzleBundleURL ? 'bundleURL' : diagData.swizzleSourceURL ? 'sourceURL' : 'no hook'}
+                  {[
+                    diagData.swizzleBundleURL && 'delegate',
+                    diagData.swizzleNSBundle && 'NSBundle',
+                  ].filter(Boolean).join('+') || 'no hook'}
                   {diagData.swizzleInvoked ? ' ✓' : ''}
                 </Text>
               </View>
@@ -598,18 +599,20 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
               <View style={styles.diagCard}>
                 {diagData ? (
                   <>
-                    <View style={styles.diagRow}>
-                      <Text style={styles.diagKey}>swizzleInstalled</Text>
-                      <Text style={[styles.diagVal, diagData.swizzleInstalled ? styles.diagGood : styles.diagBad]}>
-                        {diagData.swizzleInstalled ? 'YES' : 'NO'}
-                      </Text>
-                    </View>
-                    <View style={styles.diagRow}>
-                      <Text style={styles.diagKey}>swizzleInvoked</Text>
-                      <Text style={[styles.diagVal, diagData.swizzleInvoked ? styles.diagGood : styles.diagWarn]}>
-                        {diagData.swizzleInvoked ? 'YES' : 'NO'}
-                      </Text>
-                    </View>
+                    {([
+                      ['delegate.bundleURL', diagData.swizzleBundleURL],
+                      ['delegate.sourceURL', diagData.swizzleSourceURL],
+                      ['NSBundle hook', diagData.swizzleNSBundle],
+                      ['NSBundle invoked', diagData.swizzleNSBundleInvoked],
+                      ['swizzleInvoked', diagData.swizzleInvoked],
+                    ] as [string, boolean][]).map(([label, val]) => (
+                      <View key={label} style={styles.diagRow}>
+                        <Text style={styles.diagKey}>{label}</Text>
+                        <Text style={[styles.diagVal, val ? styles.diagGood : styles.diagWarn]}>
+                          {val ? 'YES' : 'NO'}
+                        </Text>
+                      </View>
+                    ))}
                     <View style={styles.diagRow}>
                       <Text style={styles.diagKey}>persistedHost</Text>
                       <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>

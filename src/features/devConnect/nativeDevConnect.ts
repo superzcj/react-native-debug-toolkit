@@ -7,7 +7,9 @@ export interface NativeDiagnostics {
   swizzleInstalled: boolean;
   swizzleBundleURL: boolean;
   swizzleSourceURL: boolean;
+  swizzleNSBundle: boolean;
   swizzleInvoked: boolean;
+  swizzleNSBundleInvoked: boolean;
   persistedMetroHost: string | null;
 }
 

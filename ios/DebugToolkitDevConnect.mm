@@ -17,14 +17,18 @@ static NSString *const kDevConnectDiagLog = @"_devconnect_diag_log";
 // Swizzle state — forward-declared so appendDiag can reference them.
 static IMP original_bundleURL = NULL;          // RN 0.73+ new arch: -[AppDelegate bundleURL]
 static IMP original_sourceURLForBridge = NULL; // Legacy bridge: -[AppDelegate sourceURLForBridge:]
+static IMP original_URLForResource = NULL;     // NSBundle hook: catches Release [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"]
 static BOOL swizzleInvoked = NO;
+static BOOL nsBundleInvoked = NO;
 
 static void appendDiag(NSString *stage, NSString *detail)
 {
-  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | bundleURL=%@ sourceURL=%@ invoked=%@",
+  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | bundleURL=%@ sourceURL=%@ NSBundle=%@/%@ inv=%@",
                    stage, detail,
                    original_bundleURL ? @"Y" : @"N",
                    original_sourceURLForBridge ? @"Y" : @"N",
+                   original_URLForResource ? @"Y" : @"N",
+                   nsBundleInvoked ? @"Y" : @"N",
                    swizzleInvoked ? @"Y" : @"N"];
   NSMutableArray *log = [[[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] mutableCopy]
                         ?: [NSMutableArray new];
@@ -42,6 +46,25 @@ static NSURL *buildMetroURL(NSString *metroHost)
   NSString *urlStr = [NSString stringWithFormat:
       @"http://%@/%@.bundle?platform=ios&dev=true&minify=false", metroHost, DebugToolkitBundleRoot];
   return [NSURL URLWithString:urlStr];
+}
+
+#pragma mark - NSBundle Swizzle (universal Release hook)
+
+// In Release builds that use [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"],
+// intercept the lookup and return a Metro URL when a host is persisted.
+// This works regardless of AppDelegate language/class/hierarchy — covers Expo, Swift, custom setups.
+static NSURL *devconnect_URLForResource(id self, SEL _cmd, NSString *name, NSString *ext)
+{
+  if ([ext isEqualToString:@"jsbundle"] || [ext isEqualToString:@"js"]) {
+    NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
+    if (metroHost.length > 0) {
+      nsBundleInvoked = YES;
+      NSURL *url = buildMetroURL(metroHost);
+      appendDiag(@"NSBundle", [NSString stringWithFormat:@"name=%@.%@ host=%@", name, ext, metroHost]);
+      return url;
+    }
+  }
+  return ((NSURL *(*)(id, SEL, NSString *, NSString *))original_URLForResource)(self, _cmd, name, ext);
 }
 
 #pragma mark - AppDelegate Swizzling
@@ -128,6 +151,10 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 __attribute__((constructor))
 static void devconnect_swizzle_init(void)
 {
+  // NSBundle swizzle is the universal fallback: catches [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"]
+  // regardless of AppDelegate type. Must run before any +load or class init.
+  swizzleMethod([NSBundle class], @selector(URLForResource:withExtension:),
+                (IMP)devconnect_URLForResource, &original_URLForResource, @"ctor-NSBundle");
   swizzleAppDelegate(NSClassFromString(@"AppDelegate"), @"ctor");
 }
 
@@ -291,14 +318,15 @@ RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
 {
   NSArray *log = [[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] ?: @[];
   NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-  // swizzleInstalled = true if EITHER hook landed (bundleURL for new arch, sourceURLForBridge: for legacy).
-  BOOL installed = (original_bundleURL != NULL) || (original_sourceURLForBridge != NULL);
+  BOOL installed = (original_bundleURL != NULL) || (original_sourceURLForBridge != NULL) || (original_URLForResource != NULL);
   resolve(@{
     @"log": log,
     @"swizzleInstalled": @(installed),
     @"swizzleBundleURL": @(original_bundleURL != NULL),
     @"swizzleSourceURL": @(original_sourceURLForBridge != NULL),
-    @"swizzleInvoked": @(swizzleInvoked),
+    @"swizzleNSBundle": @(original_URLForResource != NULL),
+    @"swizzleInvoked": @(swizzleInvoked || nsBundleInvoked),
+    @"swizzleNSBundleInvoked": @(nsBundleInvoked),
     @"persistedMetroHost": metroHost ?: [NSNull null],
   });
 }
