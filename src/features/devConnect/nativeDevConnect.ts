@@ -5,6 +5,8 @@ import { buildMetroTarget } from './devConnectUtils';
 export interface NativeDiagnostics {
   log: string[];
   swizzleInstalled: boolean;
+  swizzleBundleURL: boolean;
+  swizzleSourceURL: boolean;
   swizzleInvoked: boolean;
   persistedMetroHost: string | null;
 }

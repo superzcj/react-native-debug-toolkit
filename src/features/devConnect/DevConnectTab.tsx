@@ -89,6 +89,25 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
   }, [feature]);
 
   useEffect(() => {
+    getNativeDiagnostics().then((result) => {
+      if (result) {
+        setDiagData(result);
+        console.info(
+          '[DevConnect] swizzle status — bundleURL:',
+          result.swizzleBundleURL,
+          'sourceURL:',
+          result.swizzleSourceURL,
+          'invoked:',
+          result.swizzleInvoked,
+          'persistedHost:',
+          result.persistedMetroHost ?? 'none',
+          '\nlog:', result.log.join(' | '),
+        );
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setComputerHost(snapshot.computerHost);
   }, [snapshot.computerHost]);
 
@@ -505,9 +524,20 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
         {message ? <Text style={styles.message}>{message}</Text> : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
+            {diagData ? (
+              <View style={styles.swizzleBadge}>
+                <View style={[styles.swizzleDot, (diagData.swizzleBundleURL || diagData.swizzleSourceURL) ? styles.dotGreen : styles.dotRed]} />
+                <Text style={styles.swizzleBadgeText}>
+                  {diagData.swizzleBundleURL ? 'bundleURL' : diagData.swizzleSourceURL ? 'sourceURL' : 'no hook'}
+                  {diagData.swizzleInvoked ? ' ✓' : ''}
+                </Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.sectionDesc}>
-            Apply this Metro host to React Native dev settings and reload the app.
+            Set Metro host and reload. After kill+reopen the app loads Metro directly.
           </Text>
 
           {!metroUrls ? (
@@ -723,6 +753,12 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   urlText: { flex: 1, fontSize: 13, fontFamily: 'Courier', color: Colors.text },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  swizzleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  swizzleDot: { width: 6, height: 6, borderRadius: 3 },
+  dotGreen: { backgroundColor: '#34C759' },
+  dotRed: { backgroundColor: '#FF3B30' },
+  swizzleBadgeText: { fontSize: 11, color: Colors.textSecondary, fontFamily: 'Courier' },
   diagHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   diagChevron: { fontSize: 12, color: Colors.textSecondary },
   diagCard: {
