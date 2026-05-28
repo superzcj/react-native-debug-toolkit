@@ -5,11 +5,48 @@
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTDefines.h>
 #import <React/RCTReloadCommand.h>
+#import <objc/runtime.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 
 static NSString *const DebugToolkitBundleRoot = @"index";
+static NSString *const kDevConnectMetroHost = @"_devconnect_metro_host";
+
+#pragma mark - AppDelegate Swizzling
+
+static IMP original_sourceURLForBridge = NULL;
+
+static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
+{
+  NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
+  if (metroHost.length > 0) {
+    RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
+    NSString *saved = settings.jsLocation;
+    settings.jsLocation = metroHost;
+    NSURL *url = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
+    settings.jsLocation = saved;
+    NSLog(@"[DevConnect] swizzle: returning Metro URL %@ (host=%@)", url, metroHost);
+    return url;
+  }
+  if (original_sourceURLForBridge) {
+    return ((NSURL *(*)(id, SEL, RCTBridge *))original_sourceURLForBridge)(self, _cmd, bridge);
+  }
+  return nil;
+}
+
+static void swizzleSourceURLForBridge(Class targetClass)
+{
+  if (!targetClass) return;
+  SEL selector = @selector(sourceURLForBridge:);
+  Method method = class_getInstanceMethod(targetClass, selector);
+  if (!method) return;
+  if (original_sourceURLForBridge) return; // Already swizzled
+  original_sourceURLForBridge = method_setImplementation(method, (IMP)devconnect_sourceURLForBridge);
+  NSLog(@"[DevConnect] swizzled sourceURLForBridge: on %@", NSStringFromClass(targetClass));
+}
+
+#pragma mark - Module
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -20,6 +57,24 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 
 @synthesize bridge = _bridge;
 @synthesize bundleManager = _bundleManager;
+
++ (void)load
+{
+  // Stage 1: Try standard AppDelegate class name (covers ObjC and most Swift apps)
+  swizzleSourceURLForBridge(NSClassFromString(@"AppDelegate"));
+}
+
+- (instancetype)init
+{
+  if ((self = [super init])) {
+    // Stage 2: Fallback — use actual delegate class at runtime
+    if (!original_sourceURLForBridge) {
+      Class delegateClass = object_getClass([UIApplication sharedApplication].delegate);
+      swizzleSourceURLForBridge(delegateClass);
+    }
+  }
+  return self;
+}
 
 + (BOOL)requiresMainQueueSetup
 {
@@ -44,42 +99,6 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
   return nil;
 }
 
-- (void)saveDiagnostic:(NSDictionary *)info
-{
-  NSData *data = [NSJSONSerialization dataWithJSONObject:info options:0 error:nil];
-  if (data) {
-    NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    [[NSUserDefaults standardUserDefaults] setObject:json forKey:@"_devconnect_last_diagnostic"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-  }
-}
-
-#pragma mark - Apply Bundle URL (multi-strategy)
-
-- (BOOL)applyBundleURL:(NSURL *)bundleURL
-{
-  RCTBundleManager *bm = [self resolveBundleManager];
-  if (bm) {
-    if (bundleURL) {
-      bm.bundleURL = bundleURL;
-      NSLog(@"[DevConnect] applyBundleURL strategy 1: set bm.bundleURL = %@", bundleURL);
-    } else {
-      [bm resetBundleURL];
-      NSLog(@"[DevConnect] applyBundleURL strategy 1: resetBundleURL");
-    }
-    return YES;
-  }
-
-  if (bundleURL) {
-    RCTReloadCommandSetBundleURL(bundleURL);
-    NSLog(@"[DevConnect] applyBundleURL strategy 2: RCTReloadCommandSetBundleURL = %@", bundleURL);
-    return YES;
-  }
-
-  NSLog(@"[DevConnect] applyBundleURL strategy 3: no URL, relying on jsLocation persistence");
-  return NO;
-}
-
 #pragma mark - Exported Methods
 
 RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
@@ -98,8 +117,6 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
   @try {
-    NSLog(@"[DevConnect] applyMetroHost called with: %@", hostPort);
-
     if (hostPort.length == 0) {
       reject(@"invalid_host", @"Metro host cannot be empty.", nil);
       return;
@@ -107,6 +124,7 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
 
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
 
+    // Parse host and port
     NSRange separator = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
     NSString *host = separator.location == NSNotFound
         ? hostPort
@@ -128,66 +146,38 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     }
 
     NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
-    NSLog(@"[DevConnect] normalizedHostPort: %@", normalizedHostPort);
 
+    // Persist for AppDelegate swizzle (Release mode + restart)
+    [[NSUserDefaults standardUserDefaults] setObject:normalizedHostPort forKey:kDevConnectMetroHost];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+
+    // Also set jsLocation (Debug mode + hot reload)
     settings.jsLocation = normalizedHostPort;
-    NSLog(@"[DevConnect] jsLocation set, verify: %@", settings.jsLocation);
 
+    // Try hot reload via bundleManager (works in Debug)
     NSURL *bundleURL = nil;
     if (DebugToolkitBundleRoot.length > 0) {
       bundleURL = [settings jsBundleURLForBundleRoot:DebugToolkitBundleRoot];
     }
-    NSLog(@"[DevConnect] generated bundleURL: %@", bundleURL);
-
     RCTBundleManager *bm = [self resolveBundleManager];
-    BOOL applied = [self applyBundleURL:bundleURL];
-    NSLog(@"[DevConnect] resolveBundleManager: %@", bm ? @"found" : @"nil");
-    NSLog(@"[DevConnect] applyBundleURL result: %@", applied ? @"YES" : @"NO");
-    NSLog(@"[DevConnect] _bundleManager injected: %@", _bundleManager ? @"YES" : @"nil");
-    NSLog(@"[DevConnect] _bridge available: %@", _bridge ? @"YES" : @"nil");
-
     if (bm) {
-      NSLog(@"[DevConnect] bm.bundleURL after apply: %@", bm.bundleURL);
+      bm.bundleURL = bundleURL;
+    } else if (bundleURL) {
+      RCTReloadCommandSetBundleURL(bundleURL);
     }
 
-    // Save diagnostic before reload (survives restart)
-    NSMutableDictionary *diagnostic = [@{
-      @"hostPort" : normalizedHostPort ?: @"",
-      @"bundleManagerInjected" : _bundleManager ? @"YES" : @"nil",
-      @"bridgeAvailable" : _bridge ? @"YES" : @"nil",
-      @"resolvedBM" : bm ? @"YES" : @"nil",
-      @"bundleURL" : bundleURL.absoluteString ?: @"nil",
-      @"applied" : applied ? @"YES" : @"NO",
-    } mutableCopy];
-    if (bm) {
-      diagnostic[@"bmBundleURL"] = bm.bundleURL.absoluteString ?: @"nil";
-    }
-    [self saveDiagnostic:diagnostic];
+    NSLog(@"[DevConnect] applyMetroHost: %@ | bm=%@ | bridge=%@ | url=%@",
+          normalizedHostPort, bm ? @"YES" : @"nil", _bridge ? @"YES" : @"nil", bundleURL);
+
+    RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
 
     NSMutableDictionary *result = [@{@"hostPort" : normalizedHostPort} mutableCopy];
     if (bm && bm.bundleURL.absoluteString) {
       result[@"bundleURL"] = bm.bundleURL.absoluteString;
     }
-
-    // TEMP DIAGNOSTIC: skip reload, return diagnostic for UI inspection
-    NSLog(@"[DevConnect] DIAGNOSTIC mode: skipping reload, returning diagnostic");
-    NSDictionary *diagCopy = [diagnostic copy];
-    NSMutableString *debugMsg = [NSMutableString string];
-    [diagCopy enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *val, BOOL *stop) {
-      [debugMsg appendFormat:@"%@=%@  ", key, val];
-    }];
-    result[@"_debugDiagnostic"] = debugMsg;
     resolve(result);
-
-    // TODO: Restore reload after diagnosis
-    // RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
   } @catch (NSException *exception) {
-    NSLog(@"[DevConnect] EXCEPTION: %@ - %@", exception.name, exception.reason);
-    // Save exception diagnostic
-    [self saveDiagnostic:@{
-      @"error" : exception.reason ?: @"unknown",
-      @"exception" : exception.name ?: @"unknown",
-    }];
+    NSLog(@"[DevConnect] applyMetroHost EXCEPTION: %@", exception.reason);
     reject(@"native_error", exception.reason, nil);
   }
 }
@@ -196,13 +186,21 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
-    NSLog(@"[DevConnect] resetMetroHost called");
+    // Clear stored Metro host
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:kDevConnectMetroHost];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+
+    // Reset RN settings
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     [settings resetToDefaults];
     NSURL *bundleURL = [settings jsBundleURLForFallbackExtension:nil];
-    NSLog(@"[DevConnect] reset bundleURL: %@", bundleURL);
 
-    [self applyBundleURL:bundleURL];
+    RCTBundleManager *bm = [self resolveBundleManager];
+    if (bm) {
+      bm.bundleURL = bundleURL;
+    }
+
+    NSLog(@"[DevConnect] resetMetroHost | bm=%@ | url=%@", bm ? @"YES" : @"nil", bundleURL);
     RCTTriggerReloadCommandListeners(@"Dev menu - reset to default");
     resolve([NSNull null]);
   } @catch (NSException *exception) {

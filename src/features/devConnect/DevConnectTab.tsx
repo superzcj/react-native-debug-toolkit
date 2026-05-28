@@ -348,12 +348,7 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
       }
       const result = await applyMetroBundle(metroTarget.host, metroTarget.port);
       if (result.ok) {
-        const debugDiag = (result as { _debugDiagnostic?: string })._debugDiagnostic;
-        if (debugDiag) {
-          setMessage(`DEBUG - no reload. Diagnostic:\n${debugDiag}`);
-        } else {
-          setMessage(`Using Metro at ${result.hostPort}. Reloading...`);
-        }
+        setMessage(`Using Metro at ${result.hostPort}. Reloading...`);
       } else {
         setMessage(describeMetroFailure(result));
       }

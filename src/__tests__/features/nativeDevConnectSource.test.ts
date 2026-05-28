@@ -29,8 +29,14 @@ describe('native DevConnect source contracts', () => {
 
     // Multi-strategy bundle application
     expect(source).toContain('resolveBundleManager');
-    expect(source).toContain('resetBundleURL');
     expect(source).toContain('RCTReloadCommandSetBundleURL');
+
+    // AppDelegate swizzle for Release mode
+    expect(source).toContain('sourceURLForBridge');
+    expect(source).toContain('swizzleSourceURLForBridge');
+
+    // Persistence for Metro host
+    expect(source).toContain('_devconnect_metro_host');
 
     // Crash protection
     expect(source).toContain('@try');
