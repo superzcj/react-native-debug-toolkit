@@ -27,10 +27,19 @@ function hasHelpFlag(args) {
 function printHelp() {
   process.stderr.write(
     'Usage: debug-toolkit [--host 0.0.0.0] [--port 3799] [--token dev-token] [--store ~/.react-native-debug-toolkit/daemon-devices.json] [--daemon-only]\n'
+  + '       debug-toolkit embed [--platform ios|android] [--undo] [--yes]\n'
   + '\n'
   + 'Starts the debug toolkit: daemon (HTTP + Web Console) and MCP stdio server.\n'
   + '\n'
-  + 'Options:\n'
+  + 'Commands:\n'
+  + '  embed           Embed JS bundle in debug builds (run in host app root)\n'
+  + '\n'
+  + 'Embed options:\n'
+  + '  --platform <p>  Target platform: ios or android (default: both)\n'
+  + '  --undo          Remove embed injections\n'
+  + '  --yes           Skip confirmations (CI/EAS)\n'
+  + '\n'
+  + 'Daemon options:\n'
   + '  --host <addr>   Host to bind (default: 0.0.0.0)\n'
     + '  --port <port>   Port to bind (default: 3799)\n'
   + '  --token <str>   Auth token for daemon endpoints\n'
@@ -55,6 +64,12 @@ async function main() {
   if (hasHelpFlag(args)) {
     printHelp();
     return;
+  }
+
+  // Route embed subcommand
+  if (args[0] === 'embed') {
+    const { main: embedMain } = require('../scripts/embed');
+    return embedMain(args.slice(1));
   }
 
   const host = readOption(args, '--host', process.env.DEBUG_TOOLKIT_DAEMON_HOST || DEFAULT_HOST);

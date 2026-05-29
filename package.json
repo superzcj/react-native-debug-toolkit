@@ -10,6 +10,7 @@
     "lib",
     "bin",
     "node",
+    "scripts",
     "ios",
     "android",
     "react-native-debug-toolkit.podspec",
@@ -93,6 +94,7 @@
     ]
   },
   "dependencies": {
-    "@babel/runtime": "^7.29.2"
+    "@babel/runtime": "^7.29.2",
+    "pbxproj": "^0.0.5"
   }
 }
