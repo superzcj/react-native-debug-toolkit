@@ -10,6 +10,8 @@ export interface NativeDiagnostics {
   isDebugBuild: boolean;
   hasEmbeddedBundle?: boolean;
   embeddedFirstHookInstalled?: boolean;
+  packagerHookInstalled?: boolean;
+  bundleRootHookInstalled?: boolean;
 }
 
 interface DebugToolkitDevConnectNativeModule {

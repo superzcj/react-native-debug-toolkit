@@ -32,10 +32,11 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('RCTReloadCommandSetBundleURL');
     expect(source).toContain('RCTTriggerReloadCommandListeners');
 
-    // Zero-config: hook packagerServerHostPort so cold start uses embedded bundle until host applied.
+    // Zero-config: primary hook on jsBundleURLForBundleRoot returns embedded before Metro.
+    expect(source).toContain('replacement_jsBundleURLForBundleRoot_fallback');
+    expect(source).toContain('DebugToolkitInstallBundleRootHook');
     expect(source).toContain('replacement_packagerServerHostPort');
-    expect(source).toContain('DebugToolkitInstallPackagerHook');
-    expect(source).toContain('embeddedFirstHookInstalled');
+    expect(source).toContain('bundleRootHookInstalled');
 
     expect(source).toContain('DebugToolkitMetroBundleURL');
     expect(source).toContain('DevConnectMetroBundleRoot');

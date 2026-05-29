@@ -28,6 +28,14 @@ static NSString *const kExpoVirtualMetroEntry = @".expo/.virtual-metro-entry";
 static NSString *const kMetroHostKey = @"_devconnect_metro_host";
 
 static BOOL gPackagerHookInstalled = NO;
+static BOOL gBundleRootHookInstalled = NO;
+
+static NSURL *(*gOrigJsBundleURLForBundleRootWithFallback)(id, SEL, NSString *, NSURL * _Nonnull (^)(void));
+
+static BOOL DevConnectEmbeddedFirstHooksActive(void)
+{
+  return gBundleRootHookInstalled;
+}
 
 static NSURL *DebugToolkitEmbeddedBundleURL(void)
 {
@@ -88,8 +96,7 @@ static NSURL *DevConnectMetroURLForPersistedHost(void)
   return [settings jsBundleURLForBundleRoot:DevConnectMetroBundleRoot()];
 }
 
-/// When no DevConnect host is configured, pretend no packager is available so
-/// jsBundleURLForBundleRoot: falls back to the embedded bundle.
+/// When no DevConnect host: block guessPackagerHost (simulator often has Metro on :8081).
 static NSString *replacement_packagerServerHostPort(id self, SEL _cmd)
 {
   NSString *host = DevConnectPersistedMetroHost();
@@ -100,29 +107,85 @@ static NSString *replacement_packagerServerHostPort(id self, SEL _cmd)
   return host;
 }
 
-static void DebugToolkitInstallPackagerHook(void)
+/// Primary hook: return embedded main.jsbundle before RN/Expo tries Metro / virtual-metro-entry.
+static NSURL *replacement_jsBundleURLForBundleRoot_fallback(
+    id self, SEL _cmd, NSString *bundleRoot, NSURL * _Nonnull (^fallbackURLProvider)(void))
+{
+  if (DevConnectPersistedMetroHost().length == 0) {
+    NSURL *embedded = DebugToolkitEmbeddedBundleURL();
+    if (embedded) {
+      NSLog(@"[DevConnect] cold start → embedded bundle (root=%@)", bundleRoot);
+      return embedded;
+    }
+    NSLog(@"[DevConnect] no embedded main.jsbundle — falling back to Metro (root=%@)", bundleRoot);
+  }
+
+  if (gOrigJsBundleURLForBundleRootWithFallback) {
+    return gOrigJsBundleURLForBundleRootWithFallback(self, _cmd, bundleRoot, fallbackURLProvider);
+  }
+  return fallbackURLProvider ? fallbackURLProvider() : nil;
+}
+
+static void DebugToolkitInstallPackagerHook(Class cls)
 {
   if (gPackagerHookInstalled) {
     return;
   }
-
-  Class cls = [RCTBundleURLProvider class];
   Method method = class_getInstanceMethod(cls, @selector(packagerServerHostPort));
   if (!method) {
-    NSLog(@"[DevConnect] packagerServerHostPort not found — embedded-first hook skipped");
+    NSLog(@"[DevConnect] packagerServerHostPort not found");
     return;
   }
-
   IMP replacement = (IMP)replacement_packagerServerHostPort;
-  IMP current = method_getImplementation(method);
-  if (current == replacement) {
+  if (method_getImplementation(method) == replacement) {
     gPackagerHookInstalled = YES;
     return;
   }
-
   method_setImplementation(method, replacement);
   gPackagerHookInstalled = YES;
-  NSLog(@"[DevConnect] embedded-first packager hook installed");
+}
+
+static void DebugToolkitInstallBundleRootHook(Class cls)
+{
+  if (gBundleRootHookInstalled) {
+    return;
+  }
+  SEL selector = @selector(jsBundleURLForBundleRoot:fallbackURLProvider:);
+  Method method = class_getInstanceMethod(cls, selector);
+  if (!method) {
+    NSLog(@"[DevConnect] jsBundleURLForBundleRoot:fallbackURLProvider: not found");
+    return;
+  }
+  IMP replacement = (IMP)replacement_jsBundleURLForBundleRoot_fallback;
+  gOrigJsBundleURLForBundleRootWithFallback =
+      (NSURL * (*)(id, SEL, NSString *, NSURL * _Nonnull (^)(void)))method_getImplementation(method);
+  if ((IMP)gOrigJsBundleURLForBundleRootWithFallback == replacement) {
+    gBundleRootHookInstalled = YES;
+    return;
+  }
+  method_setImplementation(method, replacement);
+  gBundleRootHookInstalled = YES;
+}
+
+static void DebugToolkitInstallAllHooks(void)
+{
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    Class cls = NSClassFromString(@"RCTBundleURLProvider");
+    if (!cls) {
+      NSLog(@"[DevConnect] RCTBundleURLProvider not loaded — hooks deferred");
+      return;
+    }
+    DebugToolkitInstallBundleRootHook(cls);
+    DebugToolkitInstallPackagerHook(cls);
+    if (DevConnectEmbeddedFirstHooksActive()) {
+      NSLog(@"[DevConnect] embedded-first hooks active (bundleRoot=%@ packager=%@)",
+            gBundleRootHookInstalled ? @"Y" : @"N",
+            gPackagerHookInstalled ? @"Y" : @"N");
+    } else {
+      NSLog(@"[DevConnect] embedded-first hooks FAILED — rebuild / check React linkage");
+    }
+  });
 }
 
 NSURL *DebugToolkitMetroBundleURL(void)
@@ -134,7 +197,6 @@ __attribute__((constructor))
 static void DebugToolkit_install(void)
 {
   DebugToolkitPrepareBundleSourceIfNeeded();
-  DebugToolkitInstallPackagerHook();
 }
 
 #pragma mark - Module
@@ -144,10 +206,24 @@ static void DebugToolkit_install(void)
 
 @implementation DebugToolkitDevConnect
 
++ (void)load
+{
+  DebugToolkitPrepareBundleSourceIfNeeded();
+  DebugToolkitInstallAllHooks();
+}
+
 RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 
 @synthesize bridge = _bridge;
 @synthesize bundleManager = _bundleManager;
+
+- (instancetype)init
+{
+  if ((self = [super init])) {
+    DebugToolkitInstallAllHooks();
+  }
+  return self;
+}
 
 + (BOOL)requiresMainQueueSetup { return NO; }
 - (dispatch_queue_t)methodQueue { return dispatch_get_main_queue(); }
@@ -278,7 +354,9 @@ RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
     @"appDelegateClass": delegateName,
     @"isDebugBuild": @(isDebug),
     @"hasEmbeddedBundle": @(DebugToolkitEmbeddedBundleURL() != nil),
-    @"embeddedFirstHookInstalled": @(gPackagerHookInstalled),
+    @"embeddedFirstHookInstalled": @(DevConnectEmbeddedFirstHooksActive()),
+    @"packagerHookInstalled": @(gPackagerHookInstalled),
+    @"bundleRootHookInstalled": @(gBundleRootHookInstalled),
   });
 }
 

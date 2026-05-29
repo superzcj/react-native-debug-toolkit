@@ -614,8 +614,14 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
                 </View>
                 {!diagData.embeddedFirstHookInstalled ? (
                   <Text style={styles.diagWarning}>
-                    ⚠ Embedded-first hook not active. Rebuild after pod install. Without it, Debug may
-                    still try Metro on launch.
+                    ⚠ Embedded-first hook not active (bundleRoot=
+                    {diagData.bundleRootHookInstalled ? 'Y' : 'N'}). Rebuild after pod install.
+                    Without it, Debug may still try Metro on launch.
+                  </Text>
+                ) : diagData.hasEmbeddedBundle === false ? (
+                  <Text style={styles.diagWarning}>
+                    ⚠ main.jsbundle is missing from the app package. Build with an embedded bundle
+                    (e.g. export/bundle) or cold start cannot use offline JS.
                   </Text>
                 ) : null}
               </View>
