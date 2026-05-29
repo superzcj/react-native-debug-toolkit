@@ -3,14 +3,10 @@ import { NativeModules } from 'react-native';
 import { buildMetroTarget } from './devConnectUtils';
 
 export interface NativeDiagnostics {
-  log: string[];
-  swizzleInstalled: boolean;
-  swizzleBundleURL: boolean;
-  swizzleSourceURL: boolean;
-  swizzleNSBundle: boolean;
-  swizzleInvoked: boolean;
-  swizzleNSBundleInvoked: boolean;
   persistedMetroHost: string | null;
+  appDelegateClass: string;
+  hookedClasses: string[];
+  hooksInstalled: boolean;
 }
 
 interface DebugToolkitDevConnectNativeModule {
@@ -21,7 +17,6 @@ interface DebugToolkitDevConnectNativeModule {
   isDebugBuild?: () => Promise<boolean>;
   getPreference?: (key: string) => Promise<string | null>;
   getDiagnostics?: () => Promise<NativeDiagnostics>;
-  clearDiagnostics?: () => Promise<void>;
 }
 
 type MetroBundleFailureReason =
@@ -176,17 +171,5 @@ export async function getNativeDiagnostics(): Promise<NativeDiagnostics | null> 
     return await nativeModule.getDiagnostics();
   } catch {
     return null;
-  }
-}
-
-export async function clearNativeDiagnostics(): Promise<void> {
-  const nativeModule = getNativeModule();
-  if (!nativeModule?.clearDiagnostics) {
-    return;
-  }
-  try {
-    await nativeModule.clearDiagnostics();
-  } catch {
-    // best-effort
   }
 }

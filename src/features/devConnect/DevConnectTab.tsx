@@ -37,7 +37,6 @@ import {
 } from './devConnectPreferences';
 import {
   applyMetroBundle,
-  clearNativeDiagnostics,
   getNativeDiagnostics,
   resetMetroBundle,
   type NativeDiagnostics,
@@ -80,7 +79,6 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
   const [metroBusy, setMetroBusy] = useState(false);
   const [diagData, setDiagData] = useState<NativeDiagnostics | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
-  const [diagBusy, setDiagBusy] = useState(false);
 
   const isSim = snapshot.isSimulator;
 
@@ -92,16 +90,16 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
     getNativeDiagnostics().then((result) => {
       if (result) {
         setDiagData(result);
-        const hookSummary = [
-          result.swizzleBundleURL && 'bundleURL',
-          result.swizzleSourceURL && 'sourceURL',
-          result.swizzleNSBundle && 'NSBundle',
-        ].filter(Boolean).join('+') || 'NONE';
         console.info(
-          `[DevConnect] hooks=${hookSummary} invoked=${result.swizzleInvoked} nsBundleInvoked=${result.swizzleNSBundleInvoked} persistedHost=${result.persistedMetroHost ?? 'none'}`,
-          '\nlog:', result.log.slice(-5).join(' | '),
+          `[DevConnect] hooks=${result.hooksInstalled ? result.hookedClasses.join(',') : 'NONE'} appDelegate=${result.appDelegateClass} persistedHost=${result.persistedMetroHost ?? 'none'}`,
         );
       }
+    }).catch(() => {});
+  }, []);
+
+  const refreshDiag = useCallback(() => {
+    getNativeDiagnostics().then((result) => {
+      if (result) setDiagData(result);
     }).catch(() => {});
   }, []);
 
@@ -398,22 +396,6 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
     }
   }, [snapshot.nativeMetroAvailable]);
 
-  const readDiag = useCallback(async () => {
-    setDiagBusy(true);
-    try {
-      const result = await getNativeDiagnostics();
-      setDiagData(result);
-      setDiagOpen(true);
-    } finally {
-      setDiagBusy(false);
-    }
-  }, []);
-
-  const clearDiag = useCallback(async () => {
-    await clearNativeDiagnostics();
-    setDiagData(null);
-  }, []);
-
   const canConnect = isSim || (Boolean(normalizeComputerHost(computerHost)) && Boolean(normalizePort(daemonPort)));
   const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy;
   const busy = sending || syncState === 'checking';
@@ -526,19 +508,16 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
             <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
             {diagData ? (
               <View style={styles.swizzleBadge}>
-                <View style={[styles.swizzleDot, diagData.swizzleInstalled ? styles.dotGreen : styles.dotRed]} />
+                <View style={[styles.swizzleDot, diagData.hooksInstalled ? styles.dotGreen : styles.dotRed]} />
                 <Text style={styles.swizzleBadgeText}>
-                  {[
-                    diagData.swizzleBundleURL && 'delegate',
-                    diagData.swizzleNSBundle && 'NSBundle',
-                  ].filter(Boolean).join('+') || 'no hook'}
-                  {diagData.swizzleInvoked ? ' ✓' : ''}
+                  {diagData.hooksInstalled ? `hooked×${diagData.hookedClasses.length}` : 'opt-in required'}
                 </Text>
               </View>
             ) : null}
           </View>
           <Text style={styles.sectionDesc}>
-            Set Metro host and reload. After kill+reopen the app loads Metro directly.
+            Hot-switch to Metro and reload. Persisted across restarts only when hooks land
+            on your AppDelegate (see iOS Bundle Hook section below for status).
           </Text>
 
           {!metroUrls ? (
@@ -584,70 +563,71 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
           ) : null}
         </View>
 
-        {snapshot.nativeMetroAvailable ? (
+        {snapshot.nativeMetroAvailable && diagData ? (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.diagHeader}
-              onPress={() => setDiagOpen((v) => !v)}
+              onPress={() => { setDiagOpen((v) => !v); refreshDiag(); }}
               activeOpacity={0.7}
             >
-              <Text style={styles.sectionTitle}>Swizzle Diagnostics</Text>
+              <Text style={styles.sectionTitle}>iOS Bundle Hook</Text>
               <Text style={styles.diagChevron}>{diagOpen ? '▲' : '▼'}</Text>
             </TouchableOpacity>
 
             {diagOpen ? (
               <View style={styles.diagCard}>
-                {diagData ? (
-                  <>
-                    {([
-                      ['delegate.bundleURL', diagData.swizzleBundleURL],
-                      ['delegate.sourceURL', diagData.swizzleSourceURL],
-                      ['NSBundle hook', diagData.swizzleNSBundle],
-                      ['NSBundle invoked', diagData.swizzleNSBundleInvoked],
-                      ['swizzleInvoked', diagData.swizzleInvoked],
-                    ] as [string, boolean][]).map(([label, val]) => (
-                      <View key={label} style={styles.diagRow}>
-                        <Text style={styles.diagKey}>{label}</Text>
-                        <Text style={[styles.diagVal, val ? styles.diagGood : styles.diagWarn]}>
-                          {val ? 'YES' : 'NO'}
-                        </Text>
-                      </View>
-                    ))}
-                    <View style={styles.diagRow}>
-                      <Text style={styles.diagKey}>persistedHost</Text>
-                      <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>
-                    </View>
-                    {diagData.log.length > 0 ? (
-                      <View style={styles.diagLog}>
-                        {diagData.log.map((entry, i) => (
-                          <Text key={i} style={styles.diagLogEntry}>{entry}</Text>
-                        ))}
-                      </View>
-                    ) : (
-                      <Text style={styles.diagEmpty}>No log entries yet.</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.diagEmpty}>Tap Read to fetch diagnostics.</Text>
-                )}
-
-                <View style={styles.diagActions}>
-                  <TouchableOpacity
-                    style={[styles.diagBtn, diagBusy && styles.buttonDisabled]}
-                    onPress={readDiag}
-                    disabled={diagBusy}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={styles.diagBtnText}>{diagBusy ? 'Reading…' : 'Read'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.diagBtn, styles.diagBtnSecondary]}
-                    onPress={clearDiag}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[styles.diagBtnText, styles.diagBtnSecondaryText]}>Clear</Text>
-                  </TouchableOpacity>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagKey}>AppDelegate</Text>
+                  <Text style={styles.diagVal}>{diagData.appDelegateClass}</Text>
                 </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagKey}>persistedHost</Text>
+                  <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>
+                </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagKey}>hooks</Text>
+                  <Text style={[styles.diagVal, diagData.hooksInstalled ? styles.diagGood : styles.diagWarn]}>
+                    {diagData.hooksInstalled ? `${diagData.hookedClasses.length} class(es)` : 'NONE'}
+                  </Text>
+                </View>
+                {diagData.hookedClasses.length > 0 ? (
+                  <View style={styles.diagLog}>
+                    {diagData.hookedClasses.map((entry, i) => (
+                      <Text key={i} style={styles.diagLogEntry}>{entry}</Text>
+                    ))}
+                  </View>
+                ) : null}
+
+                {!diagData.hooksInstalled ? (
+                  <View style={styles.diagOptIn}>
+                    <Text style={styles.diagOptInTitle}>Cold-restart hook unavailable.</Text>
+                    <Text style={styles.diagOptInText}>
+                      Add this opt-in to your AppDelegate (Swift):
+                    </Text>
+                    <Text style={styles.diagCode}>
+{`// In your ReactNativeDelegate (or RCTAppDelegate subclass) bundleURL():
+override func bundleURL() -> URL? {
+  if let metro = DebugToolkitMetroBundleURL() { return metro }
+  #if DEBUG
+  return RCTBundleURLProvider.sharedSettings()
+    .jsBundleURL(forBundleRoot: "index")
+  #else
+  return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+  #endif
+}`}
+                    </Text>
+                    <Text style={styles.diagOptInText}>
+                      Bridging: add `#import &lt;react-native-debug-toolkit/DebugToolkitDevConnect.h&gt;` to your bridging header.
+                    </Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.diagWarning}>
+                  ⚠ Loading a dev Metro bundle into a plain Release runtime can crash on startup
+                  because dev-only native modules (redbox, inspector) are stripped from Release.
+                  Cold-restart switching is reliable only on Debug builds or Release builds that
+                  bundle expo-dev-client.
+                </Text>
               </View>
             ) : null}
           </View>
@@ -785,16 +765,28 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   diagLogEntry: { fontSize: 11, fontFamily: 'Courier', color: Colors.textSecondary, lineHeight: 16 },
-  diagEmpty: { fontSize: 12, color: Colors.textLight, fontStyle: 'italic', paddingVertical: 4 },
-  diagActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  diagBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.primary,
+  diagOptIn: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
-  diagBtnSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
-  diagBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  diagBtnSecondaryText: { color: Colors.primary },
+  diagOptInTitle: { fontSize: 12, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  diagOptInText: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 6 },
+  diagCode: {
+    fontSize: 10,
+    fontFamily: 'Courier',
+    color: Colors.text,
+    backgroundColor: `${Colors.primary}10`,
+    padding: 8,
+    borderRadius: 6,
+    lineHeight: 14,
+    marginBottom: 6,
+  },
+  diagWarning: {
+    marginTop: 10,
+    fontSize: 11,
+    color: '#FF9500',
+    lineHeight: 16,
+  },
 });

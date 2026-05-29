@@ -1,189 +1,187 @@
+#import "DebugToolkitDevConnect.h"
+
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <React/RCTBridge.h>
 #import <React/RCTBundleManager.h>
 #import <React/RCTBridgeModule.h>
 #import <React/RCTBundleURLProvider.h>
-#import <React/RCTDefines.h>
 #import <React/RCTReloadCommand.h>
 #import <objc/runtime.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <unistd.h>
 
-static NSString *const DebugToolkitBundleRoot = @"index";
-static NSString *const kDevConnectMetroHost = @"_devconnect_metro_host";
-static NSString *const kDevConnectDiagLog = @"_devconnect_diag_log";
+#pragma mark - Configuration
 
-// Swizzle state — forward-declared so appendDiag can reference them.
-static IMP original_bundleURL = NULL;          // RN 0.73+ new arch: -[AppDelegate bundleURL]
-static IMP original_sourceURLForBridge = NULL; // Legacy bridge: -[AppDelegate sourceURLForBridge:]
-static IMP original_URLForResource = NULL;     // NSBundle hook: catches Release [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"]
-static BOOL swizzleInvoked = NO;
-static BOOL nsBundleInvoked = NO;
+static NSString *const kBundleRoot = @"index";
+static NSString *const kMetroHostKey = @"_devconnect_metro_host";
 
-static void appendDiag(NSString *stage, NSString *detail)
+// Default Metro params. dev=true matches expo-dev-client behavior and works when the
+// Release app has dev features compiled in (e.g. expo-dev-client). Plain Release builds
+// without dev support will likely crash loading a dev bundle — this is a runtime limitation,
+// not a bug in this module. UI surfaces this caveat.
+static NSString *const kMetroQuery = @"platform=ios&dev=true&minify=false";
+
+#pragma mark - C API (Swift opt-in)
+
+NSURL *DebugToolkitMetroBundleURL(void)
 {
-  NSString *msg = [NSString stringWithFormat:@"[%@] %@ | bundleURL=%@ sourceURL=%@ NSBundle=%@/%@ inv=%@",
-                   stage, detail,
-                   original_bundleURL ? @"Y" : @"N",
-                   original_sourceURLForBridge ? @"Y" : @"N",
-                   original_URLForResource ? @"Y" : @"N",
-                   nsBundleInvoked ? @"Y" : @"N",
-                   swizzleInvoked ? @"Y" : @"N"];
-  NSMutableArray *log = [[[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] mutableCopy]
-                        ?: [NSMutableArray new];
-  [log addObject:msg];
-  if (log.count > 40) [log removeObjectAtIndex:0];
-  [[NSUserDefaults standardUserDefaults] setObject:[log copy] forKey:kDevConnectDiagLog];
-  [[NSUserDefaults standardUserDefaults] synchronize];
-  NSLog(@"[DevConnect] %@", msg);
-}
-
-// Builds a direct Metro bundle URL — deliberately avoids jsBundleURLForBundleRoot: which does
-// a synchronous packager reachability check and returns nil in Release when Metro isn't local.
-static NSURL *buildMetroURL(NSString *metroHost)
-{
-  NSString *urlStr = [NSString stringWithFormat:
-      @"http://%@/%@.bundle?platform=ios&dev=true&minify=false", metroHost, DebugToolkitBundleRoot];
+  NSString *host = [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey];
+  if (host.length == 0) return nil;
+  NSString *urlStr = [NSString stringWithFormat:@"http://%@/%@.bundle?%@", host, kBundleRoot, kMetroQuery];
   return [NSURL URLWithString:urlStr];
 }
 
-#pragma mark - Metro Reachability (synchronous, used inside NSBundle hook)
+#pragma mark - Swizzle plumbing
 
-// Synchronous TCP probe on host:port with a tight timeout.
-// Deliberately avoids any ObjC/Foundation that could re-enter the NSBundle hook.
-static BOOL isMetroHostReachable(NSString *hostPort, int timeoutMs)
+// Original IMPs keyed by Class. Each (class, selector) gets its own slot so super-chain calls
+// land on the right per-class implementation. NULL value means we tried and the class did not
+// implement that method (we still installed via class_addMethod and should return nil if no
+// metro host).
+static CFMutableDictionaryRef gOrigBundleURL = NULL;     // class -> IMP
+static CFMutableDictionaryRef gOrigSourceURL = NULL;     // class -> IMP
+static NSMutableArray<NSString *> *gHookedClassNames = nil;
+
+static void ensureSwizzleMaps(void)
 {
-  if (!hostPort.length) return NO;
-
-  NSRange sep = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
-  const char *hostCStr;
-  int port;
-  if (sep.location == NSNotFound) {
-    hostCStr = hostPort.UTF8String;
-    port = 8081;
-  } else {
-    hostCStr = [[hostPort substringToIndex:sep.location] UTF8String];
-    port = [[hostPort substringFromIndex:sep.location + 1] intValue];
+  if (gOrigBundleURL == NULL) {
+    gOrigBundleURL = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
   }
-  if (!hostCStr || port <= 0 || port > 65535) return NO;
-  if (strcmp(hostCStr, "localhost") == 0) hostCStr = "127.0.0.1";
-
-  struct sockaddr_in addr;
-  memset(&addr, 0, sizeof(addr));
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);
-  if (inet_pton(AF_INET, hostCStr, &addr.sin_addr) != 1) return NO;
-
-  int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (fd < 0) return NO;
-
-  int flags = fcntl(fd, F_GETFL, 0);
-  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-
-  connect(fd, (struct sockaddr *)&addr, sizeof(addr));
-
-  fd_set wfds; FD_ZERO(&wfds); FD_SET(fd, &wfds);
-  struct timeval tv = { 0, (__darwin_suseconds_t)(timeoutMs * 1000) };
-  BOOL reachable = NO;
-  if (select(fd + 1, NULL, &wfds, NULL, &tv) > 0) {
-    int err = 0; socklen_t len = sizeof(err);
-    getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
-    reachable = (err == 0);
+  if (gOrigSourceURL == NULL) {
+    gOrigSourceURL = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
   }
-  close(fd);
-  return reachable;
+  if (gHookedClassNames == nil) {
+    gHookedClassNames = [NSMutableArray new];
+  }
 }
 
-#pragma mark - NSBundle Swizzle (universal Release hook)
-
-// Intercepts [[NSBundle mainBundle] URLForResource:name withExtension:@"jsbundle"] in Release.
-// ONLY matches the "jsbundle" extension — never ".js" which is used by WebKit/JSC at startup.
-// Guards with a TCP reachability check so a stale persisted host doesn't crash the app.
-static NSURL *devconnect_URLForResource(id self, SEL _cmd, NSString *name, NSString *ext)
+static IMP origIMPFor(CFMutableDictionaryRef map, Class cls)
 {
-  if ([ext isEqualToString:@"jsbundle"]) {
-    NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-    if (metroHost.length > 0 && isMetroHostReachable(metroHost, 150)) {
-      nsBundleInvoked = YES;
-      NSLog(@"[DevConnect] NSBundle hook: %@.jsbundle → metro:%@", name, metroHost);
-      return buildMetroURL(metroHost);
+  if (!map || !cls) return NULL;
+  return (IMP)CFDictionaryGetValue(map, (__bridge const void *)cls);
+}
+
+#pragma mark - Replacement IMPs
+
+static NSURL *replacement_bundleURL(id self, SEL _cmd)
+{
+  NSURL *metro = DebugToolkitMetroBundleURL();
+  if (metro) return metro;
+  IMP orig = origIMPFor(gOrigBundleURL, [self class]);
+  if (orig) return ((NSURL *(*)(id, SEL))orig)(self, _cmd);
+  return nil;
+}
+
+static NSURL *replacement_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
+{
+  NSURL *metro = DebugToolkitMetroBundleURL();
+  if (metro) return metro;
+  IMP orig = origIMPFor(gOrigSourceURL, [self class]);
+  if (orig) return ((NSURL *(*)(id, SEL, RCTBridge *))orig)(self, _cmd, bridge);
+  return nil;
+}
+
+static void hookSelector(Class cls, SEL selector, IMP replacement, CFMutableDictionaryRef map)
+{
+  if (!cls || !selector || !replacement || !map) return;
+  // Only consider methods directly implemented on this class — we don't want to walk into
+  // the superclass and accidentally hook a class twice through inheritance.
+  unsigned int count = 0;
+  Method *methods = class_copyMethodList(cls, &count);
+  Method target = NULL;
+  for (unsigned int i = 0; i < count; i++) {
+    if (method_getName(methods[i]) == selector) { target = methods[i]; break; }
+  }
+  free(methods);
+  if (!target) return;
+
+  IMP orig = method_getImplementation(target);
+  if (orig == replacement) return; // already swizzled in a prior pass
+
+  CFDictionarySetValue(map, (__bridge const void *)cls, orig);
+  method_setImplementation(target, replacement);
+}
+
+#pragma mark - Class discovery
+
+// Returns YES if cls (or any ancestor) is or inherits from `ancestor`.
+static BOOL isKindOfClass(Class cls, Class ancestor)
+{
+  while (cls) {
+    if (cls == ancestor) return YES;
+    cls = class_getSuperclass(cls);
+  }
+  return NO;
+}
+
+static void hookFactoryDelegateHierarchy(void)
+{
+  ensureSwizzleMaps();
+
+  // Modern RN 0.74+ path: ReactNativeDelegate extends RCTDefaultReactNativeFactoryDelegate.
+  // Legacy path: AppDelegate extends RCTAppDelegate.
+  // We discover and hook every loaded subclass of either, so we don't need to know the
+  // user's concrete class name (which is module-prefixed for Swift, e.g. "MyApp.AppDelegate").
+  NSArray<NSString *> *parentNames = @[
+    @"RCTDefaultReactNativeFactoryDelegate",
+    @"RCTReactNativeFactoryDelegate",
+    @"RCTAppDelegate",
+  ];
+
+  NSMutableArray<Class> *parents = [NSMutableArray new];
+  for (NSString *name in parentNames) {
+    Class c = NSClassFromString(name);
+    if (c) [parents addObject:c];
+  }
+  if (parents.count == 0) {
+    NSLog(@"[DevConnect] no RN factory/delegate base classes loaded yet — hook skipped");
+    return;
+  }
+
+  int totalClasses = objc_getClassList(NULL, 0);
+  if (totalClasses <= 0) return;
+  Class *classes = (Class *)malloc(sizeof(Class) * totalClasses);
+  totalClasses = objc_getClassList(classes, totalClasses);
+
+  for (int i = 0; i < totalClasses; i++) {
+    Class cls = classes[i];
+    BOOL match = NO;
+    for (Class parent in parents) {
+      if (isKindOfClass(cls, parent)) { match = YES; break; }
+    }
+    if (!match) continue;
+
+    BOOL hadBundleURL = origIMPFor(gOrigBundleURL, cls) != NULL;
+    BOOL hadSourceURL = origIMPFor(gOrigSourceURL, cls) != NULL;
+
+    hookSelector(cls, @selector(bundleURL), (IMP)replacement_bundleURL, gOrigBundleURL);
+    hookSelector(cls, @selector(sourceURLForBridge:), (IMP)replacement_sourceURLForBridge, gOrigSourceURL);
+
+    BOOL hookedBundleURL = origIMPFor(gOrigBundleURL, cls) != NULL;
+    BOOL hookedSourceURL = origIMPFor(gOrigSourceURL, cls) != NULL;
+    if ((hookedBundleURL && !hadBundleURL) || (hookedSourceURL && !hadSourceURL)) {
+      NSString *name = NSStringFromClass(cls);
+      [gHookedClassNames addObject:[NSString stringWithFormat:@"%@(b=%@,s=%@)",
+                                    name,
+                                    hookedBundleURL ? @"Y" : @"N",
+                                    hookedSourceURL ? @"Y" : @"N"]];
+      NSLog(@"[DevConnect] hooked %@ bundleURL=%@ sourceURL=%@",
+            name, hookedBundleURL ? @"Y" : @"N", hookedSourceURL ? @"Y" : @"N");
     }
   }
-  return ((NSURL *(*)(id, SEL, NSString *, NSString *))original_URLForResource)(self, _cmd, name, ext);
+
+  free(classes);
 }
 
-#pragma mark - AppDelegate Swizzling
+#pragma mark - Install timing
 
-// RN 0.73+ new arch pattern: AppDelegate overrides -bundleURL (no bridge argument).
-static NSURL *devconnect_bundleURL(id self, SEL _cmd)
+__attribute__((constructor))
+static void DebugToolkit_install(void)
 {
-  swizzleInvoked = YES;
-  NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-  if (metroHost.length > 0) {
-    NSURL *url = buildMetroURL(metroHost);
-    appendDiag(@"bundleURL-called", [NSString stringWithFormat:@"host=%@", metroHost]);
-    return url;
-  }
-  if (original_bundleURL) {
-    return ((NSURL *(*)(id, SEL))original_bundleURL)(self, _cmd);
-  }
-  return nil;
-}
-
-// Legacy bridge pattern: -sourceURLForBridge:(RCTBridge *)bridge
-static NSURL *devconnect_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
-{
-  swizzleInvoked = YES;
-  NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-  if (metroHost.length > 0) {
-    NSURL *url = buildMetroURL(metroHost);
-    appendDiag(@"sourceURLForBridge-called", [NSString stringWithFormat:@"host=%@", metroHost]);
-    return url;
-  }
-  if (original_sourceURLForBridge) {
-    return ((NSURL *(*)(id, SEL, RCTBridge *))original_sourceURLForBridge)(self, _cmd, bridge);
-  }
-  return nil;
-}
-
-static void swizzleMethod(Class targetClass, SEL selector, IMP replacement, IMP *original, NSString *stage)
-{
-  NSString *selName = NSStringFromSelector(selector);
-  if (!targetClass) {
-    appendDiag(stage, [NSString stringWithFormat:@"sel=%@ class=nil", selName]);
-    return;
-  }
-  NSString *className = NSStringFromClass(targetClass);
-  if (*original) {
-    appendDiag(stage, [NSString stringWithFormat:@"sel=%@ class=%@ already_done", selName, className]);
-    return;
-  }
-  Method method = class_getInstanceMethod(targetClass, selector);
-  if (!method) {
-    appendDiag(stage, [NSString stringWithFormat:@"sel=%@ class=%@ NOT_FOUND", selName, className]);
-    return;
-  }
-  IMP origIMP = method_getImplementation(method);
-  const char *types = method_getTypeEncoding(method);
-  // class_addMethod stamps the IMP on targetClass directly even when method is inherited,
-  // avoiding accidental modification of a parent class's implementation table.
-  BOOL added = class_addMethod(targetClass, selector, replacement, types);
-  if (!added) {
-    method_setImplementation(class_getInstanceMethod(targetClass, selector), replacement);
-  }
-  *original = origIMP;
-  appendDiag(stage, [NSString stringWithFormat:@"sel=%@ class=%@ added=%@ OK", selName, className, added ? @"Y" : @"N"]);
-}
-
-static void swizzleAppDelegate(Class cls, NSString *stage)
-{
-  swizzleMethod(cls, @selector(bundleURL), (IMP)devconnect_bundleURL, &original_bundleURL, stage);
-  swizzleMethod(cls, @selector(sourceURLForBridge:), (IMP)devconnect_sourceURLForBridge, &original_sourceURLForBridge, stage);
+  // dyld load time. User classes from the main binary are loaded by now in static-link setups.
+  // Some frameworks may not be loaded yet — the -init fallback below covers late arrivals.
+  hookFactoryDelegateHierarchy();
 }
 
 #pragma mark - Module
@@ -198,67 +196,53 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 @synthesize bridge = _bridge;
 @synthesize bundleManager = _bundleManager;
 
-__attribute__((constructor))
-static void devconnect_swizzle_init(void)
-{
-  // NSBundle swizzle is the universal fallback: catches [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"]
-  // regardless of AppDelegate type. Must run before any +load or class init.
-  swizzleMethod([NSBundle class], @selector(URLForResource:withExtension:),
-                (IMP)devconnect_URLForResource, &original_URLForResource, @"ctor-NSBundle");
-  swizzleAppDelegate(NSClassFromString(@"AppDelegate"), @"ctor");
-}
-
 - (instancetype)init
 {
   if ((self = [super init])) {
-    // Fallback for Swift AppDelegates or custom class names where NSClassFromString fails at ctor time.
-    if (!original_bundleURL && !original_sourceURLForBridge) {
-      Class delegateClass = object_getClass([UIApplication sharedApplication].delegate);
-      swizzleAppDelegate(delegateClass, @"init");
-    }
+    // Re-run hierarchy hook in case classes loaded after the constructor (e.g. frameworks
+    // loaded by UIApplicationMain). Idempotent — hookSelector skips already-swizzled methods.
+    hookFactoryDelegateHierarchy();
   }
   return self;
 }
 
-+ (BOOL)requiresMainQueueSetup
-{
-  return NO;
-}
-
-- (dispatch_queue_t)methodQueue
-{
-  return dispatch_get_main_queue();
-}
++ (BOOL)requiresMainQueueSetup { return NO; }
+- (dispatch_queue_t)methodQueue { return dispatch_get_main_queue(); }
 
 #pragma mark - Bundle Manager Resolution
 
 - (RCTBundleManager *)resolveBundleManager
 {
-  if (_bundleManager) {
-    return _bundleManager;
-  }
-  if (_bridge) {
-    return [_bridge moduleForClass:[RCTBundleManager class]];
-  }
+  if (_bundleManager) return _bundleManager;
+  if (_bridge) return [_bridge moduleForClass:[RCTBundleManager class]];
   return nil;
 }
 
-#pragma mark - Exported Methods
+#pragma mark - Host Parsing
 
-RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
-                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+- (NSString *)normalizeHostPort:(NSString *)hostPort
 {
-  @try {
-    // kDevConnectMetroHost is written by applyMetroHost and survives restart in both Debug+Release.
-    // jsLocation is only meaningful in Debug (bypassed in Release); use it as a fallback only.
-    NSString *persisted = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-    NSString *jsLocation = [RCTBundleURLProvider sharedSettings].jsLocation;
-    NSString *host = persisted.length > 0 ? persisted : jsLocation;
-    resolve(host ?: [NSNull null]);
-  } @catch (NSException *exception) {
-    reject(@"native_error", exception.reason, nil);
+  NSRange sep = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
+  NSString *host = sep.location == NSNotFound ? hostPort : [hostPort substringToIndex:sep.location];
+  NSString *portStr = sep.location == NSNotFound ? @"" : [hostPort substringFromIndex:sep.location + 1];
+
+  NSNumberFormatter *formatter = [NSNumberFormatter new];
+  formatter.numberStyle = NSNumberFormatterDecimalStyle;
+  NSNumber *parsed = [formatter numberFromString:portStr];
+  int port;
+  if (parsed && parsed.intValue > 0 && parsed.intValue <= 65535) {
+    port = parsed.intValue;
+  } else {
+#ifdef RCT_METRO_PORT
+    port = RCT_METRO_PORT;
+#else
+    port = 8081;
+#endif
   }
+  return [NSString stringWithFormat:@"%@:%d", host, port];
 }
+
+#pragma mark - Exported Methods
 
 RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -269,70 +253,36 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
       reject(@"invalid_host", @"Metro host cannot be empty.", nil);
       return;
     }
+    NSString *normalized = [self normalizeHostPort:hostPort];
 
-    RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
-
-    // Parse host and port
-    NSRange separator = [hostPort rangeOfString:@":" options:NSBackwardsSearch];
-    NSString *host = separator.location == NSNotFound
-        ? hostPort
-        : [hostPort substringToIndex:separator.location];
-    NSString *port = separator.location == NSNotFound
-        ? @""
-        : [hostPort substringFromIndex:separator.location + 1];
-
-    if (host.length == 0 && port.length == 0) {
-      [self resetMetroHost:resolve rejecter:reject];
-      return;
-    }
-
-    NSNumberFormatter *formatter = [NSNumberFormatter new];
-    formatter.numberStyle = NSNumberFormatterDecimalStyle;
-    NSNumber *portNumber = [formatter numberFromString:port];
-    if (portNumber == nil) {
-#ifdef RCT_METRO_PORT
-      portNumber = [NSNumber numberWithInt:RCT_METRO_PORT];
-#else
-      portNumber = [NSNumber numberWithInt:8081];
-#endif
-    }
-
-    NSString *normalizedHostPort = [NSString stringWithFormat:@"%@:%d", host, portNumber.intValue];
-
-    // Persist — read by swizzled bundleURL/sourceURLForBridge: on next load (works in Release).
-    [[NSUserDefaults standardUserDefaults] setObject:normalizedHostPort forKey:kDevConnectMetroHost];
+    // Persist — read on next launch by the swizzled bundleURL/sourceURLForBridge: hooks
+    // or by user code calling DebugToolkitMetroBundleURL() from their AppDelegate.
+    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kMetroHostKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 
-    // Also set jsLocation for Debug hot-reload path.
-    settings.jsLocation = normalizedHostPort;
+    // Update Debug mode jsLocation so RN's built-in dev menu / hot reload keeps coherent state.
+    [RCTBundleURLProvider sharedSettings].jsLocation = normalized;
 
-    // Build URL directly — jsBundleURLForBundleRoot: does a packager reachability check that
-    // returns nil in Release when Metro isn't on localhost, defeating the hot-switch.
-    NSURL *bundleURL = buildMetroURL(normalizedHostPort);
+    NSURL *bundleURL = DebugToolkitMetroBundleURL();
 
+    // Hot-switch: set BOTH the bundle manager property AND the reload-command global, then
+    // trigger reload. Different RN versions / configurations read from different places,
+    // and there is no harm in setting both.
     RCTBundleManager *bm = [self resolveBundleManager];
-    if (bm) {
-      bm.bundleURL = bundleURL;
-    }
-#ifdef RCTReloadCommandSetBundleURL
-    else {
-      RCTReloadCommandSetBundleURL(bundleURL);
-    }
-#endif
+    if (bm && bundleURL) bm.bundleURL = bundleURL;
+    if (bundleURL) RCTReloadCommandSetBundleURL(bundleURL);
 
-    appendDiag(@"applyMetroHost", [NSString stringWithFormat:@"host=%@ bm=%@ url=%@",
-               normalizedHostPort, bm ? @"YES" : @"nil", bundleURL]);
-
+    NSLog(@"[DevConnect] applyMetroHost host=%@ url=%@ bm=%@",
+          normalized, bundleURL, bm ? @"Y" : @"N");
     RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
 
-    NSMutableDictionary *result = [@{@"hostPort" : normalizedHostPort} mutableCopy];
-    if (bm && bm.bundleURL.absoluteString) {
-      result[@"bundleURL"] = bm.bundleURL.absoluteString;
-    }
-    resolve(result);
-  } @catch (NSException *exception) {
-    NSLog(@"[DevConnect] applyMetroHost EXCEPTION: %@", exception.reason);
-    reject(@"native_error", exception.reason, nil);
+    resolve(@{
+      @"hostPort": normalized,
+      @"bundleURL": bundleURL.absoluteString ?: [NSNull null],
+    });
+  } @catch (NSException *e) {
+    NSLog(@"[DevConnect] applyMetroHost EXCEPTION: %@", e.reason);
+    reject(@"native_error", e.reason ?: @"unknown", nil);
   }
 }
 
@@ -340,53 +290,51 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
-    // Clear stored Metro host
-    [[NSUserDefaults standardUserDefaults] removeObjectForKey:kDevConnectMetroHost];
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:kMetroHostKey];
     [[NSUserDefaults standardUserDefaults] synchronize];
 
-    // Reset RN settings
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     [settings resetToDefaults];
-    NSURL *bundleURL = [settings jsBundleURLForFallbackExtension:nil];
+    NSURL *fallback = [settings jsBundleURLForFallbackExtension:nil];
 
     RCTBundleManager *bm = [self resolveBundleManager];
-    if (bm) {
-      bm.bundleURL = bundleURL;
-    }
+    if (bm && fallback) bm.bundleURL = fallback;
+    if (fallback) RCTReloadCommandSetBundleURL(fallback);
 
-    NSLog(@"[DevConnect] resetMetroHost | bm=%@ | url=%@", bm ? @"YES" : @"nil", bundleURL);
+    NSLog(@"[DevConnect] resetMetroHost url=%@", fallback);
     RCTTriggerReloadCommandListeners(@"Dev menu - reset to default");
     resolve([NSNull null]);
-  } @catch (NSException *exception) {
-    NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", exception.reason);
-    reject(@"native_error", exception.reason, nil);
+  } @catch (NSException *e) {
+    NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", e.reason);
+    reject(@"native_error", e.reason ?: @"unknown", nil);
   }
+}
+
+RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  NSString *persisted = [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey];
+  resolve(persisted.length > 0 ? persisted : [NSNull null]);
 }
 
 RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
-  NSArray *log = [[NSUserDefaults standardUserDefaults] arrayForKey:kDevConnectDiagLog] ?: @[];
-  NSString *metroHost = [[NSUserDefaults standardUserDefaults] stringForKey:kDevConnectMetroHost];
-  BOOL installed = (original_bundleURL != NULL) || (original_sourceURLForBridge != NULL) || (original_URLForResource != NULL);
-  resolve(@{
-    @"log": log,
-    @"swizzleInstalled": @(installed),
-    @"swizzleBundleURL": @(original_bundleURL != NULL),
-    @"swizzleSourceURL": @(original_sourceURLForBridge != NULL),
-    @"swizzleNSBundle": @(original_URLForResource != NULL),
-    @"swizzleInvoked": @(swizzleInvoked || nsBundleInvoked),
-    @"swizzleNSBundleInvoked": @(nsBundleInvoked),
-    @"persistedMetroHost": metroHost ?: [NSNull null],
-  });
-}
+  Class realDelegate = object_getClass([UIApplication sharedApplication].delegate);
+  NSString *delegateName = realDelegate ? NSStringFromClass(realDelegate) : @"unknown";
 
-RCT_EXPORT_METHOD(clearDiagnostics:(RCTPromiseResolveBlock)resolve
-                  rejecter:(__unused RCTPromiseRejectBlock)reject)
-{
-  [[NSUserDefaults standardUserDefaults] removeObjectForKey:kDevConnectDiagLog];
-  [[NSUserDefaults standardUserDefaults] synchronize];
-  resolve([NSNull null]);
+  // Has the user's actual factory delegate (where bundleURL lives) been hooked?
+  // The factory delegate isn't UIApplication.delegate in modern RN — it's a separate object
+  // we can't easily reach without inspecting the user's AppDelegate, so we report on the
+  // class names we successfully hooked instead.
+  NSArray<NSString *> *hookedNames = [gHookedClassNames ?: @[] copy];
+
+  resolve(@{
+    @"persistedMetroHost": [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey] ?: [NSNull null],
+    @"appDelegateClass": delegateName,
+    @"hookedClasses": hookedNames,
+    @"hooksInstalled": @(hookedNames.count > 0),
+  });
 }
 
 RCT_EXPORT_METHOD(getPreference:(NSString *)key
@@ -396,8 +344,8 @@ RCT_EXPORT_METHOD(getPreference:(NSString *)key
   @try {
     NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:key];
     resolve(value ?: [NSNull null]);
-  } @catch (NSException *exception) {
-    reject(@"native_error", exception.reason, nil);
+  } @catch (NSException *e) {
+    reject(@"native_error", e.reason ?: @"unknown", nil);
   }
 }
 
@@ -410,8 +358,8 @@ RCT_EXPORT_METHOD(setPreference:(NSString *)key
     [[NSUserDefaults standardUserDefaults] setObject:value forKey:key];
     [[NSUserDefaults standardUserDefaults] synchronize];
     resolve([NSNull null]);
-  } @catch (NSException *exception) {
-    reject(@"native_error", exception.reason, nil);
+  } @catch (NSException *e) {
+    reject(@"native_error", e.reason ?: @"unknown", nil);
   }
 }
 
@@ -430,40 +378,27 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
 {
   @try {
     struct ifaddrs *interfaces = NULL;
-    if (getifaddrs(&interfaces) == 0) {
-      struct ifaddrs *iface = interfaces;
-      while (iface != NULL) {
-        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
-          if (strcmp(iface->ifa_name, "en0") == 0) {
-            char addrStr[INET_ADDRSTRLEN];
-            struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
-            inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
-            NSString *ip = [NSString stringWithUTF8String:addrStr];
-            freeifaddrs(interfaces);
-            resolve(ip);
-            return;
-          }
-        }
-        iface = iface->ifa_next;
-      }
-      iface = interfaces;
-      while (iface != NULL) {
-        if (iface->ifa_addr != NULL && iface->ifa_addr->sa_family == AF_INET && !(iface->ifa_flags & IFF_LOOPBACK)) {
-          char addrStr[INET_ADDRSTRLEN];
-          struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
-          inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
-          NSString *ip = [NSString stringWithUTF8String:addrStr];
-          freeifaddrs(interfaces);
-          resolve(ip);
-          return;
-        }
-        iface = iface->ifa_next;
-      }
+    if (getifaddrs(&interfaces) != 0) {
+      resolve([NSNull null]);
+      return;
+    }
+
+    NSString *preferred = nil;
+    NSString *fallback = nil;
+    for (struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next) {
+      if (!iface->ifa_addr || iface->ifa_addr->sa_family != AF_INET) continue;
+      if (iface->ifa_flags & IFF_LOOPBACK) continue;
+      char addrStr[INET_ADDRSTRLEN];
+      struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
+      inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
+      NSString *ip = [NSString stringWithUTF8String:addrStr];
+      if (strcmp(iface->ifa_name, "en0") == 0) { preferred = ip; break; }
+      if (!fallback) fallback = ip;
     }
     freeifaddrs(interfaces);
-    resolve([NSNull null]);
-  } @catch (NSException *exception) {
-    reject(@"native_error", exception.reason, nil);
+    resolve(preferred ?: fallback ?: [NSNull null]);
+  } @catch (NSException *e) {
+    reject(@"native_error", e.reason ?: @"unknown", nil);
   }
 }
 
