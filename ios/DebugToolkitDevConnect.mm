@@ -1,3 +1,5 @@
+#import "DebugToolkitDevConnect.h"
+
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <React/RCTBridge.h>
@@ -10,18 +12,132 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
-// Debug-only Metro host switching.
+// Debug-only Metro host switching — zero host-app native changes required.
 //
-// In a Debug build the factory delegate's bundleURL() resolves through
-// RCTBundleURLProvider.jsLocation, so setting jsLocation + reloading is exactly how RN's own
-// "Configure Bundler" dev-menu item switches the packager host — it hot-reloads immediately.
+// RN/Expo Debug templates call RCTBundleURLProvider.jsBundleURLForBundleRoot:, which uses
+// -packagerServerHostPort to decide Metro vs embedded fallback. We hook that single method:
+//   - No DevConnect host → return nil → RN loads main.jsbundle (not Metro / virtual-metro-entry).
+//   - DevConnect host set → return that host:port → RN loads from the remote packager.
 //
-// This does NOT work in Release: RN compiles the dev/packager machinery out (RCT_DEV=0) and a
-// Release bridge loads the embedded main.jsbundle at cold launch. On the new architecture,
-// loading a remote bundle into a Release runtime is unsupported and crashes, so we deliberately
-// gate this feature to Debug builds (see isDebugBuild) and surface that in the UI.
+// Optional: host apps may still call DebugToolkitMetroBundleURL() from bundleURL() for explicit
+// control; the hook covers the common Expo/RN delegate path without AppDelegate edits.
 
 static NSString *const kBundleRoot = @"index";
+// Expo prebuild templates pass this to jsBundleURLForBundleRoot: in Debug (see expo/expo#21643).
+static NSString *const kExpoVirtualMetroEntry = @".expo/.virtual-metro-entry";
+static NSString *const kMetroHostKey = @"_devconnect_metro_host";
+
+static BOOL gPackagerHookInstalled = NO;
+
+static NSURL *DebugToolkitEmbeddedBundleURL(void)
+{
+  return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
+}
+
+static NSString *DevConnectPersistedMetroHost(void)
+{
+  return [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey];
+}
+
+static void DevConnectSetPersistedMetroHost(NSString *_Nullable hostPort)
+{
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  if (hostPort.length > 0) {
+    [defaults setObject:hostPort forKey:kMetroHostKey];
+  } else {
+    [defaults removeObjectForKey:kMetroHostKey];
+  }
+  [defaults synchronize];
+}
+
+static void DebugToolkitPrepareBundleSourceIfNeeded(void)
+{
+  if (DevConnectPersistedMetroHost().length > 0) {
+    return;
+  }
+  [[RCTBundleURLProvider sharedSettings] resetToDefaults];
+}
+
+static BOOL DevConnectIsExpoProject(void)
+{
+  static dispatch_once_t onceToken;
+  static BOOL isExpo = NO;
+  dispatch_once(&onceToken, ^{
+    // Heuristic: matches common Expo prebuild / dev-client binaries.
+    isExpo = NSClassFromString(@"EXAppDelegateWrapper") != nil
+          || [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXUpdatesURL"] != nil
+          || [[NSBundle mainBundle] objectForInfoDictionaryKey:@"EXPO_RUNTIME_VERSION"] != nil;
+  });
+  return isExpo;
+}
+
+/// Bundle root Metro expects when DevConnect steers the packager (index for plain RN, virtual entry for Expo).
+static NSString *DevConnectMetroBundleRoot(void)
+{
+  return DevConnectIsExpoProject() ? kExpoVirtualMetroEntry : kBundleRoot;
+}
+
+static NSURL *DevConnectMetroURLForPersistedHost(void)
+{
+  NSString *host = DevConnectPersistedMetroHost();
+  if (host.length == 0) {
+    return nil;
+  }
+  RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
+  settings.jsLocation = host;
+  return [settings jsBundleURLForBundleRoot:DevConnectMetroBundleRoot()];
+}
+
+/// When no DevConnect host is configured, pretend no packager is available so
+/// jsBundleURLForBundleRoot: falls back to the embedded bundle.
+static NSString *replacement_packagerServerHostPort(id self, SEL _cmd)
+{
+  NSString *host = DevConnectPersistedMetroHost();
+  if (host.length == 0) {
+    return nil;
+  }
+  [(RCTBundleURLProvider *)self setJsLocation:host];
+  return host;
+}
+
+static void DebugToolkitInstallPackagerHook(void)
+{
+  if (gPackagerHookInstalled) {
+    return;
+  }
+
+  Class cls = [RCTBundleURLProvider class];
+  Method method = class_getInstanceMethod(cls, @selector(packagerServerHostPort));
+  if (!method) {
+    NSLog(@"[DevConnect] packagerServerHostPort not found — embedded-first hook skipped");
+    return;
+  }
+
+  IMP replacement = (IMP)replacement_packagerServerHostPort;
+  IMP current = method_getImplementation(method);
+  if (current == replacement) {
+    gPackagerHookInstalled = YES;
+    return;
+  }
+
+  method_setImplementation(method, replacement);
+  gPackagerHookInstalled = YES;
+  NSLog(@"[DevConnect] embedded-first packager hook installed");
+}
+
+NSURL *DebugToolkitMetroBundleURL(void)
+{
+  return DevConnectMetroURLForPersistedHost();
+}
+
+__attribute__((constructor))
+static void DebugToolkit_install(void)
+{
+  DebugToolkitPrepareBundleSourceIfNeeded();
+  DebugToolkitInstallPackagerHook();
+}
+
+#pragma mark - Module
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -94,11 +210,11 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     }
     NSString *normalized = [self normalizeHostPort:hostPort];
 
-    // jsLocation is the packager host RN's Debug bundleURL() reads. Setting it is the
-    // authoritative switch; the reload below re-fetches from the new host.
+    DevConnectSetPersistedMetroHost(normalized);
+
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     settings.jsLocation = normalized;
-    NSURL *bundleURL = [settings jsBundleURLForBundleRoot:kBundleRoot];
+    NSURL *bundleURL = [settings jsBundleURLForBundleRoot:DevConnectMetroBundleRoot()];
 
     [self reloadWithBundleURL:bundleURL reason:@"Dev menu - apply changes"];
 
@@ -117,13 +233,19 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
+    DevConnectSetPersistedMetroHost(nil);
+
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     [settings resetToDefaults];
-    NSURL *fallback = [settings jsBundleURLForFallbackExtension:nil];
 
-    [self reloadWithBundleURL:fallback reason:@"Dev menu - reset to default"];
+    NSURL *embedded = DebugToolkitEmbeddedBundleURL();
+    if (!embedded) {
+      embedded = [settings jsBundleURLForFallbackExtension:nil];
+    }
 
-    NSLog(@"[DevConnect] resetMetroHost url=%@", fallback);
+    [self reloadWithBundleURL:embedded reason:@"Dev menu - reset to default"];
+
+    NSLog(@"[DevConnect] resetMetroHost url=%@", embedded);
     resolve([NSNull null]);
   } @catch (NSException *e) {
     NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", e.reason);
@@ -134,7 +256,7 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
 RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
-  NSString *host = [RCTBundleURLProvider sharedSettings].jsLocation;
+  NSString *host = DevConnectPersistedMetroHost();
   resolve(host.length > 0 ? host : [NSNull null]);
 }
 
@@ -143,6 +265,7 @@ RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
 {
   Class realDelegate = object_getClass([UIApplication sharedApplication].delegate);
   NSString *delegateName = realDelegate ? NSStringFromClass(realDelegate) : @"unknown";
+  NSString *persisted = DevConnectPersistedMetroHost();
 
 #if DEBUG
   BOOL isDebug = YES;
@@ -151,9 +274,11 @@ RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
 #endif
 
   resolve(@{
-    @"persistedMetroHost": [RCTBundleURLProvider sharedSettings].jsLocation ?: [NSNull null],
+    @"persistedMetroHost": persisted.length > 0 ? persisted : [NSNull null],
     @"appDelegateClass": delegateName,
     @"isDebugBuild": @(isDebug),
+    @"hasEmbeddedBundle": @(DebugToolkitEmbeddedBundleURL() != nil),
+    @"embeddedFirstHookInstalled": @(gPackagerHookInstalled),
   });
 }
 

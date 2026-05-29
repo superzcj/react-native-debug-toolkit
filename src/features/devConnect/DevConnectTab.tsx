@@ -519,8 +519,8 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
             ) : null}
           </View>
           <Text style={styles.sectionDesc}>
-            Switch the Metro packager host and hot-reload. Works in Debug builds only — Release
-            builds load the embedded bundle and strip the packager machinery.
+            Starts from the embedded bundle. After you apply a computer IP, hot-reloads from that
+            Metro. Debug builds only — use Reset to go back to the embedded bundle.
           </Text>
 
           {!metroUrls ? (
@@ -595,11 +595,29 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
                   <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>
                 </View>
                 <View style={styles.diagRow}>
+                  <Text style={styles.diagKey}>embedded</Text>
+                  <Text style={[styles.diagVal, diagData.hasEmbeddedBundle ? styles.diagGood : styles.diagWarn]}>
+                    {diagData.hasEmbeddedBundle ? 'main.jsbundle' : 'missing'}
+                  </Text>
+                </View>
+                <View style={styles.diagRow}>
                   <Text style={styles.diagKey}>build</Text>
                   <Text style={[styles.diagVal, diagData.isDebugBuild ? styles.diagGood : styles.diagWarn]}>
                     {diagData.isDebugBuild ? 'Debug' : 'Release'}
                   </Text>
                 </View>
+                <View style={styles.diagRow}>
+                  <Text style={styles.diagKey}>embedded-first</Text>
+                  <Text style={[styles.diagVal, diagData.embeddedFirstHookInstalled ? styles.diagGood : styles.diagWarn]}>
+                    {diagData.embeddedFirstHookInstalled ? 'active' : 'inactive'}
+                  </Text>
+                </View>
+                {!diagData.embeddedFirstHookInstalled ? (
+                  <Text style={styles.diagWarning}>
+                    ⚠ Embedded-first hook not active. Rebuild after pod install. Without it, Debug may
+                    still try Metro on launch.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
           </View>

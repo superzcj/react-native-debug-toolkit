@@ -77,9 +77,11 @@ In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`
 
 DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
 
-For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect sets React Native's packager host (`RCTBundleURLProvider.jsLocation` on iOS) and hot-reloads from the new Metro.
+For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect persists the host and hot-reloads from Metro.
 
-> **Debug builds only.** Switching the Metro host works in Debug builds. Release builds load the embedded `main.jsbundle` and React Native strips the packager machinery (`RCT_DEV=0`), so the controls are disabled in Release — the panel shows a `release: disabled` badge. If you need to point an optimized build at Metro, build a development/dev-client build (Debug configuration), not a production Release build.
+> **Debug builds only.** Metro host switching works in Debug builds. Release builds load the embedded bundle and the controls are disabled (`release: disabled` badge).
+
+**iOS — no AppDelegate changes required.** On install, DevConnect hooks `RCTBundleURLProvider` so the app **cold-starts from the embedded `main.jsbundle`** and only connects to Metro after you apply a host in the panel (fixes Expo `.expo/.virtual-metro-entry` red screens when Metro is off). Use **Reset** to go back to the embedded bundle.
 
 The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
 

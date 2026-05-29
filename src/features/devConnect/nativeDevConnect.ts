@@ -8,6 +8,8 @@ export interface NativeDiagnostics {
   // Metro host switching only works in Debug builds (RN strips the packager machinery in
   // Release). False means the Remote JS Bundle controls should be disabled.
   isDebugBuild: boolean;
+  hasEmbeddedBundle?: boolean;
+  embeddedFirstHookInstalled?: boolean;
 }
 
 interface DebugToolkitDevConnectNativeModule {

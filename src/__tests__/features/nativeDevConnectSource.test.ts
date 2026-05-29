@@ -22,22 +22,29 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('NSNumberFormatter');
     expect(source).toContain('RCT_METRO_PORT');
 
-    // jsLocation is the packager host RN's Debug bundleURL() reads — the native switch.
+    // DevConnect host is persisted separately; jsLocation is only set when a host is applied.
+    expect(source).toContain('_devconnect_metro_host');
     expect(source).toContain('jsLocation');
     expect(source).toContain('jsBundleURLForBundleRoot');
-    expect(source).toContain('jsBundleURLForFallbackExtension:nil');
+    expect(source).toContain('DebugToolkitEmbeddedBundleURL');
 
     expect(source).toContain('resolveBundleManager');
     expect(source).toContain('RCTReloadCommandSetBundleURL');
     expect(source).toContain('RCTTriggerReloadCommandListeners');
 
-    // Debug-only gating is reported to JS so the UI can disable controls in Release.
-    expect(source).toContain('isDebugBuild');
+    // Zero-config: hook packagerServerHostPort so cold start uses embedded bundle until host applied.
+    expect(source).toContain('replacement_packagerServerHostPort');
+    expect(source).toContain('DebugToolkitInstallPackagerHook');
+    expect(source).toContain('embeddedFirstHookInstalled');
 
-    // No runtime method swizzling and no opt-in C API (removed in the Debug-only rewrite).
-    expect(source).not.toContain('method_setImplementation');
+    expect(source).toContain('DebugToolkitMetroBundleURL');
+    expect(source).toContain('DevConnectMetroBundleRoot');
+    expect(source).toContain('.expo/.virtual-metro-entry');
+
+    // Single-class hook only — no full runtime class scan.
     expect(source).not.toContain('objc_getClassList');
-    expect(source).not.toContain('DebugToolkitMetroBundleURL');
+
+    expect(source).toContain('isDebugBuild');
 
     expect(source).toContain('@try');
     expect(source).toContain('@catch');
@@ -46,5 +53,12 @@ describe('native DevConnect source contracts', () => {
 
     expect(source).toContain('Dev menu - apply changes');
     expect(source).toContain('Dev menu - reset to default');
+  });
+
+  it('exposes the public C API header (optional override)', () => {
+    const header = fs.readFileSync(path.join(repoRoot, 'ios/DebugToolkitDevConnect.h'), 'utf8');
+    expect(header).toContain('DebugToolkitMetroBundleURL');
+    expect(header).toContain('Zero-config');
+    expect(header).toContain('FOUNDATION_EXPORT');
   });
 });
