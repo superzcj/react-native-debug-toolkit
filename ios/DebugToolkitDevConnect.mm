@@ -1,5 +1,3 @@
-#import "DebugToolkitDevConnect.h"
-
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <React/RCTBridge.h>
@@ -12,179 +10,18 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
-#pragma mark - Configuration
+// Debug-only Metro host switching.
+//
+// In a Debug build the factory delegate's bundleURL() resolves through
+// RCTBundleURLProvider.jsLocation, so setting jsLocation + reloading is exactly how RN's own
+// "Configure Bundler" dev-menu item switches the packager host — it hot-reloads immediately.
+//
+// This does NOT work in Release: RN compiles the dev/packager machinery out (RCT_DEV=0) and a
+// Release bridge loads the embedded main.jsbundle at cold launch. On the new architecture,
+// loading a remote bundle into a Release runtime is unsupported and crashes, so we deliberately
+// gate this feature to Debug builds (see isDebugBuild) and surface that in the UI.
 
 static NSString *const kBundleRoot = @"index";
-static NSString *const kMetroHostKey = @"_devconnect_metro_host";
-
-// Default Metro params. dev=true matches expo-dev-client behavior and works when the
-// Release app has dev features compiled in (e.g. expo-dev-client). Plain Release builds
-// without dev support will likely crash loading a dev bundle — this is a runtime limitation,
-// not a bug in this module. UI surfaces this caveat.
-static NSString *const kMetroQuery = @"platform=ios&dev=true&minify=false";
-
-#pragma mark - C API (Swift opt-in)
-
-NSURL *DebugToolkitMetroBundleURL(void)
-{
-  NSString *host = [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey];
-  if (host.length == 0) return nil;
-  NSString *urlStr = [NSString stringWithFormat:@"http://%@/%@.bundle?%@", host, kBundleRoot, kMetroQuery];
-  return [NSURL URLWithString:urlStr];
-}
-
-#pragma mark - Swizzle plumbing
-
-// Original IMPs keyed by Class. Each (class, selector) gets its own slot so super-chain calls
-// land on the right per-class implementation. NULL value means we tried and the class did not
-// implement that method (we still installed via class_addMethod and should return nil if no
-// metro host).
-static CFMutableDictionaryRef gOrigBundleURL = NULL;     // class -> IMP
-static CFMutableDictionaryRef gOrigSourceURL = NULL;     // class -> IMP
-static NSMutableArray<NSString *> *gHookedClassNames = nil;
-
-static void ensureSwizzleMaps(void)
-{
-  if (gOrigBundleURL == NULL) {
-    gOrigBundleURL = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-  }
-  if (gOrigSourceURL == NULL) {
-    gOrigSourceURL = CFDictionaryCreateMutable(NULL, 0, NULL, NULL);
-  }
-  if (gHookedClassNames == nil) {
-    gHookedClassNames = [NSMutableArray new];
-  }
-}
-
-static IMP origIMPFor(CFMutableDictionaryRef map, Class cls)
-{
-  if (!map || !cls) return NULL;
-  return (IMP)CFDictionaryGetValue(map, (__bridge const void *)cls);
-}
-
-#pragma mark - Replacement IMPs
-
-static NSURL *replacement_bundleURL(id self, SEL _cmd)
-{
-  NSURL *metro = DebugToolkitMetroBundleURL();
-  if (metro) return metro;
-  IMP orig = origIMPFor(gOrigBundleURL, [self class]);
-  if (orig) return ((NSURL *(*)(id, SEL))orig)(self, _cmd);
-  return nil;
-}
-
-static NSURL *replacement_sourceURLForBridge(id self, SEL _cmd, RCTBridge *bridge)
-{
-  NSURL *metro = DebugToolkitMetroBundleURL();
-  if (metro) return metro;
-  IMP orig = origIMPFor(gOrigSourceURL, [self class]);
-  if (orig) return ((NSURL *(*)(id, SEL, RCTBridge *))orig)(self, _cmd, bridge);
-  return nil;
-}
-
-static void hookSelector(Class cls, SEL selector, IMP replacement, CFMutableDictionaryRef map)
-{
-  if (!cls || !selector || !replacement || !map) return;
-  // Only consider methods directly implemented on this class — we don't want to walk into
-  // the superclass and accidentally hook a class twice through inheritance.
-  unsigned int count = 0;
-  Method *methods = class_copyMethodList(cls, &count);
-  Method target = NULL;
-  for (unsigned int i = 0; i < count; i++) {
-    if (method_getName(methods[i]) == selector) { target = methods[i]; break; }
-  }
-  free(methods);
-  if (!target) return;
-
-  IMP orig = method_getImplementation(target);
-  if (orig == replacement) return; // already swizzled in a prior pass
-
-  CFDictionarySetValue(map, (__bridge const void *)cls, orig);
-  method_setImplementation(target, replacement);
-}
-
-#pragma mark - Class discovery
-
-// Returns YES if cls (or any ancestor) is or inherits from `ancestor`.
-static BOOL isKindOfClass(Class cls, Class ancestor)
-{
-  while (cls) {
-    if (cls == ancestor) return YES;
-    cls = class_getSuperclass(cls);
-  }
-  return NO;
-}
-
-static void hookFactoryDelegateHierarchy(void)
-{
-  ensureSwizzleMaps();
-
-  // Modern RN 0.74+ path: ReactNativeDelegate extends RCTDefaultReactNativeFactoryDelegate.
-  // Legacy path: AppDelegate extends RCTAppDelegate.
-  // We discover and hook every loaded subclass of either, so we don't need to know the
-  // user's concrete class name (which is module-prefixed for Swift, e.g. "MyApp.AppDelegate").
-  NSArray<NSString *> *parentNames = @[
-    @"RCTDefaultReactNativeFactoryDelegate",
-    @"RCTReactNativeFactoryDelegate",
-    @"RCTAppDelegate",
-  ];
-
-  NSMutableArray<Class> *parents = [NSMutableArray new];
-  for (NSString *name in parentNames) {
-    Class c = NSClassFromString(name);
-    if (c) [parents addObject:c];
-  }
-  if (parents.count == 0) {
-    NSLog(@"[DevConnect] no RN factory/delegate base classes loaded yet — hook skipped");
-    return;
-  }
-
-  int totalClasses = objc_getClassList(NULL, 0);
-  if (totalClasses <= 0) return;
-  Class *classes = (Class *)malloc(sizeof(Class) * totalClasses);
-  totalClasses = objc_getClassList(classes, totalClasses);
-
-  for (int i = 0; i < totalClasses; i++) {
-    Class cls = classes[i];
-    BOOL match = NO;
-    for (Class parent in parents) {
-      if (isKindOfClass(cls, parent)) { match = YES; break; }
-    }
-    if (!match) continue;
-
-    BOOL hadBundleURL = origIMPFor(gOrigBundleURL, cls) != NULL;
-    BOOL hadSourceURL = origIMPFor(gOrigSourceURL, cls) != NULL;
-
-    hookSelector(cls, @selector(bundleURL), (IMP)replacement_bundleURL, gOrigBundleURL);
-    hookSelector(cls, @selector(sourceURLForBridge:), (IMP)replacement_sourceURLForBridge, gOrigSourceURL);
-
-    BOOL hookedBundleURL = origIMPFor(gOrigBundleURL, cls) != NULL;
-    BOOL hookedSourceURL = origIMPFor(gOrigSourceURL, cls) != NULL;
-    if ((hookedBundleURL && !hadBundleURL) || (hookedSourceURL && !hadSourceURL)) {
-      NSString *name = NSStringFromClass(cls);
-      [gHookedClassNames addObject:[NSString stringWithFormat:@"%@(b=%@,s=%@)",
-                                    name,
-                                    hookedBundleURL ? @"Y" : @"N",
-                                    hookedSourceURL ? @"Y" : @"N"]];
-      NSLog(@"[DevConnect] hooked %@ bundleURL=%@ sourceURL=%@",
-            name, hookedBundleURL ? @"Y" : @"N", hookedSourceURL ? @"Y" : @"N");
-    }
-  }
-
-  free(classes);
-}
-
-#pragma mark - Install timing
-
-__attribute__((constructor))
-static void DebugToolkit_install(void)
-{
-  // dyld load time. User classes from the main binary are loaded by now in static-link setups.
-  // Some frameworks may not be loaded yet — the -init fallback below covers late arrivals.
-  hookFactoryDelegateHierarchy();
-}
-
-#pragma mark - Module
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -195,16 +32,6 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 
 @synthesize bridge = _bridge;
 @synthesize bundleManager = _bundleManager;
-
-- (instancetype)init
-{
-  if ((self = [super init])) {
-    // Re-run hierarchy hook in case classes loaded after the constructor (e.g. frameworks
-    // loaded by UIApplicationMain). Idempotent — hookSelector skips already-swizzled methods.
-    hookFactoryDelegateHierarchy();
-  }
-  return self;
-}
 
 + (BOOL)requiresMainQueueSetup { return NO; }
 - (dispatch_queue_t)methodQueue { return dispatch_get_main_queue(); }
@@ -242,6 +69,18 @@ RCT_EXPORT_MODULE(DebugToolkitDevConnect)
   return [NSString stringWithFormat:@"%@:%d", host, port];
 }
 
+#pragma mark - Reload helper
+
+- (void)reloadWithBundleURL:(NSURL *)bundleURL reason:(NSString *)reason
+{
+  if (bundleURL) {
+    RCTBundleManager *bm = [self resolveBundleManager];
+    if (bm) bm.bundleURL = bundleURL;
+    RCTReloadCommandSetBundleURL(bundleURL);
+  }
+  RCTTriggerReloadCommandListeners(reason);
+}
+
 #pragma mark - Exported Methods
 
 RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
@@ -255,27 +94,15 @@ RCT_EXPORT_METHOD(applyMetroHost:(NSString *)hostPort
     }
     NSString *normalized = [self normalizeHostPort:hostPort];
 
-    // Persist — read on next launch by the swizzled bundleURL/sourceURLForBridge: hooks
-    // or by user code calling DebugToolkitMetroBundleURL() from their AppDelegate.
-    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kMetroHostKey];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    // jsLocation is the packager host RN's Debug bundleURL() reads. Setting it is the
+    // authoritative switch; the reload below re-fetches from the new host.
+    RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
+    settings.jsLocation = normalized;
+    NSURL *bundleURL = [settings jsBundleURLForBundleRoot:kBundleRoot];
 
-    // Update Debug mode jsLocation so RN's built-in dev menu / hot reload keeps coherent state.
-    [RCTBundleURLProvider sharedSettings].jsLocation = normalized;
+    [self reloadWithBundleURL:bundleURL reason:@"Dev menu - apply changes"];
 
-    NSURL *bundleURL = DebugToolkitMetroBundleURL();
-
-    // Hot-switch: set BOTH the bundle manager property AND the reload-command global, then
-    // trigger reload. Different RN versions / configurations read from different places,
-    // and there is no harm in setting both.
-    RCTBundleManager *bm = [self resolveBundleManager];
-    if (bm && bundleURL) bm.bundleURL = bundleURL;
-    if (bundleURL) RCTReloadCommandSetBundleURL(bundleURL);
-
-    NSLog(@"[DevConnect] applyMetroHost host=%@ url=%@ bm=%@",
-          normalized, bundleURL, bm ? @"Y" : @"N");
-    RCTTriggerReloadCommandListeners(@"Dev menu - apply changes");
-
+    NSLog(@"[DevConnect] applyMetroHost host=%@ url=%@", normalized, bundleURL);
     resolve(@{
       @"hostPort": normalized,
       @"bundleURL": bundleURL.absoluteString ?: [NSNull null],
@@ -290,19 +117,13 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
   @try {
-    [[NSUserDefaults standardUserDefaults] removeObjectForKey:kMetroHostKey];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-
     RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
     [settings resetToDefaults];
     NSURL *fallback = [settings jsBundleURLForFallbackExtension:nil];
 
-    RCTBundleManager *bm = [self resolveBundleManager];
-    if (bm && fallback) bm.bundleURL = fallback;
-    if (fallback) RCTReloadCommandSetBundleURL(fallback);
+    [self reloadWithBundleURL:fallback reason:@"Dev menu - reset to default"];
 
     NSLog(@"[DevConnect] resetMetroHost url=%@", fallback);
-    RCTTriggerReloadCommandListeners(@"Dev menu - reset to default");
     resolve([NSNull null]);
   } @catch (NSException *e) {
     NSLog(@"[DevConnect] resetMetroHost EXCEPTION: %@", e.reason);
@@ -313,8 +134,8 @@ RCT_EXPORT_METHOD(resetMetroHost:(RCTPromiseResolveBlock)resolve
 RCT_EXPORT_METHOD(getMetroHost:(RCTPromiseResolveBlock)resolve
                   rejecter:(__unused RCTPromiseRejectBlock)reject)
 {
-  NSString *persisted = [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey];
-  resolve(persisted.length > 0 ? persisted : [NSNull null]);
+  NSString *host = [RCTBundleURLProvider sharedSettings].jsLocation;
+  resolve(host.length > 0 ? host : [NSNull null]);
 }
 
 RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
@@ -323,17 +144,16 @@ RCT_EXPORT_METHOD(getDiagnostics:(RCTPromiseResolveBlock)resolve
   Class realDelegate = object_getClass([UIApplication sharedApplication].delegate);
   NSString *delegateName = realDelegate ? NSStringFromClass(realDelegate) : @"unknown";
 
-  // Has the user's actual factory delegate (where bundleURL lives) been hooked?
-  // The factory delegate isn't UIApplication.delegate in modern RN — it's a separate object
-  // we can't easily reach without inspecting the user's AppDelegate, so we report on the
-  // class names we successfully hooked instead.
-  NSArray<NSString *> *hookedNames = [gHookedClassNames ?: @[] copy];
+#if DEBUG
+  BOOL isDebug = YES;
+#else
+  BOOL isDebug = NO;
+#endif
 
   resolve(@{
-    @"persistedMetroHost": [[NSUserDefaults standardUserDefaults] stringForKey:kMetroHostKey] ?: [NSNull null],
+    @"persistedMetroHost": [RCTBundleURLProvider sharedSettings].jsLocation ?: [NSNull null],
     @"appDelegateClass": delegateName,
-    @"hookedClasses": hookedNames,
-    @"hooksInstalled": @(hookedNames.count > 0),
+    @"isDebugBuild": @(isDebug),
   });
 }
 

@@ -2,6 +2,34 @@
 
 Date: 2026-05-28
 
+## Final decision (2026-05-29): Debug-only, thin wrapper over RCTBundleURLProvider
+
+Scope was deliberately narrowed to **Debug builds**. We do **not** try to switch Metro host on
+Release builds. Why:
+
+- RN's own packager-host switching (Dev Menu → Configure Bundler, `RCTDevSettings`) is gated by
+  `RCT_DEV`, which is tied to `DEBUG`. In Release it is compiled out entirely.
+- A Release bridge loads the embedded `main.jsbundle` at cold launch. On the **new architecture
+  (bridgeless)** — which this project uses — loading a remote HTTP bundle into a Release runtime is
+  unsupported and crashes.
+- Even `expo-dev-client` only enables bundle switching in Debug-configuration ("development")
+  builds; its README states Release builds are unchanged. So the realistic target is a dev build,
+  not a production Release build.
+
+Earlier iterations (runtime-reload-only; then method-swizzling of `bundleURL`/`sourceURLForBridge:`
+via `objc_getClassList` + per-class IMP maps; then an opt-in C function for Release) were all
+attempts to make Release work and were the source of repeated build/runtime breakage.
+
+**Chosen design:** `applyMetroHost` sets `RCTBundleURLProvider.sharedSettings.jsLocation` (the host
+RN's Debug `bundleURL()` reads), recomputes the bundle URL, and triggers a reload — exactly what
+RN's "Configure Bundler" does, hot-reloading immediately. `getDiagnostics` reports `isDebugBuild`
+so the UI disables the controls in Release. No swizzling, no `objc_getClassList`, no `CFDictionary`
+IMP maps, no opt-in C function, no `.h` header, no ATS gymnastics.
+
+The sections below are retained for historical context.
+
+---
+
 ## Problem
 
 `applyMetroHost` crashes on iOS with RN 0.76 new architecture (default). Root cause:

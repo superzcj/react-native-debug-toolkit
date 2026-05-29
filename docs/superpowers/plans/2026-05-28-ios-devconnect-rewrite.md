@@ -1,5 +1,10 @@
 # iOS DebugToolkitDevConnect Rewrite Implementation Plan
 
+> **⚠️ SUPERSEDED (2026-05-29).** This plan and the code blocks below are historical. The shipped
+> design is the Debug-only thin wrapper over `RCTBundleURLProvider.jsLocation` — see the "Final
+> decision" section in `docs/superpowers/specs/2026-05-28-ios-devconnect-rewrite-design.md` and the
+> current `ios/DebugToolkitDevConnect.mm`. Do not implement from the code below.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rewrite `ios/DebugToolkitDevConnect.mm` with defensive multi-strategy bundle URL management that doesn't crash on RN 0.76 new architecture.

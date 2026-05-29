@@ -5,8 +5,9 @@ import { buildMetroTarget } from './devConnectUtils';
 export interface NativeDiagnostics {
   persistedMetroHost: string | null;
   appDelegateClass: string;
-  hookedClasses: string[];
-  hooksInstalled: boolean;
+  // Metro host switching only works in Debug builds (RN strips the packager machinery in
+  // Release). False means the Remote JS Bundle controls should be disabled.
+  isDebugBuild: boolean;
 }
 
 interface DebugToolkitDevConnectNativeModule {

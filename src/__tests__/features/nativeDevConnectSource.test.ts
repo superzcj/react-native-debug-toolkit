@@ -16,27 +16,28 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('handleReloadJS');
   });
 
-  it('exposes the Metro bundle URL contract on iOS', () => {
+  it('switches the Metro packager host via RCTBundleURLProvider on iOS (Debug-only)', () => {
     const source = fs.readFileSync(path.join(repoRoot, 'ios/DebugToolkitDevConnect.mm'), 'utf8');
 
     expect(source).toContain('NSNumberFormatter');
     expect(source).toContain('RCT_METRO_PORT');
 
+    // jsLocation is the packager host RN's Debug bundleURL() reads — the native switch.
+    expect(source).toContain('jsLocation');
+    expect(source).toContain('jsBundleURLForBundleRoot');
     expect(source).toContain('jsBundleURLForFallbackExtension:nil');
 
     expect(source).toContain('resolveBundleManager');
     expect(source).toContain('RCTReloadCommandSetBundleURL');
     expect(source).toContain('RCTTriggerReloadCommandListeners');
 
-    // Hook the factory-delegate hierarchy (RN 0.74+) plus legacy bridge delegates.
-    expect(source).toContain('RCTDefaultReactNativeFactoryDelegate');
-    expect(source).toContain('bundleURL');
-    expect(source).toContain('sourceURLForBridge');
+    // Debug-only gating is reported to JS so the UI can disable controls in Release.
+    expect(source).toContain('isDebugBuild');
 
-    // C API exposed to Swift opt-in (AppDelegate bundleURL override).
-    expect(source).toContain('DebugToolkitMetroBundleURL');
-
-    expect(source).toContain('_devconnect_metro_host');
+    // No runtime method swizzling and no opt-in C API (removed in the Debug-only rewrite).
+    expect(source).not.toContain('method_setImplementation');
+    expect(source).not.toContain('objc_getClassList');
+    expect(source).not.toContain('DebugToolkitMetroBundleURL');
 
     expect(source).toContain('@try');
     expect(source).toContain('@catch');
@@ -45,11 +46,5 @@ describe('native DevConnect source contracts', () => {
 
     expect(source).toContain('Dev menu - apply changes');
     expect(source).toContain('Dev menu - reset to default');
-  });
-
-  it('exposes the public C API header for Swift consumption', () => {
-    const header = fs.readFileSync(path.join(repoRoot, 'ios/DebugToolkitDevConnect.h'), 'utf8');
-    expect(header).toContain('DebugToolkitMetroBundleURL');
-    expect(header).toContain('FOUNDATION_EXPORT');
   });
 });

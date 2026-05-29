@@ -77,7 +77,11 @@ In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`
 
 DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
 
-For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect writes React Native's native dev-server host setting and reloads the app. The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
+For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect sets React Native's packager host (`RCTBundleURLProvider.jsLocation` on iOS) and hot-reloads from the new Metro.
+
+> **Debug builds only.** Switching the Metro host works in Debug builds. Release builds load the embedded `main.jsbundle` and React Native strips the packager machinery (`RCT_DEV=0`), so the controls are disabled in Release — the panel shows a `release: disabled` badge. If you need to point an optimized build at Metro, build a development/dev-client build (Debug configuration), not a production Release build.
+
+The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
 
 QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the app to enable the scan button. The app must request camera permission before scanning.
 

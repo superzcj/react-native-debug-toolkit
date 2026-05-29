@@ -91,7 +91,7 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
       if (result) {
         setDiagData(result);
         console.info(
-          `[DevConnect] hooks=${result.hooksInstalled ? result.hookedClasses.join(',') : 'NONE'} appDelegate=${result.appDelegateClass} persistedHost=${result.persistedMetroHost ?? 'none'}`,
+          `[DevConnect] debugBuild=${result.isDebugBuild} appDelegate=${result.appDelegateClass} persistedHost=${result.persistedMetroHost ?? 'none'}`,
         );
       }
     }).catch(() => {});
@@ -396,8 +396,11 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
     }
   }, [snapshot.nativeMetroAvailable]);
 
+  // Metro host switching only works in Debug builds. diagData is iOS-populated; when we know
+  // it's a Release build, disable the controls (Android reports null → stays enabled).
+  const metroReleaseBlocked = diagData ? !diagData.isDebugBuild : false;
   const canConnect = isSim || (Boolean(normalizeComputerHost(computerHost)) && Boolean(normalizePort(daemonPort)));
-  const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy;
+  const canUseMetro = Boolean(metroTarget) && snapshot.nativeMetroAvailable && !metroBusy && !metroReleaseBlocked;
   const busy = sending || syncState === 'checking';
   const subnetPrefix = snapshot.subnetPrefix;
   const ipPlaceholder = subnetPrefix ? `${subnetPrefix}...` : '192.168.1.10';
@@ -508,16 +511,16 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
             <Text style={styles.sectionTitle}>Remote JS Bundle</Text>
             {diagData ? (
               <View style={styles.swizzleBadge}>
-                <View style={[styles.swizzleDot, diagData.hooksInstalled ? styles.dotGreen : styles.dotRed]} />
+                <View style={[styles.swizzleDot, diagData.isDebugBuild ? styles.dotGreen : styles.dotRed]} />
                 <Text style={styles.swizzleBadgeText}>
-                  {diagData.hooksInstalled ? `hooked×${diagData.hookedClasses.length}` : 'opt-in required'}
+                  {diagData.isDebugBuild ? 'debug build' : 'release: disabled'}
                 </Text>
               </View>
             ) : null}
           </View>
           <Text style={styles.sectionDesc}>
-            Hot-switch to Metro and reload. Persisted across restarts only when hooks land
-            on your AppDelegate (see iOS Bundle Hook section below for status).
+            Switch the Metro packager host and hot-reload. Works in Debug builds only — Release
+            builds load the embedded bundle and strip the packager machinery.
           </Text>
 
           {!metroUrls ? (
@@ -561,6 +564,13 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
           {!snapshot.nativeMetroAvailable ? (
             <Text style={styles.hint}>Native DevConnect requires pod install / Gradle sync and app rebuild.</Text>
           ) : null}
+
+          {metroReleaseBlocked ? (
+            <Text style={styles.diagWarning}>
+              ⚠ This is a Release build. Metro host switching is disabled — RN loads the embedded
+              bundle and strips the packager machinery in Release. Run a Debug build to switch hosts.
+            </Text>
+          ) : null}
         </View>
 
         {snapshot.nativeMetroAvailable && diagData ? (
@@ -570,7 +580,7 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
               onPress={() => { setDiagOpen((v) => !v); refreshDiag(); }}
               activeOpacity={0.7}
             >
-              <Text style={styles.sectionTitle}>iOS Bundle Hook</Text>
+              <Text style={styles.sectionTitle}>iOS Bundle Status</Text>
               <Text style={styles.diagChevron}>{diagOpen ? '▲' : '▼'}</Text>
             </TouchableOpacity>
 
@@ -581,53 +591,15 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
                   <Text style={styles.diagVal}>{diagData.appDelegateClass}</Text>
                 </View>
                 <View style={styles.diagRow}>
-                  <Text style={styles.diagKey}>persistedHost</Text>
+                  <Text style={styles.diagKey}>packagerHost</Text>
                   <Text style={styles.diagVal}>{diagData.persistedMetroHost ?? '—'}</Text>
                 </View>
                 <View style={styles.diagRow}>
-                  <Text style={styles.diagKey}>hooks</Text>
-                  <Text style={[styles.diagVal, diagData.hooksInstalled ? styles.diagGood : styles.diagWarn]}>
-                    {diagData.hooksInstalled ? `${diagData.hookedClasses.length} class(es)` : 'NONE'}
+                  <Text style={styles.diagKey}>build</Text>
+                  <Text style={[styles.diagVal, diagData.isDebugBuild ? styles.diagGood : styles.diagWarn]}>
+                    {diagData.isDebugBuild ? 'Debug' : 'Release'}
                   </Text>
                 </View>
-                {diagData.hookedClasses.length > 0 ? (
-                  <View style={styles.diagLog}>
-                    {diagData.hookedClasses.map((entry, i) => (
-                      <Text key={i} style={styles.diagLogEntry}>{entry}</Text>
-                    ))}
-                  </View>
-                ) : null}
-
-                {!diagData.hooksInstalled ? (
-                  <View style={styles.diagOptIn}>
-                    <Text style={styles.diagOptInTitle}>Cold-restart hook unavailable.</Text>
-                    <Text style={styles.diagOptInText}>
-                      Add this opt-in to your AppDelegate (Swift):
-                    </Text>
-                    <Text style={styles.diagCode}>
-{`// In your ReactNativeDelegate (or RCTAppDelegate subclass) bundleURL():
-override func bundleURL() -> URL? {
-  if let metro = DebugToolkitMetroBundleURL() { return metro }
-  #if DEBUG
-  return RCTBundleURLProvider.sharedSettings()
-    .jsBundleURL(forBundleRoot: "index")
-  #else
-  return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
-  #endif
-}`}
-                    </Text>
-                    <Text style={styles.diagOptInText}>
-                      Bridging: add `#import &lt;react-native-debug-toolkit/DebugToolkitDevConnect.h&gt;` to your bridging header.
-                    </Text>
-                  </View>
-                ) : null}
-
-                <Text style={styles.diagWarning}>
-                  ⚠ Loading a dev Metro bundle into a plain Release runtime can crash on startup
-                  because dev-only native modules (redbox, inspector) are stripped from Release.
-                  Cold-restart switching is reliable only on Debug builds or Release builds that
-                  bundle expo-dev-client.
-                </Text>
               </View>
             ) : null}
           </View>
@@ -755,34 +727,7 @@ const styles = StyleSheet.create({
   diagKey: { fontSize: 12, color: Colors.textSecondary, fontFamily: 'Courier' },
   diagVal: { fontSize: 12, color: Colors.text, fontFamily: 'Courier', fontWeight: '600' },
   diagGood: { color: '#34C759' },
-  diagBad: { color: '#FF3B30' },
   diagWarn: { color: '#FF9500' },
-  diagLog: {
-    marginTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-    paddingTop: 8,
-    gap: 4,
-  },
-  diagLogEntry: { fontSize: 11, fontFamily: 'Courier', color: Colors.textSecondary, lineHeight: 16 },
-  diagOptIn: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-  },
-  diagOptInTitle: { fontSize: 12, fontWeight: '600', color: Colors.text, marginBottom: 4 },
-  diagOptInText: { fontSize: 11, color: Colors.textSecondary, lineHeight: 16, marginBottom: 6 },
-  diagCode: {
-    fontSize: 10,
-    fontFamily: 'Courier',
-    color: Colors.text,
-    backgroundColor: `${Colors.primary}10`,
-    padding: 8,
-    borderRadius: 6,
-    lineHeight: 14,
-    marginBottom: 6,
-  },
   diagWarning: {
     marginTop: 10,
     fontSize: 11,
