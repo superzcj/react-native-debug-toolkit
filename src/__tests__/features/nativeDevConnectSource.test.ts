@@ -37,6 +37,8 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('DebugToolkitInstallBundleRootHook');
     expect(source).toContain('replacement_packagerServerHostPort');
     expect(source).toContain('bundleRootHookInstalled');
+    expect(source).toContain('DebugToolkitDevConnectBootstrap');
+    expect(source).not.toMatch(/DebugToolkitInstallAllHooks[\s\S]*dispatch_once/);
 
     expect(source).toContain('DebugToolkitMetroBundleURL');
     expect(source).toContain('DevConnectMetroBundleRoot');

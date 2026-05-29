@@ -14,13 +14,12 @@
 
 // Debug-only Metro host switching — zero host-app native changes required.
 //
-// RN/Expo Debug templates call RCTBundleURLProvider.jsBundleURLForBundleRoot:, which uses
-// -packagerServerHostPort to decide Metro vs embedded fallback. We hook that single method:
-//   - No DevConnect host → return nil → RN loads main.jsbundle (not Metro / virtual-metro-entry).
-//   - DevConnect host set → return that host:port → RN loads from the remote packager.
+// RN/Expo Debug templates call jsBundleURLForBundleRoot:fallbackURLProvider:, which consults
+// -packagerServerHostPort (guessPackagerHost on simulator when Metro is running). We hook:
+//   1. jsBundleURLForBundleRoot:fallbackURLProvider: — no DevConnect host → main.jsbundle first.
+//   2. packagerServerHostPort — no DevConnect host → nil (block auto-discovered localhost:8081).
 //
-// Optional: host apps may still call DebugToolkitMetroBundleURL() from bundleURL() for explicit
-// control; the hook covers the common Expo/RN delegate path without AppDelegate edits.
+// Optional: host apps may call DebugToolkitMetroBundleURL() from bundleURL() for explicit control.
 
 static NSString *const kBundleRoot = @"index";
 // Expo prebuild templates pass this to jsBundleURLForBundleRoot: in Debug (see expo/expo#21643).
@@ -60,10 +59,12 @@ static void DevConnectSetPersistedMetroHost(NSString *_Nullable hostPort)
 
 static void DebugToolkitPrepareBundleSourceIfNeeded(void)
 {
+  // Touch sharedSettings so RCTBundleURLProvider is linked before hook install retries.
+  RCTBundleURLProvider *settings = [RCTBundleURLProvider sharedSettings];
   if (DevConnectPersistedMetroHost().length > 0) {
     return;
   }
-  [[RCTBundleURLProvider sharedSettings] resetToDefaults];
+  [settings resetToDefaults];
 }
 
 static BOOL DevConnectIsExpoProject(void)
@@ -169,15 +170,22 @@ static void DebugToolkitInstallBundleRootHook(Class cls)
 
 static void DebugToolkitInstallAllHooks(void)
 {
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    Class cls = NSClassFromString(@"RCTBundleURLProvider");
-    if (!cls) {
-      NSLog(@"[DevConnect] RCTBundleURLProvider not loaded — hooks deferred");
-      return;
-    }
-    DebugToolkitInstallBundleRootHook(cls);
-    DebugToolkitInstallPackagerHook(cls);
+  if (gBundleRootHookInstalled && gPackagerHookInstalled) {
+    return;
+  }
+
+  Class cls = NSClassFromString(@"RCTBundleURLProvider");
+  if (!cls) {
+    NSLog(@"[DevConnect] RCTBundleURLProvider not loaded — hooks will retry");
+    return;
+  }
+
+  DebugToolkitInstallBundleRootHook(cls);
+  DebugToolkitInstallPackagerHook(cls);
+
+  static BOOL didLogOutcome = NO;
+  if (!didLogOutcome && (gBundleRootHookInstalled || gPackagerHookInstalled)) {
+    didLogOutcome = YES;
     if (DevConnectEmbeddedFirstHooksActive()) {
       NSLog(@"[DevConnect] embedded-first hooks active (bundleRoot=%@ packager=%@)",
             gBundleRootHookInstalled ? @"Y" : @"N",
@@ -185,7 +193,7 @@ static void DebugToolkitInstallAllHooks(void)
     } else {
       NSLog(@"[DevConnect] embedded-first hooks FAILED — rebuild / check React linkage");
     }
-  });
+  }
 }
 
 NSURL *DebugToolkitMetroBundleURL(void)
@@ -193,11 +201,19 @@ NSURL *DebugToolkitMetroBundleURL(void)
   return DevConnectMetroURLForPersistedHost();
 }
 
-__attribute__((constructor))
-static void DebugToolkit_install(void)
+// RCT_EXPORT_MODULE defines +load for module registration — use a separate class for hooks.
+@interface DebugToolkitDevConnectBootstrap : NSObject
+@end
+
+@implementation DebugToolkitDevConnectBootstrap
+
++ (void)load
 {
   DebugToolkitPrepareBundleSourceIfNeeded();
+  DebugToolkitInstallAllHooks();
 }
+
+@end
 
 #pragma mark - Module
 
@@ -205,12 +221,6 @@ static void DebugToolkit_install(void)
 @end
 
 @implementation DebugToolkitDevConnect
-
-+ (void)load
-{
-  DebugToolkitPrepareBundleSourceIfNeeded();
-  DebugToolkitInstallAllHooks();
-}
 
 RCT_EXPORT_MODULE(DebugToolkitDevConnect)
 
