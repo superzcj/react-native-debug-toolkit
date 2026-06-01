@@ -79,6 +79,52 @@ describe('ios bundle setup', () => {
     expect(checkIosBundle({ cwd: root, iosTarget: 'Demo' }).ok).toBe(true);
   });
 
+  it('clears Expo Debug SKIP_BUNDLING after Expo sets it', () => {
+    const root = fixtureRoot({
+      script: [
+        'set -e',
+        'if [[ $CONFIGURATION = *Debug* ]]; then',
+        ' export SKIP_BUNDLING=1',
+        'fi',
+        '../node_modules/react-native/scripts/react-native-xcode.sh',
+        '',
+      ].join('\\n'),
+    });
+
+    setupIosBundle({ cwd: root, iosTarget: 'Demo' });
+
+    const pbx = readPbx(root);
+    const skipIndex = pbx.indexOf('export SKIP_BUNDLING=1');
+    const unsetIndex = pbx.indexOf('unset SKIP_BUNDLING');
+    const forceIndex = pbx.indexOf('export FORCE_BUNDLING=1');
+    expect(skipIndex).toBeGreaterThan(-1);
+    expect(unsetIndex).toBeGreaterThan(skipIndex);
+    expect(forceIndex).toBeGreaterThan(skipIndex);
+    expect(unsetIndex).toBeLessThan(pbx.indexOf('react-native-xcode.sh'));
+  });
+
+  it('migrates an existing old marker so Expo Debug bundling is not skipped', () => {
+    const root = fixtureRoot({
+      script: [
+        '# react-native-debug-toolkit: begin debug bundle',
+        'export FORCE_BUNDLING=1',
+        '# react-native-debug-toolkit: end debug bundle',
+        'set -e',
+        'if [[ $CONFIGURATION = *Debug* ]]; then',
+        ' export SKIP_BUNDLING=1',
+        'fi',
+        '../node_modules/react-native/scripts/react-native-xcode.sh',
+        '',
+      ].join('\\n'),
+    });
+
+    setupIosBundle({ cwd: root, iosTarget: 'Demo' });
+
+    const pbx = readPbx(root);
+    expect(pbx.match(/react-native-debug-toolkit: begin debug bundle/g)).toHaveLength(1);
+    expect(pbx.indexOf('unset SKIP_BUNDLING')).toBeGreaterThan(pbx.indexOf('export SKIP_BUNDLING=1'));
+  });
+
   it('undo removes only the marked block', () => {
     const root = fixtureRoot();
 

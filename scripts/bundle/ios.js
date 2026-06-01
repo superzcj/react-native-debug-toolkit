@@ -7,7 +7,7 @@ const xcode = require('xcode');
 const PHASE_NAME = 'Bundle React Native code and images';
 const BEGIN = '# react-native-debug-toolkit: begin debug bundle';
 const END = '# react-native-debug-toolkit: end debug bundle';
-const BLOCK = `${BEGIN}\nexport FORCE_BUNDLING=1\n${END}`;
+const BLOCK = `${BEGIN}\nexport FORCE_BUNDLING=1\nunset SKIP_BUNDLING\n${END}`;
 
 function stripQuotes(value) {
   return String(value || '').replace(/^"|"$/g, '');
@@ -121,14 +121,25 @@ function loadTarget(cwd, iosTarget) {
 
 function insertBlock(script) {
   if (script.includes(BEGIN)) {
+    const withoutExistingBlock = removeBlock(script);
+    if (withoutExistingBlock !== script) {
+      return insertBlock(withoutExistingBlock);
+    }
     return script;
   }
+
+  const skipBundlingMatch = script.match(/^[^\S\r\n]*export SKIP_BUNDLING=1[^\S\r\n]*(?:\r?\n|$)/m);
+  if (skipBundlingMatch?.index !== undefined) {
+    const insertAt = skipBundlingMatch.index + skipBundlingMatch[0].length;
+    return `${script.slice(0, insertAt)}${BLOCK}\n${script.slice(insertAt)}`;
+  }
+
   return `${BLOCK}\n${script}`;
 }
 
 function removeBlock(script) {
   return script.replace(
-    /# react-native-debug-toolkit: begin debug bundle\r?\nexport FORCE_BUNDLING=1\r?\n# react-native-debug-toolkit: end debug bundle\r?\n?/g,
+    /# react-native-debug-toolkit: begin debug bundle\r?\nexport FORCE_BUNDLING=1\r?\n(?:unset SKIP_BUNDLING\r?\n)?# react-native-debug-toolkit: end debug bundle\r?\n?/g,
     '',
   );
 }
