@@ -51,17 +51,30 @@ describe('Expo config plugin', () => {
     });
   });
 
+  it('loads config plugin APIs from the Expo package subpath', () => {
+    jest.resetModules();
+    const withDangerousMod = jest.fn((config) => config);
+    jest.doMock('expo/config-plugins', () => ({ withDangerousMod }), { virtual: true });
+    const pluginWithExpo = require('../../../app.plugin');
+
+    pluginWithExpo({}, { embedBundle: true });
+
+    expect(withDangerousMod).toHaveBeenCalledTimes(2);
+
+    jest.dontMock('expo/config-plugins');
+  });
+
   it('throws a helpful error when Expo config plugins are unavailable', () => {
     jest.resetModules();
-    jest.doMock('@expo/config-plugins', () => {
+    jest.doMock('expo/config-plugins', () => {
       throw new Error('missing');
     }, { virtual: true });
     const pluginWithoutExpo = require('../../../app.plugin');
 
     expect(() => pluginWithoutExpo({}, { embedBundle: true })).toThrow(
-      /@expo\/config-plugins.*Expo prebuild/,
+      /expo\/config-plugins.*Expo prebuild/,
     );
 
-    jest.dontMock('@expo/config-plugins');
+    jest.dontMock('expo/config-plugins');
   });
 });

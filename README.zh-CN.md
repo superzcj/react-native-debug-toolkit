@@ -105,6 +105,8 @@ Expo dev-client:
 }
 ```
 
+如果是 Expo CNG，`ios/` 和 `android/` 保持 gitignore，不要在 CI 里跑 `setup-bundle`。把上面的 plugin 配置留在 `app.json` 或 `app.config.ts`；`expo prebuild`、`expo run:*` 和 EAS Build 生成 native 工程时会自动应用。
+
 验证产物：
 
 ```bash

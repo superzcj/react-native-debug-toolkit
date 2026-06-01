@@ -11,10 +11,10 @@ function markTestConfig(config) {
 
 function loadConfigPlugins() {
   try {
-    return require('@expo/config-plugins');
+    return require('expo/config-plugins');
   } catch {
     throw new Error(
-      'react-native-debug-toolkit/dev-client requires @expo/config-plugins during Expo prebuild.',
+      'react-native-debug-toolkit/dev-client requires expo/config-plugins during Expo prebuild.',
     );
   }
 }
