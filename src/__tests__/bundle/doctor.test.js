@@ -6,6 +6,7 @@ const { doctorBundle } = require('../../../scripts/bundle/doctor');
 function writeIosProject(root, script) {
   const projDir = path.join(root, 'ios', 'Demo.xcodeproj');
   fs.mkdirSync(projDir, { recursive: true });
+  const encodedScript = script.replace(/"/g, '\\"');
   fs.writeFileSync(path.join(projDir, 'project.pbxproj'), `{
   archiveVersion = 1;
   classes = {
@@ -34,7 +35,7 @@ function writeIosProject(root, script) {
     CCC /* Bundle React Native code and images */ = {
       isa = PBXShellScriptBuildPhase;
       name = "Bundle React Native code and images";
-      shellScript = "${script}";
+      shellScript = "${encodedScript}";
     };
 /* End PBXShellScriptBuildPhase section */
   };
@@ -69,6 +70,7 @@ describe('doctor-bundle', () => {
       '# react-native-debug-toolkit: begin debug bundle',
       'export FORCE_BUNDLING=1',
       'unset SKIP_BUNDLING',
+      'export EXTRA_PACKAGER_ARGS="${EXTRA_PACKAGER_ARGS:-} --dev false --minify false"',
       '# react-native-debug-toolkit: end debug bundle',
       '../node_modules/react-native/scripts/react-native-xcode.sh',
       '',

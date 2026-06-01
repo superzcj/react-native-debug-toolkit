@@ -107,6 +107,8 @@ Expo dev-client:
 
 For Expo CNG projects where `ios/` and `android/` stay ignored, do not run `setup-bundle` in CI. Keep the plugin entry in `app.json` or `app.config.ts`; `expo prebuild`, `expo run:*`, and EAS Build apply it while generating native projects.
 
+Expo dev-client embedded fallback bundles use a production transform (`--dev false --minify false`) so Expo devtools runtime does not open offline WebSocket connections. Live debugging still starts after DevConnect switches the app to your Metro dev bundle.
+
 Verify generated native config after setup or prebuild:
 
 ```bash

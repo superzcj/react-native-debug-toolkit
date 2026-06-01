@@ -8,6 +8,7 @@ const PHASE_NAME = 'Bundle React Native code and images';
 const BEGIN = '# react-native-debug-toolkit: begin debug bundle';
 const END = '# react-native-debug-toolkit: end debug bundle';
 const BLOCK = `${BEGIN}\nexport FORCE_BUNDLING=1\nunset SKIP_BUNDLING\n${END}`;
+const EXPO_BLOCK = `${BEGIN}\nexport FORCE_BUNDLING=1\nunset SKIP_BUNDLING\nexport EXTRA_PACKAGER_ARGS="\${EXTRA_PACKAGER_ARGS:-} --dev false --minify false"\n${END}`;
 
 function stripQuotes(value) {
   return String(value || '').replace(/^"|"$/g, '');
@@ -131,7 +132,7 @@ function insertBlock(script) {
   const skipBundlingMatch = script.match(/^[^\S\r\n]*export SKIP_BUNDLING=1[^\S\r\n]*(?:\r?\n|$)/m);
   if (skipBundlingMatch?.index !== undefined) {
     const insertAt = skipBundlingMatch.index + skipBundlingMatch[0].length;
-    return `${script.slice(0, insertAt)}${BLOCK}\n${script.slice(insertAt)}`;
+    return `${script.slice(0, insertAt)}${EXPO_BLOCK}\n${script.slice(insertAt)}`;
   }
 
   return `${BLOCK}\n${script}`;
@@ -139,7 +140,7 @@ function insertBlock(script) {
 
 function removeBlock(script) {
   return script.replace(
-    /# react-native-debug-toolkit: begin debug bundle\r?\nexport FORCE_BUNDLING=1\r?\n(?:unset SKIP_BUNDLING\r?\n)?# react-native-debug-toolkit: end debug bundle\r?\n?/g,
+    /# react-native-debug-toolkit: begin debug bundle\r?\nexport FORCE_BUNDLING=1\r?\n(?:unset SKIP_BUNDLING\r?\n)?(?:export EXTRA_PACKAGER_ARGS="\$\{EXTRA_PACKAGER_ARGS:-\} --dev false --minify false"\r?\n)?# react-native-debug-toolkit: end debug bundle\r?\n?/g,
     '',
   );
 }
@@ -178,9 +179,10 @@ function undoIosBundle(options) {
 function checkIosBundle(options) {
   const ctx = loadTarget(options.cwd, options.iosTarget);
   const script = decodeScript(ctx.phase.shellScript);
+  const expectedBlock = script.includes('export SKIP_BUNDLING=1') ? EXPO_BLOCK : BLOCK;
 
   return {
-    ok: script.includes(BLOCK),
+    ok: script.includes(expectedBlock),
     changed: false,
     file: ctx.pbxFile,
   };

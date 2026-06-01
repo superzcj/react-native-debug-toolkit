@@ -66,11 +66,15 @@ abstract class DebugToolkitBundleTask extends DefaultTask {
     command.add(bundleCommand.get())
     command.addAll([
       "--platform", "android",
-      "--dev", "true",
+      "--dev", isExpoProject(rootFile) ? "false" : "true",
       "--entry-file", entry.absolutePath,
       "--bundle-output", bundleOutput.absolutePath,
       "--assets-dest", resourcesDir.get().asFile.absolutePath,
     ])
+
+    if (isExpoProject(rootFile)) {
+      command.addAll(["--minify", "false"])
+    }
 
     if (bundleConfig.isPresent()) {
       command.add("--config")
@@ -92,6 +96,10 @@ abstract class DebugToolkitBundleTask extends DefaultTask {
 
     def androidEntry = new File(rootFile, "index.android.js")
     return androidEntry.exists() ? androidEntry : new File(rootFile, "index.js")
+  }
+
+  private boolean isExpoProject(File rootFile) {
+    return new File(rootFile, "node_modules/expo/package.json").exists()
   }
 }
 

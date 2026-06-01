@@ -101,4 +101,12 @@ describe('android bundle setup', () => {
       }),
     ]);
   });
+
+  it('Gradle script uses a production transform for Expo embedded debug fallback bundles', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../../../scripts/debug-bundle.gradle'), 'utf8');
+
+    expect(source).toContain('isExpoProject(rootFile)');
+    expect(source).toContain('"--dev", isExpoProject(rootFile) ? "false" : "true"');
+    expect(source).toContain('command.addAll(["--minify", "false"])');
+  });
 });

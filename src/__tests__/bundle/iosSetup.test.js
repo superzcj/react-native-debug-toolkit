@@ -100,6 +100,7 @@ describe('ios bundle setup', () => {
     expect(skipIndex).toBeGreaterThan(-1);
     expect(unsetIndex).toBeGreaterThan(skipIndex);
     expect(forceIndex).toBeGreaterThan(skipIndex);
+    expect(pbx).toContain('--dev false --minify false');
     expect(unsetIndex).toBeLessThan(pbx.indexOf('react-native-xcode.sh'));
   });
 
@@ -123,6 +124,7 @@ describe('ios bundle setup', () => {
     const pbx = readPbx(root);
     expect(pbx.match(/react-native-debug-toolkit: begin debug bundle/g)).toHaveLength(1);
     expect(pbx.indexOf('unset SKIP_BUNDLING')).toBeGreaterThan(pbx.indexOf('export SKIP_BUNDLING=1'));
+    expect(pbx).toContain('--dev false --minify false');
   });
 
   it('undo removes only the marked block', () => {
