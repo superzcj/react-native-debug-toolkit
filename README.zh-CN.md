@@ -63,8 +63,8 @@ export function App() {
 启动桌面 daemon：
 
 ```bash
-npm exec debug-toolkit --daemon-only
-# 或：npx debug-toolkit --daemon-only
+npm exec -- debug-toolkit --daemon-only
+# 或：npx react-native-debug-toolkit --daemon-only
 ```
 
 打开 Web Console：
@@ -84,12 +84,14 @@ Debug 包要在 Metro 关闭时冷启动，必须内置 JS bundle。
 Bare React Native:
 
 ```bash
-npx debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle
 git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
 
 默认会自动配置当前 App 目录里已有的 native 平台。需要强制单平台时再传 `--platform ios` 或 `--platform android`。
+
+这个命令在安装 `react-native-debug-toolkit` 后，从 App 根目录跑一次，然后把生成的 native 工程改动提交。打包机只跑正常安装和构建命令，不跑 `setup-bundle`。
 
 Expo dev-client:
 
@@ -106,8 +108,8 @@ Expo dev-client:
 验证产物：
 
 ```bash
-npx debug-toolkit doctor-bundle --platform ios --app path/to/App.app
-npx debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
+npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app
+npm exec -- debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
 ```
 
 setup 后配置进仓库，打包机继续跑正常 Xcode、Gradle、React Native 或 EAS 命令。不要每次打包再跑额外修改命令。
@@ -147,9 +149,9 @@ daemon 默认日志文件：
 自定义存储路径：
 
 ```bash
-npm exec debug-toolkit --daemon-only --store /path/to/devices.json
-# 或：npx debug-toolkit --daemon-only --store /path/to/devices.json
-DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec debug-toolkit --daemon-only
+npm exec -- debug-toolkit --daemon-only --store /path/to/devices.json
+# 或：npx react-native-debug-toolkit --daemon-only --store /path/to/devices.json
+DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec -- debug-toolkit --daemon-only
 ```
 
 ## 用 HTTP 读取日志
@@ -191,8 +193,8 @@ GET    /console
 ## 使用 MCP
 
 ```bash
-claude mcp add debug-toolkit -- npm exec debug-toolkit
-# 或：claude mcp add debug-toolkit -- npx debug-toolkit
+claude mcp add debug-toolkit -- npm exec -- debug-toolkit
+# 或：claude mcp add debug-toolkit -- npx react-native-debug-toolkit
 ```
 
 工具：

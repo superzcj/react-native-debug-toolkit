@@ -52,7 +52,7 @@ local daemon
 发布入口只有一个：
 
 ```bash
-npx debug-toolkit --daemon-only
+npx react-native-debug-toolkit --daemon-only
 ```
 
 本仓库本地调试：
@@ -83,7 +83,7 @@ curl "$BASE/devices/<deviceId>/logs?type=network&failedOnly=true&limit=50"
 MCP 可选：
 
 ```bash
-claude mcp add debug-toolkit -- npx debug-toolkit
+claude mcp add debug-toolkit -- npx react-native-debug-toolkit
 ```
 
 ## 4. App 侧

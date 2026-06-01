@@ -1221,7 +1221,7 @@ Debug builds need an embedded JS bundle for cold start when Metro is off.
 Bare React Native:
 
 ```bash
-npx debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle
 git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
@@ -1241,8 +1241,8 @@ Expo dev-client:
 Verify built artifacts:
 
 ```bash
-npx debug-toolkit doctor-bundle --platform ios --app path/to/App.app
-npx debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
+npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app
+npm exec -- debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
 ```
 
 After setup, build machines run normal Xcode/Gradle/EAS commands. Do not run a per-build embed command.
@@ -1258,7 +1258,7 @@ Debug 包要在 Metro 关闭时冷启动，必须内置 JS bundle。
 Bare React Native:
 
 ```bash
-npx debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle
 git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
@@ -1278,8 +1278,8 @@ Expo dev-client:
 验证产物：
 
 ```bash
-npx debug-toolkit doctor-bundle --platform ios --app path/to/App.app
-npx debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
+npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app
+npm exec -- debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
 ```
 
 setup 后配置进仓库，打包机继续跑正常 Xcode/Gradle/EAS 命令。不要每次打包跑 embed。

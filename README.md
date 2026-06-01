@@ -63,8 +63,8 @@ Run the app in dev mode, then tap `DBG`.
 Start the desktop daemon:
 
 ```bash
-npm exec debug-toolkit --daemon-only
-# or: npx debug-toolkit --daemon-only
+npm exec -- debug-toolkit --daemon-only
+# or: npx react-native-debug-toolkit --daemon-only
 ```
 
 Open the Web Console:
@@ -84,12 +84,14 @@ Debug builds need an embedded JS bundle for cold start when Metro is off.
 Bare React Native:
 
 ```bash
-npx debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle
 git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
 
 By default, `setup-bundle` configures the native platforms present in the app directory. Use `--platform ios` or `--platform android` to force one platform.
+
+Run this once from the app root after installing `react-native-debug-toolkit`, then commit the generated native project changes. Build machines should run normal install and build commands, not `setup-bundle`.
 
 Expo dev-client:
 
@@ -106,8 +108,8 @@ Expo dev-client:
 Verify built artifacts:
 
 ```bash
-npx debug-toolkit doctor-bundle --platform ios --app path/to/App.app
-npx debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
+npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app
+npm exec -- debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
 ```
 
 After setup, build machines run normal Xcode, Gradle, React Native, or EAS commands. Do not run a separate mutation command on every build.
@@ -147,9 +149,9 @@ The daemon stores logs at:
 Custom store path:
 
 ```bash
-npm exec debug-toolkit --daemon-only --store /path/to/devices.json
-# or: npx debug-toolkit --daemon-only --store /path/to/devices.json
-DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec debug-toolkit --daemon-only
+npm exec -- debug-toolkit --daemon-only --store /path/to/devices.json
+# or: npx react-native-debug-toolkit --daemon-only --store /path/to/devices.json
+DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec -- debug-toolkit --daemon-only
 ```
 
 ## Read Logs With HTTP
@@ -191,8 +193,8 @@ GET    /console
 ## Use MCP
 
 ```bash
-claude mcp add debug-toolkit -- npm exec debug-toolkit
-# or: claude mcp add debug-toolkit -- npx debug-toolkit
+claude mcp add debug-toolkit -- npm exec -- debug-toolkit
+# or: claude mcp add debug-toolkit -- npx react-native-debug-toolkit
 ```
 
 Tools:

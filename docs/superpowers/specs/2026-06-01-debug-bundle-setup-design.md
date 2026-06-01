@@ -10,7 +10,7 @@ command.
 The user flow is:
 
 ```bash
-npx debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle
 git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
@@ -59,13 +59,13 @@ Metro host yet.
 ## CLI
 
 ```bash
-npx debug-toolkit setup-bundle
-npx debug-toolkit setup-bundle --platform ios
-npx debug-toolkit setup-bundle --platform android
-npx debug-toolkit setup-bundle --undo
-npx debug-toolkit setup-bundle --check
-npx debug-toolkit doctor-bundle --platform ios --app <path-to-.app>
-npx debug-toolkit doctor-bundle --platform android --apk <path-to.apk>
+npm exec -- debug-toolkit setup-bundle
+npm exec -- debug-toolkit setup-bundle --platform ios
+npm exec -- debug-toolkit setup-bundle --platform android
+npm exec -- debug-toolkit setup-bundle --undo
+npm exec -- debug-toolkit setup-bundle --check
+npm exec -- debug-toolkit doctor-bundle --platform ios --app <path-to-.app>
+npm exec -- debug-toolkit doctor-bundle --platform android --apk <path-to.apk>
 ```
 
 Delete the old `embed` command path. Do not keep a deprecated alias. If users run
