@@ -77,11 +77,44 @@ In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`
 
 DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
 
-For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect persists the host and hot-reloads from Metro.
+### Embedded Debug Bundle
+
+Debug builds need an embedded JS bundle for cold start when Metro is off.
+
+Bare React Native:
+
+```bash
+npx debug-toolkit setup-bundle
+git diff
+git commit -am "chore: enable debug bundle embedding"
+```
+
+Expo dev-client:
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["react-native-debug-toolkit/dev-client", { "embedBundle": true }]
+    ]
+  }
+}
+```
+
+Verify built artifacts:
+
+```bash
+npx debug-toolkit doctor-bundle --platform ios --app path/to/App.app
+npx debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
+```
+
+After setup, build machines run normal Xcode, Gradle, React Native, or EAS commands. Do not run a separate mutation command on every build.
+
+For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect persists the host and hot-reloads from Metro. Use **Reset** to go back to the embedded bundle.
 
 > **Debug builds only.** Metro host switching works in Debug builds. Release builds load the embedded bundle and the controls are disabled (`release: disabled` badge).
 
-**iOS — no AppDelegate changes required.** On install, DevConnect hooks `RCTBundleURLProvider` so the app **cold-starts from the embedded `main.jsbundle`** and only connects to Metro after you apply a host in the panel (fixes Expo `.expo/.virtual-metro-entry` red screens when Metro is off). Use **Reset** to go back to the embedded bundle.
+**iOS — no AppDelegate changes required.** On install, DevConnect hooks `RCTBundleURLProvider` so the app **cold-starts from the embedded `main.jsbundle`** and only connects to Metro after you apply a host in the panel (fixes Expo `.expo/.virtual-metro-entry` red screens when Metro is off).
 
 The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
 
