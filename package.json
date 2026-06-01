@@ -11,6 +11,8 @@
     "bin",
     "node",
     "scripts",
+    "app.plugin.js",
+    "dev-client.js",
     "ios",
     "android",
     "react-native-debug-toolkit.podspec",
