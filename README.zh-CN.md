@@ -89,6 +89,8 @@ git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
 
+默认会自动配置当前 App 目录里已有的 native 平台。需要强制单平台时再传 `--platform ios` 或 `--platform android`。
+
 Expo dev-client:
 
 ```json

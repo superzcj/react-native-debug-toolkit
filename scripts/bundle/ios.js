@@ -25,6 +25,10 @@ function findProjects(cwd) {
     .filter((file) => fs.existsSync(file));
 }
 
+function hasIosBundleProject(cwd) {
+  return findProjects(cwd).length > 0;
+}
+
 function decodeScript(value) {
   if (!value) {
     return '';
@@ -174,6 +178,7 @@ module.exports = {
   setupIosBundle,
   undoIosBundle,
   checkIosBundle,
+  hasIosBundleProject,
   BEGIN,
   END,
 };

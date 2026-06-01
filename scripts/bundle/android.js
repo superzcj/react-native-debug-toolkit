@@ -25,6 +25,11 @@ function findGradleFile(cwd) {
   throw new Error('android/app/build.gradle(.kts) not found.');
 }
 
+function hasAndroidBundleProject(cwd) {
+  return fs.existsSync(path.join(cwd, 'android/app/build.gradle'))
+    || fs.existsSync(path.join(cwd, 'android/app/build.gradle.kts'));
+}
+
 function block(kind) {
   const applyLine = kind === 'kotlin'
     ? `apply(from = "${REL_SCRIPT}")`
@@ -95,6 +100,7 @@ module.exports = {
   setupAndroidBundle,
   undoAndroidBundle,
   checkAndroidBundle,
+  hasAndroidBundleProject,
   BEGIN,
   END,
   EXPECTED_TASK,

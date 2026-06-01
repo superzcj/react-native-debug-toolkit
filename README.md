@@ -89,6 +89,8 @@ git diff
 git commit -am "chore: enable debug bundle embedding"
 ```
 
+By default, `setup-bundle` configures the native platforms present in the app directory. Use `--platform ios` or `--platform android` to force one platform.
+
 Expo dev-client:
 
 ```json

@@ -1,10 +1,42 @@
 'use strict';
 
-const { setupIosBundle, undoIosBundle, checkIosBundle } = require('./ios');
-const { setupAndroidBundle, undoAndroidBundle, checkAndroidBundle } = require('./android');
+const {
+  setupIosBundle,
+  undoIosBundle,
+  checkIosBundle,
+  hasIosBundleProject,
+} = require('./ios');
+const {
+  setupAndroidBundle,
+  undoAndroidBundle,
+  checkAndroidBundle,
+  hasAndroidBundleProject,
+} = require('./android');
+
+function detectPlatforms(cwd) {
+  const platforms = [];
+
+  if (hasIosBundleProject(cwd)) {
+    platforms.push('ios');
+  }
+
+  if (hasAndroidBundleProject(cwd)) {
+    platforms.push('android');
+  }
+
+  if (platforms.length === 0) {
+    throw new Error(
+      'No iOS or Android native project found. Run from the app root, '
+      + 'pass --platform ios|android from a native project, or use '
+      + 'react-native-debug-toolkit/dev-client during Expo prebuild.',
+    );
+  }
+
+  return platforms;
+}
 
 async function setupBundle(options) {
-  const platforms = options.platform === 'all' ? ['ios', 'android'] : [options.platform];
+  const platforms = options.platform === 'all' ? detectPlatforms(options.cwd) : [options.platform];
   const results = [];
 
   for (const platform of platforms) {
@@ -36,4 +68,4 @@ async function setupBundle(options) {
   return results;
 }
 
-module.exports = { setupBundle };
+module.exports = { setupBundle, detectPlatforms };
