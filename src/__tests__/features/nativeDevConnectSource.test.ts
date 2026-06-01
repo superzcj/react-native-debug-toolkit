@@ -27,6 +27,13 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('jsLocation');
     expect(source).toContain('jsBundleURLForBundleRoot');
     expect(source).toContain('DebugToolkitEmbeddedBundleURL');
+    expect(source).toContain('DevConnectSetPersistedMetroHost');
+    expect(source).toContain('settings.jsLocation = normalized');
+
+    // Do not bypass RN's packager reachability check. A persisted stale host must be allowed to
+    // fall back through RCTBundleURLProvider instead of being returned blindly.
+    expect(source).not.toContain('return host;\n}');
+    expect(source).not.toContain('replacement_packagerServerHostPort');
 
     expect(source).toContain('resolveBundleManager');
     expect(source).toContain('RCTReloadCommandSetBundleURL');
@@ -35,7 +42,6 @@ describe('native DevConnect source contracts', () => {
     // Zero-config: primary hook on jsBundleURLForBundleRoot returns embedded before Metro.
     expect(source).toContain('replacement_jsBundleURLForBundleRoot_fallback');
     expect(source).toContain('DebugToolkitInstallBundleRootHook');
-    expect(source).toContain('replacement_packagerServerHostPort');
     expect(source).toContain('bundleRootHookInstalled');
     expect(source).toContain('DebugToolkitDevConnectBootstrap');
     expect(source).not.toMatch(/DebugToolkitInstallAllHooks[\s\S]*dispatch_once/);
