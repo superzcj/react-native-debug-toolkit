@@ -182,6 +182,7 @@ function checkIosBundle(options) {
   return {
     ok: script.includes(BLOCK),
     changed: false,
+    file: ctx.pbxFile,
   };
 }
 

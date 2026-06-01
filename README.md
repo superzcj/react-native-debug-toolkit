@@ -107,7 +107,14 @@ Expo dev-client:
 
 For Expo CNG projects where `ios/` and `android/` stay ignored, do not run `setup-bundle` in CI. Keep the plugin entry in `app.json` or `app.config.ts`; `expo prebuild`, `expo run:*`, and EAS Build apply it while generating native projects.
 
-Verify built artifacts:
+Verify generated native config after setup or prebuild:
+
+```bash
+npm exec -- debug-toolkit doctor-bundle --platform ios
+npm exec -- debug-toolkit doctor-bundle --platform android
+```
+
+Optionally verify built artifacts:
 
 ```bash
 npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app

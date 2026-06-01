@@ -20,6 +20,20 @@ function parseCommon(args, cwd) {
   };
 }
 
+function formatDoctorResult(result) {
+  if (!result) {
+    return '';
+  }
+
+  if (Array.isArray(result)) {
+    return result.map(formatDoctorResult).join('');
+  }
+
+  const mode = result.mode || 'artifact';
+  const detail = result.file || result.bundle || '';
+  return `doctor-bundle ok: ${result.platform} ${mode}${detail ? ` ${detail}` : ''}\n`;
+}
+
 async function runBundleCli(args, deps = {}) {
   const cwd = deps.cwd || process.cwd();
   const io = deps.io || {
@@ -36,12 +50,13 @@ async function runBundleCli(args, deps = {}) {
 
   if (command === 'doctor-bundle') {
     const doctorBundle = deps.doctorBundle || require('./doctor').doctorBundle;
-    await doctorBundle({
+    const result = await doctorBundle({
       cwd,
       platform: readOption(args.slice(1), '--platform') || 'all',
       app: readOption(args.slice(1), '--app'),
       apk: readOption(args.slice(1), '--apk'),
     });
+    io.writeOut(formatDoctorResult(result));
     return 0;
   }
 
@@ -54,4 +69,4 @@ async function runBundleCli(args, deps = {}) {
   return 1;
 }
 
-module.exports = { runBundleCli };
+module.exports = { runBundleCli, formatDoctorResult };

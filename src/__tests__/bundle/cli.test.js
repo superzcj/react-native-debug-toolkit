@@ -46,6 +46,20 @@ describe('bundle cli', () => {
     ]);
   });
 
+  it('prints doctor-bundle results', async () => {
+    const io = createIo();
+
+    const code = await runBundleCli(['doctor-bundle', '--platform', 'ios'], {
+      cwd: '/app',
+      io,
+      doctorBundle: async () => ({ ok: true, platform: 'ios', mode: 'config', file: '/app/ios/App.xcodeproj/project.pbxproj' }),
+    });
+
+    expect(code).toBe(0);
+    expect(io.stdout).toContain('doctor-bundle ok: ios config');
+    expect(io.stdout).toContain('/app/ios/App.xcodeproj/project.pbxproj');
+  });
+
   it('rejects old embed command without compat alias', async () => {
     const io = createIo();
 
