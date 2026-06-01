@@ -68,8 +68,8 @@ npx debug-toolkit doctor-bundle --platform ios --app <path-to-.app>
 npx debug-toolkit doctor-bundle --platform android --apk <path-to.apk>
 ```
 
-Keep `embed` as a deprecated alias for one release, printing a warning and routing to
-`setup-bundle`.
+Delete the old `embed` command path. Do not keep a deprecated alias. If users run
+`debug-toolkit embed`, the CLI should report an unknown command and point to `setup-bundle`.
 
 ## iOS Design
 
@@ -179,6 +179,7 @@ Required checks before calling implementation complete:
 ## Non-Goals
 
 - No per-build mutation command.
+- No backward-compatible `embed` alias.
 - No Web Console host mutation.
 - No Release bundle switching.
 - No support for Expo Go.
