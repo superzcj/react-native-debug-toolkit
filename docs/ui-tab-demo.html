@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>React Native Debug Toolkit - Diagnostic Panel Demo</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap");
+
+    :root {
+      color-scheme: light;
+      --desk: #dce3ec;
+      --phone: #141922;
+      --app: #f4f7fb;
+      --ink: #151b24;
+      --muted: #657284;
+      --faint: #96a1af;
+      --line: #d8e0ea;
+      --line-strong: #bac7d7;
+      --sheet: #eef3f8;
+      --surface: #ffffff;
+      --surface-2: #e7edf5;
+      --surface-3: #dce5ef;
+      --blue: #075df0;
+      --blue-soft: #e3edff;
+      --green: #0c9551;
+      --green-soft: #e0f5eb;
+      --red: #d92f2f;
+      --red-soft: #ffe9e7;
+      --amber: #bd720c;
+      --amber-soft: #fff1d6;
+      --purple: #7447c8;
+      --purple-soft: #efe7ff;
+      --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: "Instrument Sans", Avenir, "Avenir Next", Helvetica, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--ink);
+      font-family: var(--sans);
+      background:
+        linear-gradient(90deg, rgba(21, 27, 36, 0.06) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(21, 27, 36, 0.06) 1px, transparent 1px),
+        var(--desk);
+      background-size: 28px 28px;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .layout {
+      width: min(1180px, 100%);
+      display: grid;
+      grid-template-columns: 380px 430px;
+      gap: 42px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .notes {
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .label {
+      margin: 0 0 12px;
+      font: 800 12px var(--mono);
+      color: var(--blue);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 360px;
+      font-size: 54px;
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .notes p {
+      margin: 18px 0 0;
+      max-width: 360px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.62;
+    }
+
+    .delta {
+      margin: 28px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      max-width: 360px;
+    }
+
+    .delta li {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .delta b {
+      width: 28px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: var(--ink);
+      color: #fff;
+      font: 800 11px var(--mono);
+    }
+
+    .phone {
+      width: 430px;
+      height: 880px;
+      border-radius: 44px;
+      padding: 12px;
+      background: var(--phone);
+      box-shadow: 0 26px 80px rgba(21, 27, 36, 0.30);
+      position: relative;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      width: 120px;
+      height: 28px;
+      transform: translateX(-50%);
+      border-radius: 0 0 18px 18px;
+      background: var(--phone);
+      z-index: 4;
+    }
+
+    .screen {
+      height: 100%;
+      border-radius: 34px;
+      overflow: hidden;
+      position: relative;
+      background: var(--app);
+    }
+
+    .app {
+      height: 100%;
+      padding: 54px 18px 20px;
+      background:
+        linear-gradient(180deg, #fbfdff, #edf2f8 56%, #e5ebf3);
+    }
+
+    .app-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .app h2 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .qa {
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .qa::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .app-card {
+      margin-bottom: 10px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .caption {
+      margin: 0 0 7px;
+      color: var(--faint);
+      font: 800 11px var(--mono);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .big {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 800;
+    }
+
+    .bars {
+      height: 86px;
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      align-items: end;
+      gap: 5px;
+    }
+
+    .bars i {
+      display: block;
+      min-height: 16px;
+      border-radius: 5px 5px 0 0;
+      background: var(--blue-soft);
+      border: 1px solid #c8d8f6;
+    }
+
+    .bars i:nth-child(2n) {
+      background: var(--green-soft);
+      border-color: #c2ead5;
+    }
+
+    .bars i:nth-child(3n) {
+      background: var(--amber-soft);
+      border-color: #efd2a0;
+    }
+
+    .launcher {
+      position: absolute;
+      right: 18px;
+      bottom: 22px;
+      width: 56px;
+      height: 56px;
+      border: 0;
+      border-radius: 16px;
+      background: var(--ink);
+      color: #fff;
+      font: 800 17px var(--mono);
+      box-shadow: 0 18px 28px rgba(21, 27, 36, 0.24);
+    }
+
+    .launcher::after {
+      content: "4";
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      width: 23px;
+      height: 23px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      border: 2px solid #fff;
+      background: var(--red);
+      color: #fff;
+      font: 800 11px var(--mono);
+    }
+
+    .sheet {
+      position: absolute;
+      inset: auto 0 0;
+      height: 92%;
+      background: var(--sheet);
+      border-radius: 26px 26px 0 0;
+      box-shadow: 0 -22px 44px rgba(21, 27, 36, 0.18);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .grab {
+      height: 26px;
+      display: grid;
+      place-items: center;
+      background: var(--surface);
+    }
+
+    .grab::before {
+      content: "";
+      width: 42px;
+      height: 4px;
+      border-radius: 999px;
+      background: #c2cbd6;
+    }
+
+    .console-head {
+      padding: 8px 14px 10px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title {
+      min-width: 0;
+    }
+
+    .title h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .sync {
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font: 700 11px var(--mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sync::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px var(--green-soft);
+      flex: 0 0 auto;
+    }
+
+    .head-actions {
+      display: flex;
+      gap: 7px;
+    }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .signal-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    .signal {
+      min-width: 0;
+      height: 54px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--sheet);
+    }
+
+    .signal strong {
+      display: block;
+      font: 800 17px var(--mono);
+      line-height: 1;
+    }
+
+    .signal span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .signal.bad {
+      background: var(--red-soft);
+      border-color: #f3c2be;
+    }
+
+    .signal.bad strong {
+      color: var(--red);
+    }
+
+    .signal.warn {
+      background: var(--amber-soft);
+      border-color: #ecd0a0;
+    }
+
+    .signal.warn strong {
+      color: var(--amber);
+    }
+
+    .workbench {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      border-top: 1px solid var(--line);
+    }
+
+    .rail {
+      min-height: 0;
+      padding: 8px 7px;
+      background: #e2eaf3;
+      border-right: 1px solid var(--line-strong);
+      overflow: auto;
+      scrollbar-width: none;
+    }
+
+    .rail::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      width: 100%;
+      min-height: 58px;
+      margin-bottom: 7px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: grid;
+      grid-template-rows: auto auto;
+      align-content: center;
+      gap: 5px;
+      text-align: left;
+      padding: 8px;
+    }
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .tab.is-active {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line-strong);
+      box-shadow: 0 7px 16px rgba(21, 27, 36, 0.08);
+    }
+
+    .tab-name {
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font: 800 10px var(--mono);
+      color: var(--faint);
+    }
+
+    .tab-count {
+      min-width: 21px;
+      height: 18px;
+      padding: 0 5px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--surface-3);
+    }
+
+    .tab-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .tab.has-error .tab-dot {
+      background: var(--red);
+    }
+
+    .tab.has-warn .tab-dot {
+      background: var(--amber);
+    }
+
+    .main {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 9px;
+      background: var(--sheet);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .search {
+      min-width: 0;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      outline: 0;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .search:focus {
+      border-color: #9ec0ff;
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    .filter {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 36px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .filter button {
+      height: 28px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .filter button.is-on {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .pane {
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .list {
+      height: 100%;
+      overflow: auto;
+      padding: 8px 9px 16px;
+    }
+
+    .row {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: inherit;
+      text-align: left;
+      padding: 10px;
+      margin-bottom: 8px;
+      display: grid;
+      gap: 8px;
+      transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+    }
+
+    .row:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(21, 27, 36, 0.08);
+    }
+
+    .row-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .level {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      color: #fff;
+      font: 900 11px var(--mono);
+      flex: 0 0 auto;
+    }
+
+    .level.info,
+    .chip.info {
+      background: var(--blue);
+    }
+
+    .level.ok,
+    .chip.ok {
+      background: var(--green);
+    }
+
+    .level.warn,
+    .chip.warn {
+      background: var(--amber);
+    }
+
+    .level.error,
+    .chip.error {
+      background: var(--red);
+    }
+
+    .level.fatal,
+    .chip.fatal {
+      background: var(--purple);
+    }
+
+    .msg {
+      min-width: 0;
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.28;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .meta {
+      margin: 0;
+      color: var(--muted);
+      font: 700 10.5px/1.4 var(--mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .corr {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      height: 21px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font: 800 10px var(--mono);
+    }
+
+    .pill.bad {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .pill.blue {
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .detail {
+      position: absolute;
+      inset: 0;
+      background: var(--sheet);
+      transform: translateX(104%);
+      transition: transform 0.22s ease;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      z-index: 3;
+    }
+
+    .detail.is-open {
+      transform: translateX(0);
+    }
+
+    .detail-head {
+      min-height: 52px;
+      padding: 9px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back {
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .chip {
+      height: 25px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 8px;
+      border-radius: 7px;
+      color: #fff;
+      font: 900 11px var(--mono);
+      text-transform: uppercase;
+    }
+
+    .detail-time {
+      margin-left: auto;
+      color: var(--muted);
+      font: 700 10.5px var(--mono);
+    }
+
+    .detail-body {
+      min-height: 0;
+      overflow: auto;
+      padding: 9px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .block {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+    }
+
+    .block h3 {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font: 900 11px var(--mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .code {
+      margin: 0;
+      color: #263244;
+      font: 500 11.5px/1.55 var(--mono);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .connect-grid {
+      padding: 9px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .connect {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+    }
+
+    .connect h3 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .connect p {
+      margin: 5px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .connect-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px;
+    }
+
+    .fake-input {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--sheet);
+      color: var(--ink);
+      font: 700 11px var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .primary {
+      height: 36px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 10px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .empty {
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      text-align: center;
+      color: var(--faint);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 940px) {
+      body {
+        padding: 0;
+      }
+
+      .layout {
+        width: 100%;
+        display: block;
+      }
+
+      .notes {
+        display: none;
+      }
+
+      .phone {
+        width: 100vw;
+        height: 100vh;
+        padding: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .phone::before {
+        display: none;
+      }
+
+      .screen {
+        border-radius: 0;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .workbench {
+        grid-template-columns: 78px minmax(0, 1fr);
+      }
+
+      .rail {
+        padding-inline: 5px;
+      }
+
+      .tab {
+        padding: 7px 6px;
+      }
+
+      .signal-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <section class="notes" aria-label="Design intent">
+      <p class="label">Proposed interaction</p>
+      <h1>Panel becomes diagnostic workbench.</h1>
+      <p>
+        This version keeps feature-backed tabs but changes navigation shape.
+        Fast status on top, persistent feature rail on left, evidence stream on right.
+      </p>
+      <ul class="delta">
+        <li><b>01</b><span>Tabs no longer fight horizontal overflow; rail keeps all tools visible.</span></li>
+        <li><b>02</b><span>Signal strip surfaces error count, route, and bridge health before user chooses a tab.</span></li>
+        <li><b>03</b><span>Rows show correlation chips so Native, Network, Console, Navigation feel connected.</span></li>
+      </ul>
+    </section>
+
+    <section class="phone" aria-label="Phone preview">
+      <div class="screen">
+        <div class="app" aria-hidden="true">
+          <div class="app-head">
+            <div>
+              <p class="caption">Demo store</p>
+              <h2>Checkout</h2>
+            </div>
+            <span class="qa">QA build</span>
+          </div>
+          <section class="app-card">
+            <p class="caption">Route</p>
+            <p class="big">cart/payment</p>
+            <div class="bars">
+              <i style="height:28px"></i>
+              <i style="height:54px"></i>
+              <i style="height:36px"></i>
+              <i style="height:72px"></i>
+              <i style="height:42px"></i>
+              <i style="height:64px"></i>
+              <i style="height:30px"></i>
+              <i style="height:78px"></i>
+              <i style="height:47px"></i>
+            </div>
+          </section>
+          <section class="app-card">
+            <p class="caption">Latest request</p>
+            <p class="big">POST /orders</p>
+          </section>
+          <button class="launcher" type="button">DT</button>
+        </div>
+
+        <section class="sheet" aria-label="Debug Toolkit panel">
+          <div class="grab"></div>
+
+          <header class="console-head">
+            <div class="topline">
+              <div class="title">
+                <h2>Debug Toolkit</h2>
+                <div class="sync">live 192.168.31.12:3799</div>
+              </div>
+              <div class="head-actions">
+                <button class="icon-btn" type="button" aria-label="Clear">C</button>
+                <button class="icon-btn" type="button" aria-label="Close">x</button>
+              </div>
+            </div>
+
+            <div class="signal-strip" aria-label="Signals">
+              <button class="signal bad" type="button" data-jump="native">
+                <strong>4</strong>
+                <span>urgent events</span>
+              </button>
+              <button class="signal warn" type="button" data-jump="navigation">
+                <strong>cart/payment</strong>
+                <span>active route</span>
+              </button>
+              <button class="signal" type="button" data-jump="devConnect">
+                <strong>26</strong>
+                <span>logs synced</span>
+              </button>
+            </div>
+          </header>
+
+          <section class="workbench">
+            <nav id="tabs" class="rail" aria-label="Debug features"></nav>
+
+            <section class="main">
+              <div class="toolbar">
+                <input id="search" class="search" type="search" placeholder="Search current feature">
+                <div class="filter" role="group" aria-label="Filter logs">
+                  <button id="allBtn" class="is-on" type="button">All</button>
+                  <button id="failedBtn" type="button">Bad</button>
+                </div>
+              </div>
+
+              <div class="pane">
+                <div id="list" class="list"></div>
+                <div id="detail" class="detail" aria-live="polite"></div>
+              </div>
+            </section>
+          </section>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const tabs = [
+      { id: "network", label: "Network", count: 12, state: "error" },
+      { id: "console", label: "Console", count: 4, state: "error" },
+      { id: "native", label: "Native", count: 7, state: "error" },
+      { id: "navigation", label: "Nav", count: 9, state: "warn" },
+      { id: "zustand", label: "Zustand", count: 3 },
+      { id: "track", label: "Track", count: 18 },
+      { id: "clipboard", label: "Clip", count: 2 },
+      { id: "environment", label: "Env", count: 1 },
+      { id: "devConnect", label: "Connect", count: 1 }
+    ];
+
+    const fixtures = {
+      native: [
+        {
+          level: "error",
+          title: "PaymentSheet host view missing merchantIdentifier",
+          meta: "ios / rctLog / RCTFatal / 16:42:18",
+          raw: "RCTFatal: PaymentSheet host view missing merchantIdentifier\nfile: PaymentSheetManager.mm:118\nthread: main",
+          corr: ["route:cart/payment", "network:500", "console:error"]
+        },
+        {
+          level: "warn",
+          title: "Main thread blocked 254ms during image decode",
+          meta: "ios / rctLog / ImageLoader / 16:42:14",
+          raw: "ImageLoader decode took 254ms for banner@3x.png. Downsample before render.",
+          corr: ["route:home", "perf"]
+        },
+        {
+          level: "fatal",
+          title: "SIGABRT captured before reload",
+          meta: "ios / rctLog / Runtime / 16:41:58",
+          raw: "Runtime aborted after invariant violation. Last route cart/payment. Session rn-debug-7f21.",
+          corr: ["session:7f21", "native"]
+        },
+        {
+          level: "info",
+          title: "DebugToolkitNativeLogs capture started",
+          meta: "android / logcat / DebugToolkit / 16:41:31",
+          raw: "DebugToolkitNativeLogs: capture started with pid filter and ringBuffer=200.",
+          corr: ["bridge:ok"]
+        }
+      ],
+      network: [
+        {
+          level: "error",
+          title: "POST /api/orders returned 500",
+          meta: "500 / 842ms / https://api.dev.local/orders",
+          raw: "curl -X POST https://api.dev.local/orders -H 'Authorization: Bearer ***' -d '{\"cartId\":\"cart_8A21\"}'",
+          corr: ["route:cart/payment", "native:error"]
+        },
+        {
+          level: "ok",
+          title: "GET /api/cart synced",
+          meta: "200 / 91ms / https://api.dev.local/cart",
+          raw: "Response contains 4 items, subtotal 129.40, coupon QA20.",
+          corr: ["cartStore"]
+        },
+        {
+          level: "warn",
+          title: "PUT /api/profile timeout recovered",
+          meta: "retry / 1500ms / https://api.dev.local/profile",
+          raw: "Initial request exceeded timeout. Retry completed after 311ms.",
+          corr: ["retry"]
+        }
+      ],
+      console: [
+        {
+          level: "error",
+          title: "Invariant failed: selected payment method is null",
+          meta: "console.error / 16:42:17",
+          raw: "CheckoutScreen submit called before payment method hydration completed.",
+          corr: ["route:cart/payment", "native:error"]
+        },
+        {
+          level: "warn",
+          title: "Cart store rehydrated after route focus",
+          meta: "console.warn / 16:42:09",
+          raw: "Expected cart store before focus. This can hide stale price bugs.",
+          corr: ["zustand", "nav"]
+        },
+        {
+          level: "info",
+          title: "Session tab snapshot updated",
+          meta: "console.info / 16:41:50",
+          raw: "{\"route\":\"cart/payment\",\"cartItems\":4,\"flags\":[\"qa\",\"debug\"]}",
+          corr: ["session"]
+        }
+      ],
+      navigation: [
+        {
+          level: "warn",
+          title: "Cart -> Payment before payment methods loaded",
+          meta: "PUSH / 18ms / 16:42:05",
+          raw: "from=cart/index to=cart/payment action=PUSH duration=18ms guard=missed",
+          corr: ["console:error", "zustand"]
+        },
+        {
+          level: "info",
+          title: "Home -> Product",
+          meta: "PUSH / 11ms / 16:41:44",
+          raw: "from=home to=product/detail action=PUSH duration=11ms",
+          corr: ["track"]
+        }
+      ],
+      zustand: [
+        {
+          level: "warn",
+          title: "cart.total changed without coupon recalculation",
+          meta: "cartStore / subtotal / 16:42:12",
+          raw: "prev=109.40 next=129.40 couponState=stale",
+          corr: ["network:cart"]
+        },
+        {
+          level: "info",
+          title: "userStore hydrated",
+          meta: "userStore / session / 16:41:33",
+          raw: "{\"id\":\"u_1024\",\"role\":\"qa\",\"vehicleId\":\"demo-car\"}",
+          corr: ["session"]
+        }
+      ],
+      track: [
+        {
+          level: "info",
+          title: "checkout_submit_tapped",
+          meta: "analytics / cart/payment / 16:42:16",
+          raw: "{\"eventName\":\"checkout_submit_tapped\",\"cartValue\":129.4,\"items\":4}",
+          corr: ["route:cart/payment"]
+        },
+        {
+          level: "info",
+          title: "coupon_apply_success",
+          meta: "analytics / cart/index / 16:41:51",
+          raw: "{\"eventName\":\"coupon_apply_success\",\"coupon\":\"QA20\"}",
+          corr: ["cartStore"]
+        }
+      ],
+      clipboard: [
+        {
+          level: "info",
+          title: "Copied cURL command",
+          meta: "clipboard / Network detail / 16:42:20",
+          raw: "Copied network request cURL to desktop console.",
+          corr: ["network"]
+        }
+      ],
+      environment: [
+        {
+          level: "ok",
+          title: "QA environment active",
+          meta: "api.dev.local -> 192.168.31.40:8080",
+          raw: "URL rewriter active. Network interceptor reads shared host map.",
+          corr: ["network"]
+        }
+      ]
+    };
+
+    let activeTab = "native";
+    let failedOnly = false;
+
+    const tabsNode = document.getElementById("tabs");
+    const listNode = document.getElementById("list");
+    const detailNode = document.getElementById("detail");
+    const searchNode = document.getElementById("search");
+    const allBtn = document.getElementById("allBtn");
+    const failedBtn = document.getElementById("failedBtn");
+
+    function renderTabs() {
+      tabsNode.innerHTML = tabs.map((tab) => {
+        const classes = [
+          "tab",
+          tab.id === activeTab ? "is-active" : "",
+          tab.state === "error" ? "has-error" : "",
+          tab.state === "warn" ? "has-warn" : ""
+        ].filter(Boolean).join(" ");
+
+        return `<button class="${classes}" type="button" data-tab="${tab.id}">
+          <span class="tab-name">${escapeHtml(tab.label)}</span>
+          <span class="tab-meta">
+            <span class="tab-dot"></span>
+            <span class="tab-count">${tab.count}</span>
+          </span>
+        </button>`;
+      }).join("");
+    }
+
+    function rowsForActiveTab() {
+      if (activeTab === "devConnect") return [];
+      const query = searchNode.value.trim().toLowerCase();
+      return (fixtures[activeTab] || []).filter((row) => {
+        const bad = row.level === "error" || row.level === "fatal" || row.level === "warn";
+        const haystack = `${row.title} ${row.meta} ${row.raw} ${(row.corr || []).join(" ")}`.toLowerCase();
+        return (!failedOnly || bad) && (!query || haystack.includes(query));
+      });
+    }
+
+    function renderList() {
+      closeDetail();
+
+      if (activeTab === "devConnect") {
+        renderConnect();
+        return;
+      }
+
+      const rows = rowsForActiveTab();
+      if (!rows.length) {
+        listNode.innerHTML = `<div class="empty">No matching ${escapeHtml(activeTab)} logs.<br>Clear search or switch filter.</div>`;
+        return;
+      }
+
+      listNode.innerHTML = rows.map((row, index) => `
+        <button class="row" type="button" data-index="${index}">
+          <span class="row-top">
+            <span class="level ${row.level}">${escapeHtml(row.level.slice(0, 1).toUpperCase())}</span>
+            <span class="msg">${escapeHtml(row.title)}</span>
+          </span>
+          <span class="meta">${escapeHtml(row.meta)}</span>
+          <span class="corr">
+            ${(row.corr || []).map((item) => `<span class="pill ${item.includes("error") || item.includes("500") ? "bad" : "blue"}">${escapeHtml(item)}</span>`).join("")}
+          </span>
+        </button>
+      `).join("");
+    }
+
+    function renderConnect() {
+      listNode.innerHTML = `
+        <div class="connect-grid">
+          <section class="connect">
+            <h3>Desktop log bridge</h3>
+            <p>Current device streams full report plus deltas to local daemon.</p>
+            <div class="connect-row">
+              <div class="fake-input">192.168.31.12:3799</div>
+              <button class="primary" type="button">Send Once</button>
+            </div>
+          </section>
+          <section class="connect">
+            <h3>Remote JS Bundle</h3>
+            <p>Keep daemon host separate from Metro host. Native bridge follows RN dev-menu path.</p>
+            <div class="connect-row">
+              <div class="fake-input">192.168.31.12:8081</div>
+              <button class="primary" type="button">Use Metro</button>
+            </div>
+          </section>
+          <section class="connect">
+            <h3>Sync status</h3>
+            <p>Health check passed. 26 logs visible to Web Console, HTTP API, and MCP.</p>
+          </section>
+        </div>
+      `;
+    }
+
+    function openDetail(row) {
+      detailNode.innerHTML = `
+        <div class="detail-head">
+          <button class="back" id="backBtn" type="button">Back</button>
+          <span class="chip ${row.level}">${escapeHtml(row.level)}</span>
+          <span class="detail-time">${escapeHtml(row.meta.split("/").pop().trim())}</span>
+        </div>
+        <div class="detail-body">
+          <section class="block">
+            <h3>Message</h3>
+            <pre class="code">${escapeHtml(row.title)}</pre>
+          </section>
+          <section class="block">
+            <h3>Raw payload</h3>
+            <pre class="code">${escapeHtml(row.raw)}</pre>
+          </section>
+          <section class="block">
+            <h3>Correlated context</h3>
+            <pre class="code">${escapeHtml(`tab=${activeTab}\nsession=rn-debug-7f21\nroute=cart/payment\nlinks=${(row.corr || []).join(", ")}`)}</pre>
+          </section>
+        </div>
+      `;
+      detailNode.classList.add("is-open");
+      document.getElementById("backBtn").addEventListener("click", closeDetail);
+    }
+
+    function closeDetail() {
+      detailNode.classList.remove("is-open");
+    }
+
+    function setActiveTab(id) {
+      activeTab = id;
+      renderTabs();
+      renderList();
+    }
+
+    function setFilter(nextFailedOnly) {
+      failedOnly = nextFailedOnly;
+      allBtn.classList.toggle("is-on", !failedOnly);
+      failedBtn.classList.toggle("is-on", failedOnly);
+      renderList();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    tabsNode.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-tab]");
+      if (!button) return;
+      setActiveTab(button.dataset.tab);
+    });
+
+    document.querySelectorAll("[data-jump]").forEach((button) => {
+      button.addEventListener("click", () => setActiveTab(button.dataset.jump));
+    });
+
+    listNode.addEventListener("click", (event) => {
+      const rowButton = event.target.closest("[data-index]");
+      if (!rowButton) return;
+      const row = rowsForActiveTab()[Number(rowButton.dataset.index)];
+      if (row) openDetail(row);
+    });
+
+    searchNode.addEventListener("input", renderList);
+    allBtn.addEventListener("click", () => setFilter(false));
+    failedBtn.addEventListener("click", () => setFilter(true));
+
+    renderTabs();
+    renderList();
+  </script>
+</body>
+</html>
