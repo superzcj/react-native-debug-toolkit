@@ -5,6 +5,7 @@ import { DebugToolkit } from '../../core/DebugToolkit';
 import { initializeDebugToolkit } from '../../core/initialize';
 import { _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
 import { KEYS, setPreference } from '../../utils/debugPreferences';
+import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import type { DebugFeature } from '../../types';
 
 jest.mock('../../features/devConnect/platformDetect', () => ({
@@ -131,5 +132,40 @@ describe('initializeDebugToolkit', () => {
       deviceHost: '192.168.1.10',
       endpoint: 'http://192.168.1.10:3799',
     });
+  });
+
+  it('clears daemon session provider when initialized disabled', async () => {
+    const originalFetch = (globalThis as { fetch?: unknown }).fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, logCount: {} }),
+    });
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+    daemonClient.setSessionProvider(() => ({ id: 'stale-session', startedAt: 1 }));
+
+    await initializeDebugToolkit({ enabled: false });
+    await daemonClient.reportOnce({ endpoint: 'http://127.0.0.1:3799' });
+
+    const fetchInit = fetchMock.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(fetchInit.body).session.id).not.toBe('stale-session');
+
+    if (originalFetch) {
+      (globalThis as { fetch?: unknown }).fetch = originalFetch;
+    } else {
+      delete (globalThis as { fetch?: unknown }).fetch;
+    }
+  });
+
+  it('accepts a custom log storage adapter during initialization', async () => {
+    const logStorage = new MemoryStorageAdapter();
+
+    await initializeDebugToolkit({
+      enabled: true,
+      logStorage,
+      features: { track: true },
+    });
+
+    expect(DebugToolkit.features.map((feature) => feature.name)).toEqual(['track']);
   });
 });

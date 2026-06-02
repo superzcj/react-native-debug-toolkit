@@ -2,7 +2,7 @@ import { TrackLogTab } from './TrackLogTab';
 import type { DebugFeature, TrackLogEntry } from '../../types';
 import { createEventChannel } from '../../utils/createEventChannel';
 import { createChannelFeature } from '../../utils/createChannelFeature';
-import { KEYS } from '../../utils/debugPreferences';
+import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
 
 export interface TrackEventData {
   eventName: string;
@@ -22,7 +22,10 @@ export interface TrackFeatureConfig {
   maxLogs?: number;
 }
 
-export const createTrackFeature = (config?: TrackFeatureConfig): DebugFeature<TrackLogEntry[]> =>
+export const createTrackFeature = (
+  config?: TrackFeatureConfig,
+  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+): DebugFeature<TrackLogEntry[]> =>
   createChannelFeature(
     () => trackChannel,
     (payload, id) => ({ ...payload, id }),
@@ -31,7 +34,11 @@ export const createTrackFeature = (config?: TrackFeatureConfig): DebugFeature<Tr
       label: 'Track',
       renderContent: TrackLogTab,
       maxLogs: config?.maxLogs,
-      persist: { storageKey: KEYS.trackLogs, maxPersist: 50 },
+      persist: {
+        storage: runtime.logStorage,
+        storageKey: runtime.sessionManager.getLogStorageKey('track_logs'),
+        maxPersist: 50,
+      },
     },
   );
 

@@ -97,6 +97,23 @@ describe('daemonClient.connect', () => {
     ]);
   });
 
+  it('uses the configured runtime session provider for the initial full report', async () => {
+    const streamFeature = createStreamingFeature('track', [{ id: '1', event: 'initial' }]);
+    const fetchMock = jest.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({ ok: true, deviceId: 'ios-1' }),
+    });
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+    daemonClient.setSessionProvider(() => ({ id: 'stream-session', startedAt: 5678 }));
+    DebugToolkit.addFeature(streamFeature.feature);
+
+    daemonClient.connect({ endpoint: 'http://127.0.0.1:3799', debounceMs: 10 });
+    await flushPromises();
+
+    const reportBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(reportBody.session).toEqual({ id: 'stream-session', startedAt: 5678 });
+  });
+
   it('backs off failed delta retries instead of retrying every debounce interval', async () => {
     const streamFeature = createStreamingFeature('track', [{ id: '1', event: 'initial' }]);
     const fetchMock = jest.fn()

@@ -1,5 +1,5 @@
 import { DebugToolkit } from '../../core/DebugToolkit';
-import { createDebugDeviceReport } from '../../utils/deviceReport';
+import { createDebugDeviceReport, sanitizeDebugLogEntry } from '../../utils/deviceReport';
 import type { DebugFeature } from '../../types';
 
 function createFeature(name: string, snapshot: unknown): DebugFeature<unknown> {
@@ -69,5 +69,18 @@ describe('createDebugDeviceReport', () => {
 
     expect(entry.request.body.__debugToolkitTruncated).toBe(true);
     expect(entry.request.body.preview).toContain('[Circular]');
+  });
+
+  it('exposes the same body/data sanitizer for persisted network logs', () => {
+    const entry = sanitizeDebugLogEntry({
+      request: { body: 'x'.repeat(512) },
+      response: { data: 'y'.repeat(512) },
+    }, 64) as {
+      request: { body: string };
+      response: { data: string };
+    };
+
+    expect(entry.request.body).toContain('[truncated]');
+    expect(entry.response.data).toContain('[truncated]');
   });
 });

@@ -2,11 +2,16 @@ import type { ComponentType } from 'react';
 import type { DebugFeature, DebugFeatureListener, DebugFeatureRenderProps } from '../types';
 import type { EventChannel } from './createEventChannel';
 import { createObservableStore, type ObservableStore } from './createObservableStore';
-import { createPersistedObservableStore } from './createPersistedObservableStore';
+import {
+  createPersistedObservableStore,
+  type PersistedObservableStore,
+} from './createPersistedObservableStore';
+import type { StorageAdapter } from './StorageAdapter';
 
 const DEFAULT_MAX_LOGS = 200;
 
 export interface ChannelFeaturePersistConfig<TEntry> {
+  storage: StorageAdapter;
   storageKey: string;
   maxPersist: number;
   debounceMs?: number;
@@ -39,15 +44,18 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
   const maxLogs = options.maxLogs ?? DEFAULT_MAX_LOGS;
   let nextId = 0;
   let logStore: ObservableStore<TEntry>;
+  let persistedStore: PersistedObservableStore<TEntry> | null = null;
   let getId: () => string;
 
   if (options.persist) {
     const persisted = createPersistedObservableStore<TEntry>({
+      storage: options.persist.storage,
       storageKey: options.persist.storageKey,
       maxPersist: options.persist.maxPersist,
       debounceMs: options.persist.debounceMs,
       serialize: options.persist.serialize,
     });
+    persistedStore = persisted;
     logStore = persisted;
     getId = () => persisted.nextId();
   } else {
@@ -64,26 +72,40 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
     label: options.label,
     renderContent: options.renderContent,
     setup: () => {
-      if (initialized) return;
+      if (initialized) {
+        return;
+      }
       unsubscribe = getChannel().subscribe((payload) => {
         const filtered = options.beforePush ? options.beforePush(payload) : payload;
-        if (filtered == null) return;
+        if (filtered == null) {
+          return;
+        }
         logStore.push(toEntry(filtered, getId()), maxLogs);
       });
       const cleanup = options.onSetup?.();
-      if (cleanup) customCleanup = cleanup;
+      if (cleanup) {
+        customCleanup = cleanup;
+      }
       initialized = true;
     },
     getSnapshot: () => logStore.getData(),
     clear: () => {
-      logStore.clear();
+      if (persistedStore) {
+        persistedStore.clearPersisted();
+      } else {
+        logStore.clear();
+      }
     },
     cleanup: () => {
       customCleanup?.();
       customCleanup = null;
       unsubscribe?.();
       unsubscribe = null;
-      logStore.clear();
+      if (persistedStore) {
+        persistedStore.dispose();
+      } else {
+        logStore.clear();
+      }
       initialized = false;
     },
     subscribe: (listener: DebugFeatureListener) => logStore.subscribe(listener),

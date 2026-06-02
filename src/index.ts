@@ -47,6 +47,16 @@ export type {
   ReportToDaemonOptions,
 } from './utils/DaemonClient';
 export { getDefaultDaemonEndpoint } from './utils/DaemonClient';
+export {
+  createDefaultLogStorage,
+  MemoryStorageAdapter,
+} from './utils/StorageAdapter';
+export type { StorageAdapter } from './utils/StorageAdapter';
+export type {
+  LogFeatureKey,
+  LogSession,
+  SessionManagerOptions,
+} from './utils/SessionManager';
 
 // Types
 export type {

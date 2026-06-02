@@ -1,4 +1,4 @@
-import { setPreference, getPreference, KEYS } from '../../utils/debugPreferences';
+import { setPreference, getPreference, removePreference, KEYS } from '../../utils/debugPreferences';
 import { NativeModules } from 'react-native';
 
 describe('debugPreferences', () => {
@@ -30,9 +30,21 @@ describe('debugPreferences', () => {
     delete NativeModules.DebugToolkitDevConnect;
   });
 
+  it('removes values from preference storage', async () => {
+    await setPreference('@react_native_debug_toolkit/remove_test', 'saved-value');
+
+    await removePreference('@react_native_debug_toolkit/remove_test');
+
+    await expect(getPreference('@react_native_debug_toolkit/remove_test')).resolves.toBeNull();
+  });
+
   it('exposes expected key constants', () => {
     expect(KEYS.fabPosition).toContain('fab_position');
     expect(KEYS.lastTab).toContain('last_tab');
     expect(KEYS.computerHost).toContain('computer_host');
+    expect(KEYS.daemonPort).toContain('daemon_port');
+    expect('consoleLogs' in KEYS).toBe(false);
+    expect('networkLogs' in KEYS).toBe(false);
+    expect('trackLogs' in KEYS).toBe(false);
   });
 });

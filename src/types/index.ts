@@ -28,3 +28,13 @@ export type {
   ThirdPartyLib,
   ThirdPartyLibAction,
 } from './thirdPartyLibs';
+
+export type {
+  StorageAdapter,
+} from '../utils/StorageAdapter';
+
+export type {
+  LogFeatureKey,
+  LogSession,
+  SessionManagerOptions,
+} from '../utils/SessionManager';

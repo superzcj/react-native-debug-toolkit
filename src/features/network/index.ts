@@ -3,7 +3,8 @@ import { NetworkLogTab } from './NetworkLogTab';
 import type { NetworkLogEntry } from '../../types';
 import { createChannelFeature } from '../../utils/createChannelFeature';
 import { createEventChannel } from '../../utils/createEventChannel';
-import { KEYS } from '../../utils/debugPreferences';
+import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
+import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
 import {
   startXMLHttpRequest,
   resetInterceptors,
@@ -44,7 +45,10 @@ export interface NetworkFeatureConfig {
   blacklist?: Array<string | RegExp>;
 }
 
-export const createNetworkFeature = (config?: NetworkFeatureConfig) => {
+export const createNetworkFeature = (
+  config?: NetworkFeatureConfig,
+  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+) => {
   const userBlacklist = config?.blacklist ? [...config.blacklist] : [];
 
   return createChannelFeature<NetworkLogPayload, NetworkLogEntry>(
@@ -55,7 +59,12 @@ export const createNetworkFeature = (config?: NetworkFeatureConfig) => {
       label: 'Network',
       renderContent: NetworkLogTab,
       maxLogs: config?.maxLogs,
-      persist: { storageKey: KEYS.networkLogs, maxPersist: 30 },
+      persist: {
+        storage: runtime.logStorage,
+        storageKey: runtime.sessionManager.getLogStorageKey('network_logs'),
+        maxPersist: 30,
+        serialize: (entry) => sanitizeDebugLogEntry(entry),
+      },
       beforePush: (payload) => {
         if (isUrlBlacklisted(payload.request.url, [...userBlacklist, ...daemonEndpointBlacklist])) {
           return null;

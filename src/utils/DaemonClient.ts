@@ -56,6 +56,7 @@ export interface ReportToDaemonOptions extends DebugDeviceReportOptions {
   endpoint?: string;
   timeoutMs?: number;
   token?: string;
+  session?: SessionInfo;
 }
 
 export interface ReportResult {
@@ -89,6 +90,7 @@ type AbortControllerLike = { signal: unknown; abort: () => void };
 type AbortControllerCtor = new () => AbortControllerLike;
 
 type SendResult = 'ok' | 'retry' | 'auth_failed';
+type SessionProvider = () => SessionInfo;
 
 // ---- Constants ----
 
@@ -186,6 +188,7 @@ export class DaemonClient {
   private _onEndpointDetected: ((url: string) => void) | undefined;
   private _restorePromise: Promise<void> | null = null;
   private _sessionId: SessionInfo | null = null;
+  private _sessionProvider: SessionProvider | null = null;
   private _onConnectionChange: (() => void) | undefined;
 
   constructor(options: DaemonClientOptions) {
@@ -268,9 +271,7 @@ export class DaemonClient {
   connect(options: StreamToDaemonOptions = {}): void {
     if (this._stream) return;
 
-    if (!this._sessionId) {
-      this._sessionId = { id: generateSessionId(), startedAt: Date.now() };
-    }
+    const session = this.resolveSession();
 
     const endpoint = options.endpoint || this.resolveEndpoint();
     const reportUrl = buildDaemonUrl(endpoint, '/report');
@@ -288,7 +289,7 @@ export class DaemonClient {
       debounceMs: options.debounceMs || DEFAULT_DEBOUNCE_MS,
       timeoutMs: Math.max(0, options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       deviceId: null,
-      session: this._sessionId,
+      session,
       sending: false,
       debounceTimer: null,
       retryTimer: null,
@@ -367,6 +368,14 @@ export class DaemonClient {
     this._onConnectionChange = callback;
   }
 
+  setSessionProvider(provider: SessionProvider): void {
+    this._sessionProvider = provider;
+  }
+
+  clearSessionProvider(): void {
+    this._sessionProvider = null;
+  }
+
   // --- Restore (init-time reconnect) ---
 
   async restore(): Promise<void> {
@@ -411,7 +420,10 @@ export class DaemonClient {
   async reportOnce(options: ReportToDaemonOptions = {}): Promise<ReportResult> {
     const endpoint = options.endpoint ?? this.resolveEndpoint();
     const reportUrl = buildDaemonUrl(endpoint, '/report');
-    const report = createDebugDeviceReport(options);
+    const report = createDebugDeviceReport({
+      ...options,
+      session: options.session ?? this.resolveSession(),
+    });
     const fetchImpl = this.resolveFetch();
 
     this.notifyEndpoint(endpoint);
@@ -475,6 +487,7 @@ export class DaemonClient {
     this._streamingEnabled = null;
     this._restorePromise = null;
     this._sessionId = null;
+    this._sessionProvider = null;
   }
 
   // ---- Private: Transport ----
@@ -496,6 +509,21 @@ export class DaemonClient {
 
   private notifyEndpoint(url: string): void {
     this._onEndpointDetected?.(url);
+  }
+
+  private resolveSession(): SessionInfo {
+    if (this._sessionProvider) {
+      try {
+        return this._sessionProvider();
+      } catch {
+        // fall through to internal session
+      }
+    }
+
+    if (!this._sessionId) {
+      this._sessionId = { id: generateSessionId(), startedAt: Date.now() };
+    }
+    return this._sessionId;
   }
 
   private emitStatus(status: StreamStatus): void {

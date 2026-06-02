@@ -1,7 +1,7 @@
 import { ConsoleLogTab } from './ConsoleLogTab';
 import type { ConsoleLogEntry, DebugFeature } from '../../types';
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
-import { KEYS } from '../../utils/debugPreferences';
+import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
 
 const LEVELS: ConsoleLogEntry['level'][] = ['log', 'info', 'warn', 'error'];
 
@@ -13,7 +13,9 @@ const consoleCapture = (() => {
 
   function stop(): void {
     refCount = Math.max(0, refCount - 1);
-    if (refCount > 0) return;
+    if (refCount > 0) {
+      return;
+    }
 
     LEVELS.forEach((level) => {
       const original = originalMethods[level];
@@ -78,10 +80,14 @@ export interface ConsoleFeatureConfig {
   maxLogs?: number;
 }
 
-export const createConsoleLogFeature = (config?: ConsoleFeatureConfig): DebugFeature<ConsoleLogEntry[]> => {
+export const createConsoleLogFeature = (
+  config?: ConsoleFeatureConfig,
+  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+): DebugFeature<ConsoleLogEntry[]> => {
   const maxLogs = config?.maxLogs ?? DEFAULT_MAX_LOGS;
   const logStore = createPersistedObservableStore<ConsoleLogEntry>({
-    storageKey: KEYS.consoleLogs,
+    storage: runtime.logStorage,
+    storageKey: runtime.sessionManager.getLogStorageKey('console_logs'),
     maxPersist: 50,
   });
   let initialized = false;
@@ -92,7 +98,9 @@ export const createConsoleLogFeature = (config?: ConsoleFeatureConfig): DebugFea
     label: 'Console',
     renderContent: ConsoleLogTab,
     setup: () => {
-      if (initialized) return;
+      if (initialized) {
+        return;
+      }
 
       stopCapture = consoleCapture.start((entry) => {
         logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
@@ -100,13 +108,15 @@ export const createConsoleLogFeature = (config?: ConsoleFeatureConfig): DebugFea
       initialized = true;
     },
     getSnapshot: () => logStore.getData(),
-    clear: () => { logStore.clear(); },
+    clear: () => { logStore.clearPersisted(); },
     cleanup: () => {
-      if (!initialized) return;
+      if (!initialized) {
+        return;
+      }
 
       stopCapture?.();
       stopCapture = null;
-      logStore.clear();
+      logStore.dispose();
       initialized = false;
     },
     subscribe: (listener) => logStore.subscribe(listener),

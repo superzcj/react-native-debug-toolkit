@@ -1,13 +1,21 @@
-type AsyncStorageLike = { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void> };
-type NativePreferencesLike = { getPreference: (k: string) => Promise<string | null>; setPreference: (k: string, v: string) => Promise<void> };
+type AsyncStorageLike = {
+  getItem: (k: string) => Promise<string | null>;
+  setItem: (k: string, v: string) => Promise<void>;
+  removeItem?: (k: string) => Promise<void>;
+};
+type NativePreferencesLike = {
+  getPreference: (k: string) => Promise<string | null>;
+  setPreference: (k: string, v: string) => Promise<void>;
+};
 
 const memoryStore = new Map<string, string>();
 
 function loadAsyncStorage(): AsyncStorageLike | null {
   try {
     const mod = require('@react-native-async-storage/async-storage');
-    if (mod && typeof mod.getItem === 'function') {
-      return mod;
+    const storage = mod?.default && typeof mod.default.getItem === 'function' ? mod.default : mod;
+    if (storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function') {
+      return storage;
     }
     return null;
   } catch {
@@ -82,12 +90,35 @@ export async function getPreference(key: string): Promise<string | null> {
   return memoryStore.get(key) ?? null;
 }
 
+export async function removePreference(key: string): Promise<void> {
+  memoryStore.delete(key);
+  const AsyncStorage = loadAsyncStorage();
+  if (AsyncStorage) {
+    try {
+      if (typeof AsyncStorage.removeItem === 'function') {
+        await AsyncStorage.removeItem(key);
+      } else {
+        await AsyncStorage.setItem(key, '');
+      }
+      return;
+    } catch {
+      // degrade to memory only
+    }
+  }
+
+  const nativePreferences = loadNativePreferences();
+  if (nativePreferences) {
+    try {
+      await nativePreferences.setPreference(key, '');
+    } catch {
+      // degrade to memory only
+    }
+  }
+}
+
 export const KEYS = {
   fabPosition: '@react_native_debug_toolkit/fab_position',
   lastTab: '@react_native_debug_toolkit/last_tab',
-  consoleLogs: '@react_native_debug_toolkit/console_logs',
-  networkLogs: '@react_native_debug_toolkit/network_logs',
-  trackLogs: '@react_native_debug_toolkit/track_logs',
   computerHost: '@react_native_debug_toolkit/computer_host',
   daemonPort: '@react_native_debug_toolkit/daemon_port',
 } as const;

@@ -82,9 +82,31 @@ describe('reportDebugDeviceToDaemon', () => {
         osVersion: 'unknown',
         appVersion: 'unknown',
       },
+      session: expect.objectContaining({
+        id: expect.any(String),
+        startedAt: expect.any(Number),
+      }),
       logs: {
         console: [{ level: 'error', data: ['TEST_ERROR_123'] }],
       },
+    });
+  });
+
+  it('uses the configured runtime session provider for one-shot reports', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, logCount: {} }),
+    });
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+    daemonClient.setSessionProvider(() => ({ id: 'runtime-session', startedAt: 1234 }));
+
+    await daemonClient.reportOnce({ endpoint: 'http://127.0.0.1:3799' });
+
+    const fetchInit = fetchMock.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(fetchInit.body).session).toEqual({
+      id: 'runtime-session',
+      startedAt: 1234,
     });
   });
 

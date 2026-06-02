@@ -1,7 +1,8 @@
 import { createObservableStore, type ObservableStore } from './createObservableStore';
-import { getPreference, setPreference } from './debugPreferences';
+import type { StorageAdapter } from './StorageAdapter';
 
 export interface PersistedStoreOptions<T> {
+  storage: StorageAdapter;
   storageKey: string;
   maxPersist: number;
   debounceMs?: number;
@@ -11,13 +12,14 @@ export interface PersistedStoreOptions<T> {
 export interface PersistedObservableStore<T> extends ObservableStore<T> {
   nextId: () => string;
   ready: Promise<void>;
-  destroy: () => void;
+  clearPersisted: () => void;
+  dispose: () => void;
 }
 
 export function createPersistedObservableStore<T extends { id?: string }>(
   options: PersistedStoreOptions<T>,
 ): PersistedObservableStore<T> {
-  const { storageKey, maxPersist, debounceMs = 2000, serialize } = options;
+  const { storage, storageKey, maxPersist, debounceMs = 2000, serialize } = options;
   const store = createObservableStore<T>();
   let writeTimer: ReturnType<typeof setTimeout> | null = null;
   let idCounter = 0;
@@ -25,7 +27,7 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
 
   // Restore from storage (single notify via pushBatch)
-  getPreference(storageKey).then((raw) => {
+  Promise.resolve(storage.getItem(storageKey)).then((raw) => {
     if (!raw) { resolveReady(); return; }
     try {
       const entries = JSON.parse(raw) as T[];
@@ -36,7 +38,9 @@ export function createPersistedObservableStore<T extends { id?: string }>(
       let max = 0;
       for (const e of restored) {
         const n = parseInt(e.id ?? '', 10);
-        if (!isNaN(n) && n >= max) max = n + 1;
+        if (!isNaN(n) && n >= max) {
+          max = n + 1;
+        }
       }
       idCounter = max;
     } catch {
@@ -46,13 +50,15 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   });
 
   function scheduleWrite(): void {
-    if (writeTimer !== null) clearTimeout(writeTimer);
+    if (writeTimer !== null) {
+      clearTimeout(writeTimer);
+    }
     writeTimer = setTimeout(() => {
       writeTimer = null;
       const data = store.getData().slice(-maxPersist);
       const toStore = serialize ? data.map(serialize) : data;
       try {
-        setPreference(storageKey, JSON.stringify(toStore));
+        Promise.resolve(storage.setItem(storageKey, JSON.stringify(toStore))).catch(() => {});
       } catch {
         // stringify failed (circular refs, etc) — skip write
       }
@@ -68,22 +74,24 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     pushBatch: store.pushBatch,
     clear: () => {
       store.clear();
+    },
+    clearPersisted: () => {
+      store.clear();
       if (writeTimer !== null) {
         clearTimeout(writeTimer);
         writeTimer = null;
       }
-      setPreference(storageKey, '[]');
+      Promise.resolve(storage.setItem(storageKey, '[]')).catch(() => {});
     },
     subscribe: store.subscribe,
     nextId: () => String(idCounter++),
     ready,
-    destroy: () => {
+    dispose: () => {
       if (writeTimer !== null) {
         clearTimeout(writeTimer);
         writeTimer = null;
       }
       store.clear();
-      setPreference(storageKey, '[]');
     },
   };
 }

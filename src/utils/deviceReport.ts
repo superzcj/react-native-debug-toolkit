@@ -33,6 +33,10 @@ export interface DebugDeviceReport {
   logs: Record<string, unknown[] | undefined>;
 }
 
+export function sanitizeDebugLogEntry(value: unknown, maxBodyBytes = DEFAULT_MAX_BODY_BYTES): unknown {
+  return sanitizeValue(value, Math.max(256, Math.floor(maxBodyBytes)));
+}
+
 interface TruncatedValue {
   __debugToolkitTruncated: true;
   originalBytes: number;
@@ -193,7 +197,7 @@ export function createDebugDeviceReport(
 
     logs[feature.name] = snapshot
       .slice(-maxPerType)
-      .map((entry) => sanitizeValue(entry, maxBodyBytes));
+      .map((entry) => sanitizeDebugLogEntry(entry, maxBodyBytes));
   });
 
   const constants = Platform.constants as Record<string, unknown> | undefined;
