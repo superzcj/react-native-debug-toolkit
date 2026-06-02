@@ -28,6 +28,8 @@ export { useNavigationLogger } from './features/navigation/useNavigationLogger';
 
 // Utilities
 export { safeStringify } from './utils/safeStringify';
+export { createDebugTab } from './utils/createDebugTab';
+export type { CreateDebugTabOptions } from './utils/createDebugTab';
 export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
 export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
 export { createDebugDeviceReport } from './utils/deviceReport';

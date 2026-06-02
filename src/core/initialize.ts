@@ -31,6 +31,7 @@ export interface FeatureConfigs {
 
 export interface InitializeOptions {
   features?: FeatureConfigs;
+  customFeatures?: AnyDebugFeature[];
   enabled?: boolean;
 }
 
@@ -85,6 +86,17 @@ function resolveDefaultFeatures(): AnyDebugFeature[] {
   return DEFAULT_FEATURES.map((name) => featureRegistry[name]!());
 }
 
+function appendCustomFeatures(
+  builtInFeatures: AnyDebugFeature[],
+  customFeatures?: AnyDebugFeature[],
+): AnyDebugFeature[] {
+  if (!customFeatures || customFeatures.length === 0) {
+    return builtInFeatures;
+  }
+
+  return [...builtInFeatures, ...customFeatures];
+}
+
 /**
  * Initialize the debug toolkit.
  *
@@ -111,9 +123,13 @@ export async function initializeDebugToolkit(
     }
   }
 
-  const resolvedFeatures = options?.features
+  const resolvedBuiltInFeatures = options?.features
     ? resolveFeatureConfigs(options.features)
     : resolveDefaultFeatures();
+  const resolvedFeatures = appendCustomFeatures(
+    resolvedBuiltInFeatures,
+    options?.customFeatures,
+  );
 
   try {
     DebugToolkit.setEnabled(enabled);

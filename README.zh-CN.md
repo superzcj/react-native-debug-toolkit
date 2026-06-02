@@ -171,6 +171,46 @@ claude mcp add debug-toolkit -- npm exec -- debug-toolkit
 </DebugView>
 ```
 
+自定义 Tab：
+
+```tsx
+import {
+  DebugView,
+  createDebugTab,
+  type DebugFeatureRenderProps,
+} from 'react-native-debug-toolkit';
+
+type UserSnapshot = {
+  id?: string;
+  role?: string;
+};
+
+function UserDebugTab({ snapshot }: DebugFeatureRenderProps<UserSnapshot>) {
+  return (
+    <View>
+      <Text>User ID: {snapshot.id ?? '-'}</Text>
+      <Text>Role: {snapshot.role ?? '-'}</Text>
+    </View>
+  );
+}
+
+const userDebugTab = createDebugTab<UserSnapshot>({
+  name: 'user',
+  label: 'User',
+  getSnapshot: () => ({
+    id: authStore.user?.id,
+    role: authStore.user?.role,
+  }),
+  render: UserDebugTab,
+});
+
+<DebugView customFeatures={[userDebugTab]}>
+  <AppContent />
+</DebugView>;
+```
+
+每个自定义 feature 都会变成一个面板 Tab。`name` 是稳定 Tab id，`label` 显示在 Tab 栏，`getSnapshot` 提供展示数据，`render` 控制展示 UI。外部状态变化后需要自动刷新时，给它加 `subscribe`。
+
 导航追踪：
 
 ```tsx
@@ -200,6 +240,7 @@ addTrackLog({ eventName: 'button_click' });
 - `DebugView`
 - `DebugToolkit`
 - `initializeDebugToolkit`
+- `createDebugTab`
 - `createDebugDeviceReport`
 - `checkDaemonConnection`
 - `reportDebugDeviceToDaemon`

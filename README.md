@@ -171,6 +171,46 @@ Disable features:
 </DebugView>
 ```
 
+Custom tabs:
+
+```tsx
+import {
+  DebugView,
+  createDebugTab,
+  type DebugFeatureRenderProps,
+} from 'react-native-debug-toolkit';
+
+type UserSnapshot = {
+  id?: string;
+  role?: string;
+};
+
+function UserDebugTab({ snapshot }: DebugFeatureRenderProps<UserSnapshot>) {
+  return (
+    <View>
+      <Text>User ID: {snapshot.id ?? '-'}</Text>
+      <Text>Role: {snapshot.role ?? '-'}</Text>
+    </View>
+  );
+}
+
+const userDebugTab = createDebugTab<UserSnapshot>({
+  name: 'user',
+  label: 'User',
+  getSnapshot: () => ({
+    id: authStore.user?.id,
+    role: authStore.user?.role,
+  }),
+  render: UserDebugTab,
+});
+
+<DebugView customFeatures={[userDebugTab]}>
+  <AppContent />
+</DebugView>;
+```
+
+Each custom feature becomes a panel tab. `name` is the stable tab id, `label` is shown in the tab bar, `getSnapshot` provides tab data, and `render` controls the UI. Add `subscribe` when the tab should refresh after external state changes.
+
 Navigation tracking:
 
 ```tsx
@@ -200,6 +240,7 @@ addTrackLog({ eventName: 'button_click' });
 - `DebugView`
 - `DebugToolkit`
 - `initializeDebugToolkit`
+- `createDebugTab`
 - `createDebugDeviceReport`
 - `checkDaemonConnection`
 - `reportDebugDeviceToDaemon`

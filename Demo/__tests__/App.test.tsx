@@ -227,6 +227,68 @@ test('provides a raw XMLHttpRequest smoke action for network capture', async () 
   }
 });
 
+test('shows the custom Session debug tab with live demo state', async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    json: async () => [
+      {
+        id: 1,
+        title: 'mock post',
+        body: 'mock body',
+      },
+      {
+        id: 2,
+        title: 'mock post 2',
+        body: 'mock body 2',
+      },
+    ],
+  }) as unknown as typeof fetch;
+
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Linen Lounge Chair');
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Add To Cart');
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Profile');
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Open Panel');
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Session');
+    await Promise.resolve();
+  });
+
+  expect(findText(renderer!.root, 'Session Overview')).toBeTruthy();
+  expect(findText(renderer!.root, 'Cart Snapshot')).toBeTruthy();
+  expect(findText(renderer!.root, 'Linen Lounge Chair')).toBeTruthy();
+  expect(findText(renderer!.root, 'Recently Viewed')).toBeTruthy();
+
+  await ReactTestRenderer.act(async () => {
+    renderer!.unmount();
+  });
+});
+
 test('shows DevConnect tab with IP input, sync buttons, and no copy flow', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     json: async () => [],

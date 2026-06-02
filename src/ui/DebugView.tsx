@@ -3,7 +3,7 @@ import { DebugToolkitProvider } from '../core/DebugToolkitProvider';
 import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
 import { useNavigationLogger } from '../features/navigation/useNavigationLogger';
-import type { EnvironmentConfig, NavigationContainerRef } from '../types';
+import type { AnyDebugFeature, EnvironmentConfig, NavigationContainerRef } from '../types';
 
 // --- Types ---
 
@@ -14,6 +14,8 @@ export interface DebugViewProps {
    * Set to `false` to disable a feature.
    */
   features?: Partial<FeatureConfigs>;
+  /** Custom tabs/features appended after built-in features. */
+  customFeatures?: AnyDebugFeature[];
   /** Navigation container ref for route tracking. */
   navigationRef?: React.RefObject<NavigationContainerRef | null>;
   /** Environment configs for runtime host switching. */
@@ -38,6 +40,7 @@ function NavigationLoggerInner({
 export function DebugView({
   children,
   features,
+  customFeatures,
   navigationRef,
   environments,
   enabled,
@@ -66,6 +69,7 @@ export function DebugView({
     let cancelled = false;
     initializeDebugToolkit({
       features: resolvedFeatures,
+      customFeatures,
       enabled,
     }).then((toolkit) => {
       if (!cancelled) {

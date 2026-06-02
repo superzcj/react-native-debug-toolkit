@@ -11,6 +11,7 @@ import { FloatIcon } from '../floating/FloatIcon';
 import { DebugPanel } from './DebugPanel';
 import { FeatureTabBar } from './FeatureTabBar';
 import type { TabItem } from './FeatureTabBar';
+import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
 
 // ─── Error Boundary ────────────────────────────────────
@@ -53,25 +54,32 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
 
   // Restore last tab on mount
   useEffect(() => {
+    if (tabLoaded.current || features.length === 0) return;
     let mounted = true;
     getPreference(KEYS.lastTab).then((val) => {
-      if (!mounted || !val) return;
-      const idx = parseInt(val, 10);
-      if (!isNaN(idx) && idx >= 0) {
-        setActiveTab(idx);
-        tabLoaded.current = true;
+      if (!mounted || tabLoaded.current) return;
+      const idx = resolveStoredTabIndex(features, val);
+      setActiveTab(idx);
+      const featureName = features[idx]?.name;
+      if (featureName && featureName !== val) {
+        setPreference(KEYS.lastTab, featureName);
       }
+      tabLoaded.current = true;
     });
     return () => { mounted = false; };
-  }, []);
+  }, [features]);
 
   const { contentOpacity, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
     activeTab,
     tabCount: features.length,
     onTabChange: useCallback((index: number) => {
+      tabLoaded.current = true;
       setActiveTab(index);
-      setPreference(KEYS.lastTab, String(index));
-    }, []),
+      const featureName = features[index]?.name;
+      if (featureName) {
+        setPreference(KEYS.lastTab, featureName);
+      }
+    }, [features]),
   });
 
   // Feature subscription → re-render on data changes
@@ -96,10 +104,14 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   // Clamp activeTab if features shrink
   useEffect(() => {
     if (features.length > 0 && activeTab >= features.length) {
+      tabLoaded.current = true;
       setActiveTab(0);
-      setPreference(KEYS.lastTab, '0');
+      const featureName = features[0]?.name;
+      if (featureName) {
+        setPreference(KEYS.lastTab, featureName);
+      }
     }
-  }, [features.length, activeTab]);
+  }, [features, activeTab]);
 
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;

@@ -14,6 +14,9 @@ import {
   addNavigationLog,
   addTrackLog,
   addZustandLog,
+  createDebugTab,
+  type DebugFeature,
+  type DebugFeatureRenderProps,
   DebugView,
   DebugToolkit,
 } from 'react-native-debug-toolkit';
@@ -68,6 +71,32 @@ type ProfileData = {
   email: string;
   company: string;
   city: string;
+};
+
+type DemoSessionSnapshot = {
+  activeRoute: string;
+  rootTab: RootScreen;
+  productId: string | null;
+  cartCount: number;
+  cartTotal: number;
+  cartItems: Array<{
+    title: string;
+    quantity: number;
+    lineTotal: number;
+  }>;
+  recentlyViewed: string[];
+  remoteData: {
+    journalPosts: number;
+    reviewProducts: number;
+    totalReviews: number;
+    profileLoaded: boolean;
+  };
+  loading: {
+    feed: boolean;
+    reviewProductId: string | null;
+    profile: boolean;
+  };
+  profile: ProfileData | null;
 };
 
 const PRODUCTS: Product[] = [
@@ -161,6 +190,101 @@ function getActiveRootTab(route: Route): RootScreen {
   return route.screen;
 }
 
+function DemoSessionTab({ snapshot }: DebugFeatureRenderProps<DemoSessionSnapshot>) {
+  return (
+    <ScrollView style={styles.debugTabScroll} contentContainerStyle={styles.debugTabContent}>
+      <View style={[styles.debugHeroCard, { backgroundColor: T.hero }]}>
+        <Text style={[styles.debugHeroLabel, { color: T.textOnHero }]}>Session Overview</Text>
+        <Text style={[styles.debugHeroTitle, { color: T.textOnHero }]}>{snapshot.activeRoute}</Text>
+        <Text style={[styles.debugHeroMeta, { color: T.textOnHero }]}>
+          Root: {snapshot.rootTab}
+          {snapshot.productId ? ` | Product: ${snapshot.productId}` : ''}
+        </Text>
+      </View>
+
+      <View style={styles.debugMetricGrid}>
+        <View style={[styles.debugMetricCard, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+          <Text style={[styles.debugMetricLabel, { color: T.textMuted }]}>Cart Items</Text>
+          <Text style={[styles.debugMetricValue, { color: T.text }]}>{snapshot.cartCount}</Text>
+        </View>
+        <View style={[styles.debugMetricCard, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+          <Text style={[styles.debugMetricLabel, { color: T.textMuted }]}>Cart Total</Text>
+          <Text style={[styles.debugMetricValue, { color: T.text }]}>
+            {formatPrice(snapshot.cartTotal)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.debugSection, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+        <Text style={[styles.debugSectionTitle, { color: T.text }]}>Remote Data</Text>
+        <DebugRow label="Journal posts" value={String(snapshot.remoteData.journalPosts)} />
+        <DebugRow label="Review products" value={String(snapshot.remoteData.reviewProducts)} />
+        <DebugRow label="Total reviews" value={String(snapshot.remoteData.totalReviews)} />
+        <DebugRow label="Profile loaded" value={snapshot.remoteData.profileLoaded ? 'yes' : 'no'} />
+        <DebugRow
+          label="Loading"
+          value={[
+            snapshot.loading.feed ? 'feed' : null,
+            snapshot.loading.reviewProductId ? `reviews:${snapshot.loading.reviewProductId}` : null,
+            snapshot.loading.profile ? 'profile' : null,
+          ].filter(Boolean).join(', ') || 'none'}
+        />
+      </View>
+
+      <View style={[styles.debugSection, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+        <Text style={[styles.debugSectionTitle, { color: T.text }]}>Cart Snapshot</Text>
+        {snapshot.cartItems.length > 0 ? (
+          snapshot.cartItems.map((item) => (
+            <View key={item.title} style={styles.debugListItem}>
+              <Text style={[styles.debugListTitle, { color: T.text }]}>{item.title}</Text>
+              <Text style={[styles.debugListMeta, { color: T.textMuted }]}>
+                x{item.quantity} | {formatPrice(item.lineTotal)}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Text style={[styles.debugEmptyText, { color: T.textMuted }]}>No cart items</Text>
+        )}
+      </View>
+
+      <View style={[styles.debugSection, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+        <Text style={[styles.debugSectionTitle, { color: T.text }]}>Profile</Text>
+        {snapshot.profile ? (
+          <>
+            <DebugRow label="Name" value={snapshot.profile.name} />
+            <DebugRow label="City" value={snapshot.profile.city} />
+            <DebugRow label="Company" value={snapshot.profile.company} />
+          </>
+        ) : (
+          <Text style={[styles.debugEmptyText, { color: T.textMuted }]}>Profile not loaded</Text>
+        )}
+      </View>
+
+      <View style={[styles.debugSection, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
+        <Text style={[styles.debugSectionTitle, { color: T.text }]}>Recently Viewed</Text>
+        {snapshot.recentlyViewed.length > 0 ? (
+          snapshot.recentlyViewed.map((title) => (
+            <Text key={title} style={[styles.debugListTitle, { color: T.text }]}>
+              {title}
+            </Text>
+          ))
+        ) : (
+          <Text style={[styles.debugEmptyText, { color: T.textMuted }]}>No product views</Text>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+function DebugRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.debugRow}>
+      <Text style={[styles.debugRowLabel, { color: T.textMuted }]}>{label}</Text>
+      <Text style={[styles.debugRowValue, { color: T.text }]}>{value}</Text>
+    </View>
+  );
+}
+
 function App(): React.JSX.Element {
   const [route, setRoute] = useState<Route>({ screen: 'Explore' });
   const [storeState, setStoreState] = useState<StoreState>(INITIAL_STORE);
@@ -173,9 +297,109 @@ function App(): React.JSX.Element {
 
   const routeRef = useRef<Route>({ screen: 'Explore' });
   const storeRef = useRef<StoreState>(INITIAL_STORE);
+  const feedItemsRef = useRef<FeedItem[]>([]);
+  const feedLoadingRef = useRef(false);
+  const reviewsByProductRef = useRef<Record<string, Review[]>>({});
+  const loadingReviewProductIdRef = useRef<string | null>(null);
+  const profileRef = useRef<ProfileData | null>(null);
+  const profileLoadingRef = useRef(false);
+  const sessionListenersRef = useRef<Set<() => void>>(new Set());
+  const sessionDebugFeatureRef = useRef<DebugFeature<DemoSessionSnapshot> | null>(null);
   const exploreLoadedRef = useRef(false);
   const profileLoadedRef = useRef(false);
   const requestedReviewIdsRef = useRef<Set<string>>(new Set());
+
+  const notifySessionTab = useCallback(() => {
+    sessionListenersRef.current.forEach((listener) => {
+      listener();
+    });
+  }, []);
+
+  if (!sessionDebugFeatureRef.current) {
+    sessionDebugFeatureRef.current = createDebugTab<DemoSessionSnapshot>({
+      name: 'session',
+      label: 'Session',
+      getSnapshot: () => {
+        const currentStore = storeRef.current;
+        const currentRoute = routeRef.current;
+        const cartCountSnapshot = currentStore.cartItems.reduce(
+          (total, item) => total + item.quantity,
+          0,
+        );
+        const cartTotalSnapshot = currentStore.cartItems.reduce(
+          (total, item) => total + item.price * item.quantity,
+          0,
+        );
+        const reviews = reviewsByProductRef.current;
+
+        return {
+          activeRoute: getRouteLabel(currentRoute),
+          rootTab: getActiveRootTab(currentRoute),
+          productId: currentRoute.screen === 'Product' ? currentRoute.productId : null,
+          cartCount: cartCountSnapshot,
+          cartTotal: cartTotalSnapshot,
+          cartItems: currentStore.cartItems.map((item) => ({
+            title: item.title,
+            quantity: item.quantity,
+            lineTotal: item.price * item.quantity,
+          })),
+          recentlyViewed: currentStore.recentlyViewed.map(
+            (productId) => getProduct(productId)?.title ?? productId,
+          ),
+          remoteData: {
+            journalPosts: feedItemsRef.current.length,
+            reviewProducts: Object.keys(reviews).length,
+            totalReviews: Object.values(reviews).reduce((total, list) => total + list.length, 0),
+            profileLoaded: profileRef.current !== null,
+          },
+          loading: {
+            feed: feedLoadingRef.current,
+            reviewProductId: loadingReviewProductIdRef.current,
+            profile: profileLoadingRef.current,
+          },
+          profile: profileRef.current,
+        };
+      },
+      render: DemoSessionTab,
+      subscribe: (listener) => {
+        sessionListenersRef.current.add(listener);
+        return () => {
+          sessionListenersRef.current.delete(listener);
+        };
+      },
+      badge: () => {
+        const count = storeRef.current.cartItems.reduce(
+          (total, item) => total + item.quantity,
+          0,
+        );
+        return count > 0 ? { label: String(count), color: T.primary } : null;
+      },
+    });
+  }
+
+  const sessionDebugFeature = sessionDebugFeatureRef.current;
+
+  useEffect(() => {
+    routeRef.current = route;
+    storeRef.current = storeState;
+    feedItemsRef.current = feedItems;
+    feedLoadingRef.current = feedLoading;
+    reviewsByProductRef.current = reviewsByProduct;
+    loadingReviewProductIdRef.current = loadingReviewProductId;
+    profileRef.current = profile;
+    profileLoadingRef.current = profileLoading;
+    notifySessionTab();
+  }, [
+    feedItems,
+    feedLoading,
+    loadingReviewProductId,
+    notifySessionTab,
+    profile,
+    profileLoading,
+    reviewsByProduct,
+    route,
+    storeState,
+  ]);
 
   const updateStore = (
     action: string,
@@ -723,6 +947,7 @@ function App(): React.JSX.Element {
 
   return (
     <DebugView
+      customFeatures={[sessionDebugFeature]}
       environments={[
         { id: 'dev', label: 'Development', host: 'jsonplaceholder.typicode.com', color: '#34C759' },
         { id: 'staging', label: 'Staging', host: 'staging-api.example.com', color: '#FF9500' },
@@ -824,6 +1049,96 @@ function BottomNavItem({
 }
 
 const styles = StyleSheet.create({
+  debugTabScroll: {
+    flex: 1,
+    backgroundColor: T.background,
+  },
+  debugTabContent: {
+    padding: 16,
+    gap: 12,
+  },
+  debugHeroCard: {
+    borderRadius: 18,
+    padding: 16,
+    gap: 6,
+  },
+  debugHeroLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    opacity: 0.75,
+  },
+  debugHeroTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    lineHeight: 30,
+  },
+  debugHeroMeta: {
+    fontSize: 13,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  debugMetricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  debugMetricCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    gap: 4,
+  },
+  debugMetricLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  debugMetricValue: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  debugSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
+  debugSectionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  debugRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  debugRowLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  debugRowValue: {
+    flex: 1.5,
+    textAlign: 'right',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  debugListItem: {
+    gap: 3,
+  },
+  debugListTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  debugListMeta: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  debugEmptyText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   safeArea: {
     flex: 1,
   },
