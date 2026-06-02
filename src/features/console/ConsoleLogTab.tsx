@@ -7,21 +7,8 @@ import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { fmt } from '../../utils/copyToComputer';
+import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
 import type { ConsoleLogEntry, DebugFeatureRenderProps } from '../../types';
-
-const LEVEL_COLORS: Record<string, string> = {
-  log: '#8E8E93',
-  info: '#007AFF',
-  warn: '#FF9500',
-  error: '#FF3B30',
-};
-
-const LEVEL_ICONS: Record<string, string> = {
-  log: '●',
-  info: 'ℹ',
-  warn: '⚠',
-  error: '✕',
-};
 
 export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>> = React.memo(({ snapshot }) => (
   <LogListScreen

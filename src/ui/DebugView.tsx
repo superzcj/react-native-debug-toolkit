@@ -57,6 +57,7 @@ export function DebugView({
       track: true,
       clipboard: true,
       devConnect: true,
+      sessionHistory: true,
       ...features,
     };
 

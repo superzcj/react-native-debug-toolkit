@@ -16,6 +16,12 @@ type MMKVLike = {
   delete: (key: string) => void;
 };
 
+type MMKVLikeV4 = {
+  getString: (key: string) => string | undefined;
+  set: (key: string, value: string | number | boolean | ArrayBuffer) => void;
+  remove: (key: string) => boolean;
+};
+
 export class MemoryStorageAdapter implements StorageAdapter {
   private readonly store = new Map<string, string>();
 
@@ -49,7 +55,11 @@ export class AsyncStorageAdapter implements StorageAdapter {
 }
 
 export class MMKVStorageAdapter implements StorageAdapter {
-  constructor(private readonly storage: MMKVLike) {}
+  private readonly storage: MMKVLike;
+
+  constructor(storage: MMKVLike) {
+    this.storage = storage;
+  }
 
   getItem(key: string): string | null {
     return this.storage.getString(key) ?? null;
@@ -60,7 +70,11 @@ export class MMKVStorageAdapter implements StorageAdapter {
   }
 
   removeItem(key: string): void {
-    this.storage.delete(key);
+    if ('delete' in this.storage) {
+      (this.storage as MMKVLike).delete(key);
+    } else {
+      (this.storage as MMKVLikeV4).remove(key);
+    }
   }
 }
 
@@ -77,12 +91,28 @@ function isAsyncStorageLike(value: unknown): value is AsyncStorageLike {
 function loadMMKVStorage(): StorageAdapter | null {
   try {
     const mod = require('react-native-mmkv');
-    const MMKV = mod?.MMKV ?? mod?.default?.MMKV ?? mod?.default;
-    if (typeof MMKV !== 'function') {
-      return null;
+    console.warn('[StorageAdapter] MMKV module loaded, keys:', Object.keys(mod).join(','));
+
+    // v4+: createMMKV factory function
+    if (typeof mod?.createMMKV === 'function') {
+      console.warn('[StorageAdapter] Found createMMKV (v4+)');
+      const instance = mod.createMMKV({ id: 'debug-toolkit-logs' });
+      console.warn('[StorageAdapter] createMMKV returned:', typeof instance, instance ? 'has getString:' + typeof instance.getString : 'null');
+      if (instance && typeof instance.getString === 'function' && typeof instance.set === 'function') {
+        return new MMKVStorageAdapter(instance as unknown as MMKVLike);
+      }
     }
-    return new MMKVStorageAdapter(new MMKV({ id: 'debug-toolkit-logs' }));
-  } catch {
+
+    // v3 and earlier: MMKV class
+    const MMKV = mod?.MMKV ?? mod?.default?.MMKV ?? mod?.default;
+    if (typeof MMKV === 'function') {
+      return new MMKVStorageAdapter(new MMKV({ id: 'debug-toolkit-logs' }));
+    }
+
+    console.warn('[StorageAdapter] No MMKV constructor found');
+    return null;
+  } catch (e) {
+    console.warn('[StorageAdapter] loadMMKVStorage failed:', e);
     return null;
   }
 }

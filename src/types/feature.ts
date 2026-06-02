@@ -10,7 +10,8 @@ export type BuiltInFeatureName =
   | 'track'
   | 'environment'
   | 'clipboard'
-  | 'devConnect';
+  | 'devConnect'
+  | 'sessionHistory';
 
 export interface DebugFeatureRenderProps<TSnapshot = unknown> {
   snapshot: TSnapshot;

@@ -12,6 +12,7 @@ import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
 import { createDevConnectFeature, restoreDevConnectSettingsToDaemon, nativeIsDebugBuild } from '../features/devConnect';
+import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 import type { StorageAdapter } from '../utils/StorageAdapter';
@@ -33,6 +34,7 @@ export interface FeatureConfigs {
   environment?: Parameters<typeof createEnvironmentFeature>[0];
   clipboard?: boolean;
   devConnect?: boolean;
+  sessionHistory?: boolean;
 }
 
 export interface InitializeOptions {
@@ -56,6 +58,7 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   environment: (config) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined),
   clipboard: () => createClipboardFeature(),
   devConnect: () => createDevConnectFeature(),
+  sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
 };
 
 const DEFAULT_FEATURES: BuiltInFeatureName[] = [
@@ -66,6 +69,7 @@ const DEFAULT_FEATURES: BuiltInFeatureName[] = [
   'track',
   'clipboard',
   'devConnect',
+  'sessionHistory',
 ];
 
 function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeContext): AnyDebugFeature[] {

@@ -32,7 +32,47 @@ function collectModuleNames(nodeModulesDir) {
   return modules;
 }
 
-const demoModules = collectModuleNames(demoNodeModules);
+/**
+ * Collect modules from pnpm's .pnpm store that weren't hoisted to top-level.
+ * pnpm stores packages under .pnpm/pkg@ver/node_modules/pkg.
+ */
+function collectPnpmModules(nodeModulesDir) {
+  const modules = {};
+  const pnpmDir = path.join(nodeModulesDir, '.pnpm');
+  if (!fs.existsSync(pnpmDir)) return modules;
+
+  const entries = fs.readdirSync(pnpmDir);
+  for (const entry of entries) {
+    const innerNm = path.join(pnpmDir, entry, 'node_modules');
+    if (!fs.existsSync(innerNm)) continue;
+    const pkgs = fs.readdirSync(innerNm);
+    for (const pkg of pkgs) {
+      if (pkg.startsWith('.')) continue;
+      const pkgPath = path.join(innerNm, pkg);
+      if (!fs.statSync(pkgPath).isDirectory()) continue;
+      if (pkg.startsWith('@')) {
+        const scoped = fs.readdirSync(pkgPath);
+        for (const sp of scoped) {
+          if (sp.startsWith('.')) continue;
+          const key = `${pkg}/${sp}`;
+          if (!modules[key]) {
+            modules[key] = path.join(pkgPath, sp);
+          }
+        }
+      } else {
+        if (!modules[pkg]) {
+          modules[pkg] = pkgPath;
+        }
+      }
+    }
+  }
+  return modules;
+}
+
+const demoModules = {
+  ...collectPnpmModules(demoNodeModules),
+  ...collectModuleNames(demoNodeModules),
+};
 
 // Resolve toolkit to its source entry point
 demoModules['react-native-debug-toolkit'] = path.resolve(toolkitSrc, 'index.ts');
