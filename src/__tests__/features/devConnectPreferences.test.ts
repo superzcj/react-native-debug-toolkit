@@ -6,7 +6,6 @@ import {
   saveComputerHost,
   saveComputerTarget,
   saveDaemonPort,
-  saveMetroPort,
 } from '../../features/devConnect/devConnectPreferences';
 
 jest.mock('../../features/devConnect/platformDetect', () => ({
@@ -20,47 +19,40 @@ describe('devConnectPreferences', () => {
   beforeEach(async () => {
     _resetDaemonClientForTesting();
     await setPreference(KEYS.computerHost, '');
-    await setPreference(KEYS.metroPort, '');
     await setPreference(KEYS.daemonPort, '');
     mockedIsSimulator.mockReturnValue(false);
   });
 
-  it('loads saved host and falls back to default ports', async () => {
+  it('loads saved host and falls back to default port', async () => {
     await setPreference(KEYS.computerHost, '192.168.1.10');
 
     await expect(loadDevConnectPreferences()).resolves.toEqual({
       computerHost: '192.168.1.10',
-      metroPort: '8081',
       daemonPort: '3799',
     });
   });
 
-  it('saves normalized computer target and Metro port from URL input', async () => {
+  it('saves normalized computer host from URL input', async () => {
     const target = await saveComputerTarget('exp://192.168.1.10:8082');
 
     expect(target).toEqual({
       computerHost: '192.168.1.10',
-      metroPort: '8082',
     });
     expect(await getPreference(KEYS.computerHost)).toBe('192.168.1.10');
-    expect(await getPreference(KEYS.metroPort)).toBe('8082');
   });
 
-  it('saves Metro port and daemon port separately', async () => {
-    await expect(saveMetroPort('8088')).resolves.toBe('8088');
+  it('saves daemon port', async () => {
     await expect(saveDaemonPort('3800')).resolves.toBe('3800');
-
-    expect(await getPreference(KEYS.metroPort)).toBe('8088');
     expect(await getPreference(KEYS.daemonPort)).toBe('3800');
   });
 
-  it('saves computer host without changing the stored Metro port', async () => {
-    await setPreference(KEYS.metroPort, '8088');
+  it('saves computer host without changing the stored daemon port', async () => {
+    await setPreference(KEYS.daemonPort, '3800');
 
     await expect(saveComputerHost('192.168.1.11')).resolves.toBe('192.168.1.11');
 
     expect(await getPreference(KEYS.computerHost)).toBe('192.168.1.11');
-    expect(await getPreference(KEYS.metroPort)).toBe('8088');
+    expect(await getPreference(KEYS.daemonPort)).toBe('3800');
   });
 
   it('does not overwrite stored host when input is invalid', async () => {
@@ -69,7 +61,6 @@ describe('devConnectPreferences', () => {
 
     expect(target).toBeNull();
     expect(await getPreference(KEYS.computerHost)).toBe('192.168.1.10');
-    expect(await getPreference(KEYS.metroPort)).toBe('8082');
   });
 
   it('configures daemon as simulator when platform is simulator', async () => {

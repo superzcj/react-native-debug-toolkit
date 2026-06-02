@@ -27,15 +27,8 @@ function hasHelpFlag(args) {
 function printHelp() {
   process.stderr.write(
     'Usage: debug-toolkit [--host 0.0.0.0] [--port 3799] [--token dev-token] [--store ~/.react-native-debug-toolkit/daemon-devices.json] [--daemon-only]\n'
-  + '       debug-toolkit setup-bundle [--platform ios|android] [--undo] [--check] [--ios-target <name>]\n'
-  + '       debug-toolkit doctor-bundle --platform ios --app <path-to.app>\n'
-  + '       debug-toolkit doctor-bundle --platform android --apk <path-to.apk>\n'
   + '\n'
   + 'Starts the debug toolkit: daemon (HTTP + Web Console) and MCP stdio server.\n'
-  + '\n'
-  + 'Commands:\n'
-  + '  setup-bundle    Persistently configure host app debug builds to embed JS bundle\n'
-  + '  doctor-bundle   Verify source config or built app package contains embedded bundle\n'
   + '\n'
   + 'Daemon options:\n'
   + '  --host <addr>   Host to bind (default: 0.0.0.0)\n'
@@ -61,15 +54,6 @@ async function main() {
 
   if (hasHelpFlag(args)) {
     printHelp();
-    return;
-  }
-
-  if (['setup-bundle', 'doctor-bundle', 'embed'].includes(args[0])) {
-    const { runBundleCli } = require('../scripts/bundle/cli');
-    const code = await runBundleCli(args);
-    if (code !== 0) {
-      process.exitCode = code;
-    }
     return;
   }
 

@@ -89,6 +89,5 @@ export const KEYS = {
   networkLogs: '@react_native_debug_toolkit/network_logs',
   trackLogs: '@react_native_debug_toolkit/track_logs',
   computerHost: '@react_native_debug_toolkit/computer_host',
-  metroPort: '@react_native_debug_toolkit/metro_port',
   daemonPort: '@react_native_debug_toolkit/daemon_port',
 } as const;

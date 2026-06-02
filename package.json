@@ -1,6 +1,6 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "3.3.7",
+  "version": "3.3.8",
   "description": "A local-first React Native debug toolkit with Web Console, HTTP API, and MCP support for AI-readable app logs",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -10,9 +10,6 @@
     "lib",
     "bin",
     "node",
-    "scripts",
-    "app.plugin.js",
-    "dev-client.js",
     "ios",
     "android",
     "react-native-debug-toolkit.podspec",
@@ -96,7 +93,6 @@
     ]
   },
   "dependencies": {
-    "@babel/runtime": "^7.29.2",
-    "xcode": "^3.0.1"
+    "@babel/runtime": "^7.29.2"
   }
 }

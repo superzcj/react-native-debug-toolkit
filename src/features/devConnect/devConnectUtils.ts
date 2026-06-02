@@ -1,27 +1,7 @@
-export const DEFAULT_METRO_PORT = '8081';
 export const DEFAULT_DAEMON_PORT = '3799';
-
-export interface MetroUrls {
-  expUrl: string;
-  httpUrl: string;
-}
-
-export interface MetroTarget {
-  host: string;
-  port: string;
-  hostPort: string;
-  statusUrl: string;
-}
 
 export interface ParsedComputerTarget {
   computerHost: string;
-  metroPort: string;
-}
-
-export interface ParsedMetroQrPayload {
-  computerHost: string;
-  metroPort: string;
-  source: string;
 }
 
 function isValidIpv4(host: string): boolean {
@@ -92,67 +72,7 @@ export function parseComputerTarget(raw: string): ParsedComputerTarget | null {
     return null;
   }
 
-  const metroPort = parsed.port
-    ? normalizePort(parsed.port)
-    : DEFAULT_METRO_PORT;
-  if (!metroPort) {
-    return null;
-  }
-
-  return {
-    computerHost: parsed.host,
-    metroPort,
-  };
-}
-
-function normalizeMetroHost(rawHost: string): string | null {
-  const parsed = parseHostAndPort(rawHost);
-  if (!parsed) {
-    return null;
-  }
-  if (parsed.host === 'localhost') {
-    return parsed.host;
-  }
-  return isValidIpv4(parsed.host) ? parsed.host : null;
-}
-
-export function buildMetroTarget(rawHost: string, rawPort = DEFAULT_METRO_PORT): MetroTarget | null {
-  const host = normalizeMetroHost(rawHost);
-  if (!host) {
-    return null;
-  }
-
-  const port = normalizePort(rawPort);
-  if (!port) {
-    return null;
-  }
-
-  return {
-    host,
-    port,
-    hostPort: `${host}:${port}`,
-    statusUrl: `http://${host}:${port}/status`,
-  };
-}
-
-export function buildMetroUrls(rawHost: string, rawPort = DEFAULT_METRO_PORT): MetroUrls | null {
-  const target = buildMetroTarget(rawHost, rawPort);
-  if (!target) {
-    return null;
-  }
-
-  return {
-    expUrl: `exp://${target.hostPort}`,
-    httpUrl: `http://${target.hostPort}`,
-  };
-}
-
-export function parseMetroQrPayload(payload: string): ParsedMetroQrPayload | null {
-  const target = parseComputerTarget(payload);
-  if (!target) {
-    return null;
-  }
-  return { ...target, source: payload };
+  return { computerHost: parsed.host };
 }
 
 export function buildDaemonDeviceHost(computerHost: string, daemonPort: string): string {

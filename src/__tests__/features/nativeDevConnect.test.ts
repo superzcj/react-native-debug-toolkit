@@ -1,74 +1,50 @@
-import { DevSettings, NativeModules } from 'react-native';
+import { NativeModules } from 'react-native';
 
 import {
-  applyMetroBundle,
   isNativeDevConnectAvailable,
-  resetMetroBundle,
+  nativeIsDebugBuild,
+  getDeviceLocalIp,
 } from '../../features/devConnect/nativeDevConnect';
 
 describe('nativeDevConnect', () => {
   beforeEach(() => {
     delete NativeModules.DebugToolkitDevConnect;
-    (DevSettings.reload as jest.Mock).mockClear();
-    global.fetch = jest.fn();
   });
 
   it('reports unavailable when native module is not installed', () => {
     expect(isNativeDevConnectAvailable()).toBe(false);
   });
 
-  it('delegates Metro host apply and reload to the native module', async () => {
+  it('reports available when native module has isDebugBuild', () => {
     NativeModules.DebugToolkitDevConnect = {
-      applyMetroHost: jest.fn(async () => ({ hostPort: '192.168.1.10:8082' })),
-      resetMetroHost: jest.fn(),
+      isDebugBuild: jest.fn(),
     };
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      status: 200,
-      text: async () => 'packager-status:running',
-    })) as unknown as typeof fetch;
-
-    await expect(applyMetroBundle('192.168.1.10', '8082')).resolves.toEqual({
-      ok: true,
-      hostPort: '192.168.1.10:8082',
-    });
-
-    expect(global.fetch).toHaveBeenCalledWith('http://192.168.1.10:8082/status', expect.objectContaining({
-      method: 'GET',
-    }));
-    expect(NativeModules.DebugToolkitDevConnect.applyMetroHost).toHaveBeenCalledWith('192.168.1.10:8082');
-    expect(DevSettings.reload).not.toHaveBeenCalled();
+    expect(isNativeDevConnectAvailable()).toBe(true);
   });
 
-  it('does not apply native host when Metro status is not reachable', async () => {
-    NativeModules.DebugToolkitDevConnect = {
-      applyMetroHost: jest.fn(),
-      resetMetroHost: jest.fn(),
-    };
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      status: 200,
-      text: async () => 'not-running',
-    })) as unknown as typeof fetch;
-
-    await expect(applyMetroBundle('192.168.1.10', '8082')).resolves.toMatchObject({
-      ok: false,
-      reason: 'metro_unreachable',
-    });
-
-    expect(NativeModules.DebugToolkitDevConnect.applyMetroHost).not.toHaveBeenCalled();
-    expect(DevSettings.reload).not.toHaveBeenCalled();
+  it('returns null from nativeIsDebugBuild when native module is absent', async () => {
+    await expect(nativeIsDebugBuild()).resolves.toBeNull();
   });
 
-  it('delegates Metro host reset and reload to the native module', async () => {
+  it('delegates isDebugBuild to native module', async () => {
     NativeModules.DebugToolkitDevConnect = {
-      applyMetroHost: jest.fn(),
-      resetMetroHost: jest.fn(async () => undefined),
+      isDebugBuild: jest.fn(async () => true),
     };
+    await expect(nativeIsDebugBuild()).resolves.toBe(true);
+  });
 
-    await expect(resetMetroBundle()).resolves.toEqual({ ok: true });
+  it('returns null from getDeviceLocalIp when native module lacks getLocalIp', async () => {
+    NativeModules.DebugToolkitDevConnect = {
+      isDebugBuild: jest.fn(),
+    };
+    await expect(getDeviceLocalIp()).resolves.toBeNull();
+  });
 
-    expect(NativeModules.DebugToolkitDevConnect.resetMetroHost).toHaveBeenCalledTimes(1);
-    expect(DevSettings.reload).not.toHaveBeenCalled();
+  it('delegates getDeviceLocalIp to native module', async () => {
+    NativeModules.DebugToolkitDevConnect = {
+      isDebugBuild: jest.fn(),
+      getLocalIp: jest.fn(async () => '192.168.1.42'),
+    };
+    await expect(getDeviceLocalIp()).resolves.toBe('192.168.1.42');
   });
 });

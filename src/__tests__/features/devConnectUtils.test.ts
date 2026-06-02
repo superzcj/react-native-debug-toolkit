@@ -1,21 +1,17 @@
 import {
   DEFAULT_DAEMON_PORT,
-  DEFAULT_METRO_PORT,
-  buildMetroTarget,
-  buildMetroUrls,
   normalizeComputerHost,
   normalizePort,
   parseComputerTarget,
-  parseMetroQrPayload,
+  buildDaemonDeviceHost,
 } from '../../features/devConnect/devConnectUtils';
 
 describe('devConnectUtils', () => {
-  it('exposes default ports for Metro and desktop logs separately', () => {
-    expect(DEFAULT_METRO_PORT).toBe('8081');
+  it('exposes default daemon port', () => {
     expect(DEFAULT_DAEMON_PORT).toBe('3799');
   });
 
-  it('normalizes plain IP, IP with port, and Metro URLs to a host only', () => {
+  it('normalizes plain IP, IP with port, and URLs to a host only', () => {
     expect(normalizeComputerHost('192.168.1.10')).toBe('192.168.1.10');
     expect(normalizeComputerHost('192.168.1.10:8081')).toBe('192.168.1.10');
     expect(normalizeComputerHost('exp://192.168.1.10:8081')).toBe('192.168.1.10');
@@ -37,56 +33,22 @@ describe('devConnectUtils', () => {
     expect(normalizePort('abc')).toBeNull();
   });
 
-  it('parses computer target with Metro port from IP or URL input', () => {
+  it('parses computer host from IP or URL input', () => {
     expect(parseComputerTarget('192.168.1.10')).toEqual({
       computerHost: '192.168.1.10',
-      metroPort: '8081',
     });
     expect(parseComputerTarget('192.168.1.10:8082')).toEqual({
       computerHost: '192.168.1.10',
-      metroPort: '8082',
     });
     expect(parseComputerTarget('exp://192.168.1.10:19000')).toEqual({
       computerHost: '192.168.1.10',
-      metroPort: '19000',
     });
     expect(parseComputerTarget('999.1.1.1:8081')).toBeNull();
-    expect(parseComputerTarget('192.168.1.10:99999')).toBeNull();
   });
 
-  it('builds Metro URLs with stored Metro port without changing daemon port', () => {
-    expect(buildMetroUrls('192.168.1.10')).toEqual({
-      expUrl: 'exp://192.168.1.10:8081',
-      httpUrl: 'http://192.168.1.10:8081',
-    });
-    expect(buildMetroUrls('192.168.1.10', '8082')).toEqual({
-      expUrl: 'exp://192.168.1.10:8082',
-      httpUrl: 'http://192.168.1.10:8082',
-    });
-    expect(buildMetroUrls('bad host')).toBeNull();
-  });
-
-  it('builds native Metro hostPort and status URL', () => {
-    expect(buildMetroTarget('192.168.1.10', '8082')).toEqual({
-      host: '192.168.1.10',
-      port: '8082',
-      hostPort: '192.168.1.10:8082',
-      statusUrl: 'http://192.168.1.10:8082/status',
-    });
-    expect(buildMetroTarget('192.168.1.10', '99999')).toBeNull();
-  });
-
-  it('parses QR payloads with the same normalization rules', () => {
-    expect(parseMetroQrPayload('exp://192.168.1.10:8081')).toEqual({
-      computerHost: '192.168.1.10',
-      metroPort: '8081',
-      source: 'exp://192.168.1.10:8081',
-    });
-    expect(parseMetroQrPayload('http://192.168.1.10:8082/index.bundle?platform=ios')).toEqual({
-      computerHost: '192.168.1.10',
-      metroPort: '8082',
-      source: 'http://192.168.1.10:8082/index.bundle?platform=ios',
-    });
-    expect(parseMetroQrPayload('bad')).toBeNull();
+  it('builds daemon device host with optional port', () => {
+    expect(buildDaemonDeviceHost('192.168.1.10', '3799')).toBe('192.168.1.10');
+    expect(buildDaemonDeviceHost('192.168.1.10', '3800')).toBe('192.168.1.10:3800');
+    expect(buildDaemonDeviceHost('', '3799')).toBe('');
   });
 });

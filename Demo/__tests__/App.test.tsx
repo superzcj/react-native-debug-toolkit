@@ -130,7 +130,6 @@ beforeEach(async () => {
   mockAsyncStorage.getItem.mockClear();
   mockAsyncStorage.setItem.mockClear();
   await setPreference(KEYS.computerHost, '');
-  await setPreference(KEYS.metroPort, '');
   await setPreference(KEYS.daemonPort, '');
   await setPreference(KEYS.lastTab, '');
 });
@@ -228,7 +227,7 @@ test('provides a raw XMLHttpRequest smoke action for network capture', async () 
   }
 });
 
-test('shows DevConnect tab with IP input, sync buttons, native Metro action, and no copy flow', async () => {
+test('shows DevConnect tab with IP input, sync buttons, and no copy flow', async () => {
   global.fetch = jest.fn().mockResolvedValue({
     json: async () => [],
   }) as unknown as typeof fetch;
@@ -264,10 +263,7 @@ test('shows DevConnect tab with IP input, sync buttons, native Metro action, and
 
   expect(findText(renderer!.root, 'Live Sync')).toBeTruthy();
   expect(findText(renderer!.root, 'Send Once')).toBeTruthy();
-  expect(findText(renderer!.root, 'Remote JS Bundle')).toBeTruthy();
   expect(findText(renderer!.root, 'Computer IP')).toBeTruthy();
-  expect(findText(renderer!.root, 'Use Metro Bundle')).toBeTruthy();
-  expect(findText(renderer!.root, 'Reset')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     typeIntoPlaceholder(renderer!.root, '192.168.1.10', '192.168.1.10');

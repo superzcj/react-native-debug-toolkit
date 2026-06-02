@@ -77,60 +77,6 @@ In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync`
 
 DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
 
-### Embedded Debug Bundle
-
-Debug builds need an embedded JS bundle for cold start when Metro is off.
-
-Bare React Native:
-
-```bash
-npm exec -- debug-toolkit setup-bundle
-git diff
-git commit -am "chore: enable debug bundle embedding"
-```
-
-By default, `setup-bundle` configures the native platforms present in the app directory. Use `--platform ios` or `--platform android` to force one platform.
-
-Run this once from the app root after installing `react-native-debug-toolkit`, then commit the generated native project changes. Build machines should run normal install and build commands, not `setup-bundle`.
-
-Expo dev-client:
-
-```json
-{
-  "expo": {
-    "plugins": [
-      ["react-native-debug-toolkit/dev-client", { "embedBundle": true }]
-    ]
-  }
-}
-```
-
-For Expo CNG projects where `ios/` and `android/` stay ignored, do not run `setup-bundle` in CI. Keep the plugin entry in `app.json` or `app.config.ts`; `expo prebuild`, `expo run:*`, and EAS Build apply it while generating native projects.
-
-Expo dev-client embedded fallback bundles use a production transform (`--dev false --minify false`) so Expo devtools runtime does not open offline WebSocket connections. Live debugging still starts after DevConnect switches the app to your Metro dev bundle.
-
-Verify generated native config after setup or prebuild:
-
-```bash
-npm exec -- debug-toolkit doctor-bundle --platform ios
-npm exec -- debug-toolkit doctor-bundle --platform android
-```
-
-Optionally verify built artifacts:
-
-```bash
-npm exec -- debug-toolkit doctor-bundle --platform ios --app path/to/App.app
-npm exec -- debug-toolkit doctor-bundle --platform android --apk path/to/app-debug.apk
-```
-
-After setup, build machines run normal Xcode, Gradle, React Native, or EAS commands. Do not run a separate mutation command on every build.
-
-For Remote JS Bundle, run Metro on your computer, enter computer IP and Metro port in `DevConnect`, then tap `Use Metro Bundle`. DevConnect persists the host and hot-reloads from Metro. Use **Reset** to go back to the embedded bundle.
-
-> **Debug builds only.** Metro host switching works in Debug builds. Release builds load the embedded bundle and the controls are disabled (`release: disabled` badge).
-
-**iOS — no AppDelegate changes required.** On install, DevConnect hooks `RCTBundleURLProvider` so the app **cold-starts from the embedded `main.jsbundle`** and only connects to Metro after you apply a host in the panel (fixes Expo `.expo/.virtual-metro-entry` red screens when Metro is off).
-
 The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
 
 QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the app to enable the scan button. The app must request camera permission before scanning.
