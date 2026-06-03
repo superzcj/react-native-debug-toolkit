@@ -14,7 +14,7 @@ RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 
 ## 能做什么
 
-- App 内调试面板：Network、Console、Navigation、Track、Zustand、Environment、Clipboard。
+- App 内调试面板：Network、Console、原生日志(Native)、Navigation、Track、Zustand、Environment、Clipboard。
 - 桌面 Web Console：查看模拟器和真机日志。
 - 本地 HTTP API：给 curl、脚本、Codex、Claude Code、其他有 shell 的 AI 读取。
 - 可选 MCP：提供 `list_app_devices` 和 `get_app_logs`。
@@ -160,6 +160,22 @@ claude mcp add debug-toolkit -- npm exec -- debug-toolkit
 - `get_app_logs`
 
 `get_app_logs` 默认不返回 body，减少 token。设置 `includeBodies=true` 或传 `entryId` 可读取单条完整日志。
+
+### 原生日志
+
+Native Logs 会收集当前 App 进程的原生日志，并显示在 `Native` 标签页。
+
+- Android：收集当前 App 进程可见的 `logcat` 日志。
+- iOS：收集 React Native 通过 `RCTLog*` 发出的原生日志。
+- DevConnect 会把 Native 日志和当前 session 的其他日志一起同步到桌面 daemon。
+
+Release 包默认仍关闭。内部 release、TestFlight、QA 或灰度排查需要开启时，只传 `enabled: true`：
+
+```tsx
+<DebugView enabled={true} />
+```
+
+`enabled: true` 是唯一的 release 开关。原生日志可能包含用户数据、token、URL 或设备状态，不要在公开生产包中默认开启。
 
 ## App 配置
 

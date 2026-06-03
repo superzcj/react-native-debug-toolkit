@@ -14,7 +14,7 @@ RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 
 ## What You Get
 
-- In-app debug panel with Network, Console, Navigation, Track, Zustand, Environment, and Clipboard logs.
+- In-app debug panel with Network, Console, Native, Navigation, Track, Zustand, Environment, and Clipboard logs.
 - Desktop Web Console for simulator and real-device logs.
 - Local HTTP API for curl, scripts, Codex, Claude Code, and other AI agents with shell access.
 - Optional MCP server with `list_app_devices` and `get_app_logs`.
@@ -160,6 +160,22 @@ Tools:
 - `get_app_logs`
 
 `get_app_logs` excludes bodies by default to reduce tokens. Set `includeBodies=true` or pass `entryId` to fetch one full log entry.
+
+### Native Logs
+
+Native Logs collects native app-process logs and shows them in the `Native` tab.
+
+- Android: captures current app-process `logcat` entries visible to the app.
+- iOS: captures React Native native logs emitted through `RCTLog*`.
+- DevConnect sends Native logs to the desktop daemon with the rest of the current session.
+
+Release builds stay disabled by default. To use the toolkit in an internal release, TestFlight, QA, or gray rollout build, pass `enabled: true`:
+
+```tsx
+<DebugView enabled={true} />
+```
+
+`enabled: true` is the only release opt-in. Use it carefully because native logs can contain user data, tokens, URLs, or device state. Do not enable it by default in public production builds.
 
 ## App Options
 
