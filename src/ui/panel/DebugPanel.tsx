@@ -14,10 +14,12 @@ import { Colors } from '../theme/colors';
 interface DebugPanelProps {
   onClose: () => void;
   onClearAll: () => void;
+  syncLabel?: string;
+  syncColor?: string;
   children: React.ReactNode;
 }
 
-export function DebugPanel({ onClose, onClearAll, children }: DebugPanelProps) {
+export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -99,20 +101,35 @@ export function DebugPanel({ onClose, onClearAll, children }: DebugPanelProps) {
             <View style={styles.dragIndicator} />
           </View>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Debug Toolkit</Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerTitle}>Debug Toolkit</Text>
+              {syncLabel && (
+                <View style={styles.syncRow}>
+                  <View style={[styles.syncDot, syncColor ? { backgroundColor: syncColor } : null]} />
+                  <Text style={styles.syncText} numberOfLines={1}>{syncLabel}</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.headerButtons}>
               <TouchableOpacity
                 onPress={() => {
                   onClearAll();
                   closePanel();
                 }}
-                style={styles.clearButton}
+                style={styles.iconButton}
                 activeOpacity={0.6}
+                accessibilityLabel="Clear all"
+                accessibilityRole="button"
               >
-                <Text style={styles.clearButtonText}>Clear</Text>
+                <Text style={styles.iconButtonText}>C</Text>
               </TouchableOpacity>
-              <Pressable onPress={closePanel} style={styles.closeButton}>
-                <Text style={styles.closeButtonText}>✕</Text>
+              <Pressable
+                onPress={closePanel}
+                style={styles.iconButton}
+                accessibilityLabel="Close panel"
+                accessibilityRole="button"
+              >
+                <Text style={styles.iconButtonText}>✕</Text>
               </Pressable>
             </View>
           </View>
@@ -156,13 +173,13 @@ const styles = StyleSheet.create({
   },
   dragHandle: {
     width: '100%',
-    height: 28,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
   },
   dragIndicator: {
-    width: 40,
+    width: 42,
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.textLight,
@@ -172,44 +189,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 6,
+    paddingHorizontal: 14,
+    paddingTop: 8,
     paddingBottom: 10,
     backgroundColor: Colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.text,
+  },
+  syncRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  syncDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: Colors.success,
+  },
+  syncText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
   },
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 7,
   },
-  clearButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  iconButton: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
-    backgroundColor: `${Colors.error}0F`,
-  },
-  clearButtonText: {
-    color: Colors.error,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: Colors.border,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: '400',
+  iconButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.textSecondary,
-    lineHeight: 16,
   },
 });

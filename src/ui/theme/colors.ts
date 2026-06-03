@@ -14,6 +14,13 @@ export const Colors = {
 
   purple: '#AF52DE',
 
+  // Panel-specific
+  railBackground: '#E8EEF6',
+  panelDivider: '#CED8E4',
+  signalRedBg: '#FFE9E7',
+  signalAmberBg: '#FFF1D6',
+  signalDefaultBg: '#E7EDF5',
+
   get: '#007AFF',
   post: '#34C759',
   put: '#FF9500',

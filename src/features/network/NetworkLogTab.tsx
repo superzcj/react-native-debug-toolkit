@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   ScrollView,
 } from 'react-native';
 import { Colors, getMethodColor } from '../../ui/theme/colors';
@@ -43,58 +42,38 @@ const buildCurl = (log: NetworkLogEntry): string => {
 export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>> = React.memo(({
   snapshot,
 }) => {
-  const [search, setSearch] = useState('');
-  const data = snapshot;
-
-  const filtered = search
-    ? data.filter(
-        (l) =>
-          l.request.url.toLowerCase().includes(search.toLowerCase()) ||
-          l.request.method.toLowerCase().includes(search.toLowerCase()),
-      )
-    : data;
-
-  const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
+  const sorted = [...snapshot].sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <LogListScreen
       data={sorted}
       reversed={false}
       emptyText="No HTTP requests logged"
-      renderListHeader={() => (
-        <View style={s.searchContainer}>
-          <View style={s.searchBar}>
-            <Text style={s.searchIcon}>⌕</Text>
-            <TextInput
-              style={s.search}
-              placeholder="Search URLs..."
-              placeholderTextColor={Colors.textLight}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-        </View>
-      )}
       renderRow={(item) => {
         const ok = !item.error && (!item.response || item.response.status < 400);
-        const sc = ok ? Colors.success : Colors.error;
+        const statusColor = ok ? Colors.success : Colors.error;
+        const urlParts = formatUrlParts(item.request.url);
+
         return (
           <View style={s.cardRow}>
-            <View style={[s.statusIndicator, { backgroundColor: sc }]} />
+            <View style={[s.statusIndicator, { backgroundColor: statusColor }]} />
             <View style={s.cardBody}>
-              <View style={s.cardMeta}>
-                <Text style={[s.methodText, { color: getMethodColor(item.request.method) }]}>
-                  {item.request.method}
-                </Text>
-                <View style={[s.miniPill, { backgroundColor: sc }]}>
-                  <Text style={s.miniPillText}>{item.response?.status ?? 'ERR'}</Text>
+              <View style={s.primaryRow}>
+                <View style={[s.methodChip, { backgroundColor: getMethodColor(item.request.method) }]}>
+                  <Text style={s.methodChipText}>{item.request.method}</Text>
                 </View>
-                {item.duration != null && <Text style={s.durationText}>{item.duration}ms</Text>}
+                <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={1}>
+                  {urlParts.path}
+                </Text>
+                <View style={[s.statusChip, { backgroundColor: statusColor }]}>
+                  <Text style={s.statusChipText}>{item.response?.status ?? 'ERR'}</Text>
+                </View>
               </View>
-              <Text style={[s.url, !ok && { color: Colors.error }]} numberOfLines={2}>
-                {item.request.url}
-              </Text>
-              <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+              <View style={s.metaRow}>
+                {item.duration != null && <Text style={s.metaText}>{item.duration}ms</Text>}
+                {!!urlParts.host && <Text style={[s.metaText, s.hostText]} numberOfLines={1}>{urlParts.host}</Text>}
+                <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+              </View>
             </View>
           </View>
         );
@@ -185,43 +164,55 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
   );
 });
 
+function formatUrlParts(url: string): { host: string; path: string } {
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.host,
+      path: parsed.pathname + parsed.search,
+    };
+  } catch {
+    return { host: '', path: url };
+  }
+}
+
 const s = StyleSheet.create({
-  // Search
-  searchContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 6,
-    backgroundColor: Colors.background,
-  },
-  searchBar: {
+  cardRow: { flexDirection: 'row', padding: 12 },
+  statusIndicator: { width: 3, borderRadius: 2, marginRight: 10 },
+  cardBody: { flex: 1, gap: 7 },
+  primaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 38,
+    gap: 7,
+    minWidth: 0,
   },
-  searchIcon: { fontSize: 16, color: Colors.textLight, marginRight: 6 },
-  search: {
+  methodChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  methodChipText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  pathText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
     color: Colors.text,
-    padding: 0,
   },
-
-  // Row
-  cardRow: { flexDirection: 'row', padding: 14 },
-  statusIndicator: { width: 3, borderRadius: 2, marginRight: 12 },
-  cardBody: { flex: 1 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 6 },
-  methodText: { fontSize: 13, fontWeight: '700' },
-  miniPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
-  miniPillText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
-  durationText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  url: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4, lineHeight: 18 },
+  statusChip: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  statusChipText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minWidth: 0,
+  },
+  metaText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
+  hostText: { flex: 1 },
   time: { fontSize: 11, color: Colors.textLight },
-
-  // Detail header
   detailHeaderCenter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -236,8 +227,7 @@ const s = StyleSheet.create({
   methodBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   statusPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
   statusPillText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-
-  // Detail body
+  durationText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
   detailBody: { flex: 1 },
   detailBodyContent: { padding: 12, paddingBottom: 40 },
   urlCard: {

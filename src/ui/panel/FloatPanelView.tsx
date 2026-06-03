@@ -2,15 +2,20 @@ import React, { Component, useCallback, useEffect, useRef, useState } from 'reac
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   Animated,
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
+import { Colors } from '../theme/colors';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
 import { FloatIcon } from '../floating/FloatIcon';
 import { DebugPanel } from './DebugPanel';
-import { FeatureTabBar } from './FeatureTabBar';
-import type { TabItem } from './FeatureTabBar';
+import { FeatureRail } from './FeatureRail';
+import type { RailItem } from './FeatureRail';
+import { FeatureIntroCard } from './FeatureIntroCard';
+import { buildFeatureSummary } from './buildFeatureSummary';
+import { filterFeatureSnapshot } from './filterFeatureSnapshot';
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
 
@@ -40,6 +45,57 @@ class DebugErrorBoundary extends Component<
   }
 }
 
+// ─── Snapshot helpers ──────────────────────────────────
+
+function snapshotCount(feature: AnyDebugFeature): number | undefined {
+  try {
+    const snap = feature.getSnapshot();
+    if (Array.isArray(snap)) return snap.length;
+    if (snap && typeof snap === 'object') {
+      const obj = snap as Record<string, unknown>;
+      if (Array.isArray(obj.items)) return obj.items.length;
+      if (Array.isArray(obj.logs)) return obj.logs.length;
+      if (Array.isArray(obj.entries)) return obj.entries.length;
+      if (Array.isArray(obj.environments)) return obj.environments.length;
+    }
+  } catch { /* ignore */ }
+  return undefined;
+}
+
+interface PanelConnectionStatus {
+  label: string;
+  color: string;
+}
+
+interface DevConnectSnapshot {
+  isSimulator?: boolean;
+  computerHost?: string;
+  daemonPort?: string;
+  streaming?: boolean;
+}
+
+function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
+  const devConnect = features.find((f) => f.name === 'devConnect');
+  if (!devConnect) {
+    return { label: 'offline desktop sync unavailable', color: Colors.textLight };
+  }
+
+  try {
+    const snap = (devConnect.getSnapshot() ?? {}) as DevConnectSnapshot;
+    const host = snap.isSimulator ? 'localhost' : snap.computerHost?.trim();
+    const port = snap.daemonPort?.trim();
+    const target = host && port ? `${host}:${port}` : host || (port ? `port ${port}` : 'not configured');
+    return {
+      label: `${snap.streaming ? 'live' : 'offline'} ${target}`,
+      color: snap.streaming ? Colors.success : Colors.textLight,
+    };
+  } catch {
+    return { label: 'offline desktop sync unavailable', color: Colors.textLight };
+  }
+}
+
+// ─── Main Component ────────────────────────────────────
+
 interface FloatPanelViewProps {
   features: AnyDebugFeature[];
   panelOpen: boolean;
@@ -50,6 +106,8 @@ interface FloatPanelViewProps {
 
 export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterBad, setFilterBad] = useState(false);
   const tabLoaded = useRef(false);
 
   // Restore last tab on mount
@@ -74,6 +132,8 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     tabCount: features.length,
     onTabChange: useCallback((index: number) => {
       tabLoaded.current = true;
+      setSearchQuery('');
+      setFilterBad(false);
       setActiveTab(index);
       const featureName = features[index]?.name;
       if (featureName) {
@@ -115,7 +175,30 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
 
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
-  const tabs: TabItem[] = features.map((f) => ({ label: f.label, id: f.name }));
+
+  // Rail items with counts
+  const railItems: RailItem[] = features.map((f) => {
+    const b = f.badge?.();
+    return { id: f.name, label: f.label, dotColor: b?.color ?? null, count: snapshotCount(f) };
+  });
+
+  const panelConnectionStatus = buildPanelConnectionStatus(features);
+
+  const handleClearAll = useCallback(() => {
+    setSearchQuery('');
+    setFilterBad(false);
+    onClearAll();
+  }, [onClearAll]);
+
+  // Active feature + summary
+  const activeFeature = features[activeTab];
+  const activeSnapshot = activeFeature?.getSnapshot();
+  const activeSummary = activeFeature ? buildFeatureSummary(activeFeature, activeSnapshot) : null;
+
+  // Filtered snapshot — reuse activeSnapshot to avoid double getSnapshot()
+  const filteredSnapshot = activeFeature
+    ? filterFeatureSnapshot(activeFeature, activeSnapshot, searchQuery, filterBad ? 'bad' : 'all')
+    : null;
 
   // Render active feature content
   const renderFeatureContent = () => {
@@ -124,7 +207,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     }
     const feature = features[activeTab];
     if (!feature) return <Text style={styles.emptyText}>Feature not found</Text>;
-    const snapshot = feature.getSnapshot();
+    const snapshot = filteredSnapshot;
     const TabComponent = feature.renderContent;
     if (TabComponent) return <TabComponent snapshot={snapshot} feature={feature} />;
     return (
@@ -134,6 +217,8 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     );
   };
 
+  const showSearch = activeSummary ? (activeSummary.count != null && activeSummary.count > 0) : false;
+
   return (
     <DebugErrorBoundary onError={onClosePanel}>
       <View style={styles.container} pointerEvents="box-none">
@@ -141,18 +226,44 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
         {panelOpen && (
           <DebugPanel
             onClose={onClosePanel}
-            onClearAll={onClearAll}
+            onClearAll={handleClearAll}
+            syncLabel={panelConnectionStatus.label}
+            syncColor={panelConnectionStatus.color}
           >
-            <FeatureTabBar tabs={tabs} activeIndex={activeTab} onSelectTab={switchTab} />
-            <Animated.View
-              style={[
-                styles.contentContainer,
-                { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] },
-              ]}
-              {...panHandlers}
-            >
-              {renderFeatureContent()}
-            </Animated.View>
+            <View style={styles.bodyRow}>
+              <FeatureRail items={railItems} activeIndex={activeTab} onSelectTab={switchTab} />
+              <View style={styles.contentColumn}>
+                {activeFeature && activeSummary && (
+                  <FeatureIntroCard
+                    title={activeFeature.label}
+                    summary={activeSummary}
+                    filterBad={filterBad}
+                    onFilterBad={setFilterBad}
+                  />
+                )}
+                {showSearch && (
+                  <View style={styles.toolbar}>
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search..."
+                      placeholderTextColor={Colors.textLight}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      returnKeyType="search"
+                    />
+                  </View>
+                )}
+                <Animated.View
+                  style={[
+                    styles.contentContainer,
+                    { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] },
+                  ]}
+                  {...panHandlers}
+                >
+                  {renderFeatureContent()}
+                </Animated.View>
+              </View>
+            </View>
           </DebugPanel>
         )}
       </View>
@@ -168,6 +279,34 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 999,
+  },
+  bodyRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  contentColumn: {
+    flex: 1,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  searchInput: {
+    flex: 1,
+    height: 34,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: Colors.text,
   },
   contentContainer: { flex: 1 },
   emptyText: {
