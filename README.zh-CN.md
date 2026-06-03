@@ -235,6 +235,33 @@ import { addTrackLog } from 'react-native-debug-toolkit';
 addTrackLog({ eventName: 'button_click' });
 ```
 
+第三方调试库（FLEX、DoraemonKit）：
+
+```tsx
+<DebugView features={{ thirdPartyLibs: true }}>
+  <AppContent />
+</DebugView>
+```
+
+此功能默认关闭。开启后增加「Debug Libraries」Tab，可 Show/Hide FLEX（仅 iOS）和 DoraemonKit（iOS & Android）的内置调试工具。
+
+这两个原生库**不会**自动安装。按需添加：
+
+**iOS** — 在项目 `Podfile` 加：
+
+```ruby
+pod 'FLEX', '~> 5.22', :configurations => ['Debug']
+pod 'DoraemonKit', '~> 3.0', :configurations => ['Debug']
+```
+
+**Android** — 在 app 级 `build.gradle` 加：
+
+```groovy
+debugImplementation 'com.didichuxing.doraemonkit:doraemonx:3.1.8'
+```
+
+不需要的库不加即可。Tab 只显示已安装的库，未安装不会 crash。
+
 ## 导出
 
 - `DebugView`

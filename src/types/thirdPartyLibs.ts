@@ -9,5 +9,6 @@ export interface ThirdPartyLib {
   name: string;
   description: string;
   platform: 'ios' | 'android' | 'both';
+  available: boolean;
   actions: ThirdPartyLibAction[];
 }

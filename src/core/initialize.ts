@@ -15,6 +15,7 @@ import { createDevConnectFeature, restoreDevConnectSettingsToDaemon, nativeIsDeb
 import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { createNativeLogsFeature } from '../features/nativeLogs';
 import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
+import { createThirdPartyLibsFeature } from '../features/thirdPartyLibs';
 import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 import type { StorageAdapter } from '../utils/StorageAdapter';
@@ -38,6 +39,7 @@ export interface FeatureConfigs {
   clipboard?: boolean;
   devConnect?: boolean;
   sessionHistory?: boolean;
+  thirdPartyLibs?: boolean;
 }
 
 export interface InitializeOptions {
@@ -63,6 +65,7 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   clipboard: () => createClipboardFeature(),
   devConnect: () => createDevConnectFeature(),
   sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
+  thirdPartyLibs: () => createThirdPartyLibsFeature(),
 };
 
 const DEFAULT_FEATURES: BuiltInFeatureName[] = [

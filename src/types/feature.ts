@@ -12,7 +12,8 @@ export type BuiltInFeatureName =
   | 'environment'
   | 'clipboard'
   | 'devConnect'
-  | 'sessionHistory';
+  | 'sessionHistory'
+  | 'thirdPartyLibs';
 
 export interface DebugFeatureRenderProps<TSnapshot = unknown> {
   snapshot: TSnapshot;

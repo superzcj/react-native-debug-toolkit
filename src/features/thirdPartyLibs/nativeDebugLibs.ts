@@ -1,12 +1,15 @@
 import { NativeModules, Platform } from 'react-native';
 
-interface RNDebugLibsType {
-  showExplorer?(): void;
-  hideExplorer?(): void;
-  toggleExplorer?(): void;
-  installDoraemonKit?(productId: string): void;
-  showDoraemonKit?(): void;
-  hideDoraemonKit?(): void;
+interface RNFLEXBridgeType {
+  showExplorer?(): Promise<boolean>;
+  hideExplorer?(): Promise<boolean>;
+  toggleExplorer?(): Promise<boolean>;
+}
+
+interface RNDoraemonKitBridgeType {
+  installDoraemonKit?(productId: string): Promise<boolean>;
+  showDoraemonKit?(): Promise<boolean>;
+  hideDoraemonKit?(): Promise<boolean>;
 }
 
 interface BuildTypeModuleType {
@@ -14,10 +17,21 @@ interface BuildTypeModuleType {
   getBuildTypeSync(): string | null;
 }
 
-const RNDebugLibs: RNDebugLibsType = NativeModules.RNDebugLibs ?? {};
+const RNFLEXBridge: RNFLEXBridgeType = NativeModules.RNFLEXBridge ?? {};
+const RNDoraemonKitBridge: RNDoraemonKitBridgeType = NativeModules.RNDoraemonKitBridge ?? {};
 const BuildTypeModule: BuildTypeModuleType | null = NativeModules.BuildTypeModule ?? null;
 
 export const NativeDebugLibs = {
+  // Availability detection
+  isFLEXAvailable(): boolean {
+    return Platform.OS === 'ios' && !!RNFLEXBridge.showExplorer;
+  },
+
+  isDoraemonKitAvailable(): boolean {
+    return !!RNDoraemonKitBridge.showDoraemonKit;
+  },
+
+  // Build type
   getBuildType(): Promise<string | null> {
     if (BuildTypeModule) {
       return BuildTypeModule.getBuildType();
@@ -36,39 +50,44 @@ export const NativeDebugLibs = {
     if (BuildTypeModule) {
       return BuildTypeModule.getBuildTypeSync() === 'debug';
     }
-    // Fallback: assume __DEV__ is the source of truth
     return __DEV__;
   },
 
   // FLEX (iOS only)
   showExplorer(): void {
-    if (Platform.OS === 'ios' && RNDebugLibs.showExplorer) {
-      RNDebugLibs.showExplorer();
+    if (Platform.OS === 'ios' && RNFLEXBridge.showExplorer) {
+      RNFLEXBridge.showExplorer();
     }
   },
 
   hideExplorer(): void {
-    if (Platform.OS === 'ios' && RNDebugLibs.hideExplorer) {
-      RNDebugLibs.hideExplorer();
+    if (Platform.OS === 'ios' && RNFLEXBridge.hideExplorer) {
+      RNFLEXBridge.hideExplorer();
+    }
+  },
+
+  toggleExplorer(): void {
+    if (Platform.OS === 'ios' && RNFLEXBridge.toggleExplorer) {
+      RNFLEXBridge.toggleExplorer();
     }
   },
 
   // DoraemonKit
-  installDoraemonKit(productId: string): void {
-    if (RNDebugLibs.installDoraemonKit) {
-      RNDebugLibs.installDoraemonKit(productId);
+  installDoraemonKit(productId: string = ''): void {
+    if (RNDoraemonKitBridge.installDoraemonKit) {
+      RNDoraemonKitBridge.installDoraemonKit(productId);
     }
   },
 
   showDoraemonKit(): void {
-    if (RNDebugLibs.showDoraemonKit) {
-      RNDebugLibs.showDoraemonKit();
+    if (RNDoraemonKitBridge.showDoraemonKit) {
+      RNDoraemonKitBridge.showDoraemonKit();
     }
   },
 
   hideDoraemonKit(): void {
-    if (RNDebugLibs.hideDoraemonKit) {
-      RNDebugLibs.hideDoraemonKit();
+    if (RNDoraemonKitBridge.hideDoraemonKit) {
+      RNDoraemonKitBridge.hideDoraemonKit();
     }
   },
 };

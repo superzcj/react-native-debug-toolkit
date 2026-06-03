@@ -3,7 +3,7 @@ import { ThirdPartyLibsTab } from './ThirdPartyLibsTab';
 import { NativeDebugLibs } from './nativeDebugLibs';
 import type { DebugFeature, ThirdPartyLib } from '../../types';
 
-const availableLibs: ThirdPartyLib[] = [
+const libDefs: Omit<ThirdPartyLib, 'available'>[] = [
   {
     id: 'flex',
     name: 'FLEX',
@@ -12,6 +12,7 @@ const availableLibs: ThirdPartyLib[] = [
     actions: [
       { id: 'showExplorer', label: 'Show Explorer', onPress: NativeDebugLibs.showExplorer },
       { id: 'hideExplorer', label: 'Hide Explorer', onPress: NativeDebugLibs.hideExplorer },
+      { id: 'toggleExplorer', label: 'Toggle Explorer', onPress: NativeDebugLibs.toggleExplorer },
     ],
   },
   {
@@ -26,10 +27,17 @@ const availableLibs: ThirdPartyLib[] = [
   },
 ];
 
-function getPlatformLibs(): ThirdPartyLib[] {
-  return availableLibs.filter(
-    (lib) => lib.platform === 'both' || lib.platform === Platform.OS,
-  );
+function isLibAvailable(id: string): boolean {
+  if (id === 'flex') return NativeDebugLibs.isFLEXAvailable();
+  if (id === 'doraemonkit') return NativeDebugLibs.isDoraemonKitAvailable();
+  return false;
+}
+
+function getAvailableLibs(): ThirdPartyLib[] {
+  return libDefs
+    .filter((lib) => lib.platform === 'both' || lib.platform === Platform.OS)
+    .filter((lib) => isLibAvailable(lib.id))
+    .map((lib) => ({ ...lib, available: true }));
 }
 
 export const createThirdPartyLibsFeature = (): DebugFeature<ThirdPartyLib[]> => ({
@@ -37,6 +45,6 @@ export const createThirdPartyLibsFeature = (): DebugFeature<ThirdPartyLib[]> => 
   label: 'Debug Libraries',
   renderContent: ThirdPartyLibsTab,
   setup: () => {},
-  getSnapshot: () => getPlatformLibs(),
+  getSnapshot: () => getAvailableLibs(),
   cleanup: () => {},
 });

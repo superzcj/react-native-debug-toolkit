@@ -7,6 +7,7 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -14,7 +15,13 @@ public class ReactNativeDebugToolkitPackage implements ReactPackage {
   @NonNull
   @Override
   public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext reactContext) {
-    return Collections.<NativeModule>singletonList(new DebugToolkitDevConnectModule(reactContext));
+    List<NativeModule> modules = new ArrayList<>();
+    modules.add(new DebugToolkitDevConnectModule(reactContext));
+    modules.add(new BuildTypeModule(reactContext));
+    if (RNDoraemonKitBridgeModule.isAvailable()) {
+      modules.add(new RNDoraemonKitBridgeModule(reactContext));
+    }
+    return modules;
   }
 
   @NonNull

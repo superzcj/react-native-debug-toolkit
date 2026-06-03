@@ -235,6 +235,33 @@ import { addTrackLog } from 'react-native-debug-toolkit';
 addTrackLog({ eventName: 'button_click' });
 ```
 
+Third-party debug libraries (FLEX, DoraemonKit):
+
+```tsx
+<DebugView features={{ thirdPartyLibs: true }}>
+  <AppContent />
+</DebugView>
+```
+
+This feature is off by default. It adds a "Debug Libraries" tab with buttons to show/hide FLEX (iOS) and DoraemonKit (iOS & Android) in-app debug tools.
+
+These native libraries are **not** bundled automatically. Add them to your project if you want them:
+
+**iOS** — add to your `Podfile`:
+
+```ruby
+pod 'FLEX', '~> 5.22', :configurations => ['Debug']
+pod 'DoraemonKit', '~> 3.0', :configurations => ['Debug']
+```
+
+**Android** — add to your app-level `build.gradle`:
+
+```groovy
+debugImplementation 'com.didichuxing.doraemonkit:doraemonx:3.1.8'
+```
+
+Omit a library if you don't need it. The tab only shows libraries that are actually installed. No crash if they're missing.
+
 ## Exports
 
 - `DebugView`
