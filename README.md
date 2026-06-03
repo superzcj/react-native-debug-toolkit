@@ -4,21 +4,19 @@
 
 [中文](README.zh-CN.md)
 
-React Native Debug Toolkit is a dev-only local debugging toolkit for React Native apps.
-
-Use it to inspect app logs on device, stream logs to a desktop Web Console, and let AI coding agents read real runtime evidence through HTTP or MCP.
+A local debugging toolkit for React Native apps. It provides an in-app debug panel, a desktop Web Console, an HTTP API, and an MCP server — all running locally with no cloud dependency.
 
 ```text
 RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 ```
 
-## What You Get
+## Features
 
-- In-app debug panel with Network, Console, Native, Navigation, Track, Zustand, Environment, and Clipboard logs.
-- Desktop Web Console for simulator and real-device logs.
-- Local HTTP API for curl, scripts, Codex, Claude Code, and other AI agents with shell access.
-- Optional MCP server with `list_app_devices` and `get_app_logs`.
-- Local-first workflow. No cloud service. No AI API call inside the package.
+- In-app debug panel: Network, Console, Native, Navigation, Track, Zustand, Environment, Clipboard, and custom tabs.
+- Desktop Web Console for viewing simulator and real-device logs in a browser.
+- Local HTTP API for reading logs with `curl`, scripts, or AI agents (Codex, Claude Code, etc.).
+- Optional MCP server exposing `list_app_devices` and `get_app_logs`.
+- Local-first: no cloud service, no signup, no AI API calls inside the package.
 
 ## Install
 
@@ -26,7 +24,7 @@ RN App -> Debug Panel -> local daemon -> Web Console / HTTP API / MCP
 npm install react-native-debug-toolkit
 ```
 
-Install the native part and rebuild the app:
+Install the native part and rebuild:
 
 ```bash
 cd ios && pod install
@@ -73,13 +71,13 @@ Open the Web Console:
 http://127.0.0.1:3799/console
 ```
 
-In the app, open Debug Panel -> `DevConnect` -> `Send Once` or `Start Live Sync` for desktop logs.
+In the app, go to Debug Panel → `DevConnect` → `Send Once` or `Start Live Sync` to sync logs to the desktop.
 
-DevConnect auto-detects simulator/emulator and uses local host settings automatically. On real devices, enter your computer IP to connect.
+DevConnect auto-detects simulator/emulator and configures host settings. On real devices, enter your computer IP manually.
 
-The IP and ports are persisted through AsyncStorage when installed, or through the native module after rebuild.
+IP and ports are persisted via AsyncStorage (when installed) or through the native module after rebuild.
 
-QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the app to enable the scan button. The app must request camera permission before scanning.
+QR scan is optional. Install `react-native-camera-kit` or `expo-camera` to enable the scan button. The app must request camera permission before scanning.
 
 ## Device Setup
 
@@ -89,7 +87,7 @@ QR scan is optional. Install `react-native-camera-kit` or `expo-camera` in the a
 | Android emulator | `http://10.0.2.2:3799` |
 | Real device | `http://<mac-ip>:3799` |
 
-For a real device, first open this URL in the phone browser:
+For real devices, first open this URL in the phone browser:
 
 ```text
 http://<mac-ip>:3799/health
@@ -97,7 +95,7 @@ http://<mac-ip>:3799/health
 
 If it does not open, check Mac firewall, Wi-Fi isolation, VPN, local network permission, and cleartext HTTP settings.
 
-The daemon stores logs at:
+Daemon log store:
 
 ```text
 ~/.react-native-debug-toolkit/daemon-devices.json
@@ -113,7 +111,7 @@ DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec -- debug-toolkit --dae
 
 ## Read Logs With HTTP
 
-HTTP is the best path when your AI agent or script has shell access.
+HTTP is the recommended path when your AI agent or script has shell access.
 
 ```bash
 BASE=http://127.0.0.1:3799
@@ -132,7 +130,7 @@ curl "$BASE/devices/$DEVICE_ID/logs?limit=100&includeBodies=true"
 curl -X DELETE "$BASE/devices"
 ```
 
-Main endpoints:
+Endpoints:
 
 ```text
 GET    /health
@@ -156,30 +154,30 @@ claude mcp add debug-toolkit -- npm exec -- debug-toolkit
 
 Tools:
 
-- `list_app_devices`
-- `get_app_logs`
+- `list_app_devices` — list connected devices
+- `get_app_logs` — fetch device logs
 
-`get_app_logs` excludes bodies by default to reduce tokens. Set `includeBodies=true` or pass `entryId` to fetch one full log entry.
+`get_app_logs` excludes bodies by default to reduce token usage. Set `includeBodies=true` or pass `entryId` to fetch a single full entry.
 
-### Native Logs
+## Native Logs
 
-Native Logs collects native app-process logs and shows them in the `Native` tab.
+Native Logs collects native app-process logs and displays them in the `Native` tab.
 
 - Android: captures current app-process `logcat` entries visible to the app.
 - iOS: captures React Native native logs emitted through `RCTLog*`.
 - DevConnect sends Native logs to the desktop daemon with the rest of the current session.
 
-Release builds stay disabled by default. To use the toolkit in an internal release, TestFlight, QA, or gray rollout build, pass `enabled: true`:
+Release builds stay disabled by default. To enable for internal release, TestFlight, QA, or gray rollout builds:
 
 ```tsx
 <DebugView enabled={true} />
 ```
 
-`enabled: true` is the only release opt-in. Use it carefully because native logs can contain user data, tokens, URLs, or device state. Do not enable it by default in public production builds.
+Native logs may contain user data, tokens, URLs, or device state. Do not enable by default in public production builds.
 
 ## App Options
 
-Disable features:
+### Disable features
 
 ```tsx
 <DebugView features={{ clipboard: false, zustand: false }}>
@@ -187,7 +185,7 @@ Disable features:
 </DebugView>
 ```
 
-Custom tabs:
+### Custom tabs
 
 ```tsx
 import {
@@ -227,7 +225,7 @@ const userDebugTab = createDebugTab<UserSnapshot>({
 
 Each custom feature becomes a panel tab. `name` is the stable tab id, `label` is shown in the tab bar, `getSnapshot` provides tab data, and `render` controls the UI. Add `subscribe` when the tab should refresh after external state changes.
 
-Navigation tracking:
+### Navigation tracking
 
 ```tsx
 <DebugView navigationRef={navigationRef}>
@@ -237,13 +235,13 @@ Navigation tracking:
 </DebugView>
 ```
 
-Zustand:
+### Zustand
 
 ```tsx
 import { zustandLogMiddleware } from 'react-native-debug-toolkit';
 ```
 
-Track:
+### Track events
 
 ```tsx
 import { addTrackLog } from 'react-native-debug-toolkit';
