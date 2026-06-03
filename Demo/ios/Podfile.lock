@@ -1411,6 +1411,8 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+  - react-native-debug-toolkit (3.5.0):
+    - React-Core
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
     - RCTRequired
@@ -1931,6 +1933,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-debug-toolkit (from `/Users/zcj/Documents/project/react-native-debug-toolkit/Demo/ios/../..`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
@@ -2055,6 +2058,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-debug-toolkit:
+    :path: "/Users/zcj/Documents/project/react-native-debug-toolkit/Demo/ios/../.."
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   React-NativeModulesApple:
@@ -2172,6 +2177,7 @@ SPEC CHECKSUMS:
   React-logger: 4e7583fb51ef2aa76b298c88e1b9a5cff83e03f7
   React-Mapbuffer: 820bc13d35de93c05aacefb3ab43f061b247c64e
   React-microtasksnativemodule: d8115c4d1035b8671c036a47d82fe75d1ca44e44
+  react-native-debug-toolkit: 77efe042a6285a9e1f48f38abd9487194879de52
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
   React-NativeModulesApple: 647d3ab78e02b3a40fedffd856744215219ff0a6
   React-networking: 8d40769c4823a7e26ae98ca5cd691edc87828743
@@ -2210,6 +2216,6 @@ SPEC CHECKSUMS:
   RNCClipboard: 715fa7c6c8366f17d00f05a439ee7488f390fa5f
   Yoga: b1085f68c014785350a2afdc95eaef0d49f23ccb
 
-PODFILE CHECKSUM: dbdad812f326742f93f0b95b6bb214cbb4fe94f0
+PODFILE CHECKSUM: 3acb71e4cddc9c14da92e76fef50060331d801a5
 
 COCOAPODS: 1.16.2
