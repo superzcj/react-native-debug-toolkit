@@ -4,3 +4,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autoli
 rootProject.name = 'Demo'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// Link toolkit native Android module from parent directory
+include ':react-native-debug-toolkit'
+project(':react-native-debug-toolkit').projectDir = new File(rootProject.projectDir, '../../android')

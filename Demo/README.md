@@ -6,6 +6,7 @@ Demo for local development. Metro resolves package imports to repository `src/`.
 
 - shopping flow: list, detail, cart, profile
 - Network / Console / Zustand / Navigation / Track logs
+- **Custom tabs** (via `createDebugTab`): "My Cart" (badge + snapshot) and "User Flow" (navigation tracking)
 - raw XHR test: `Profile` -> `Dev Tools` -> `XHR GET`
 - DevConnect: `Send Once` / `Start Live Sync`
 

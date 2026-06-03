@@ -17,6 +17,10 @@ end
 target 'Demo' do
   config = use_native_modules!
 
+  # Link toolkit native modules from parent directory
+  toolkit_root = File.join(File.dirname(__FILE__), '..', '..')
+  pod 'react-native-debug-toolkit', :path => toolkit_root
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
