@@ -65,12 +65,11 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
                 <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={2}>
                   {urlParts.path}
                 </Text>
+              </View>
+              <View style={s.metaRow}>
                 <View style={[s.statusChip, { backgroundColor: statusColor }]}>
                   <Text style={s.statusChipText}>{item.response?.status ?? 'ERR'}</Text>
                 </View>
-              </View>
-              <View style={s.metaRow}>
-                {item.duration != null && <Text style={s.metaText}>{item.duration}ms</Text>}
                 {!!urlParts.host && <Text style={[s.metaText, s.hostText]} numberOfLines={1}>{urlParts.host}</Text>}
                 <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
               </View>
