@@ -51,12 +51,14 @@ interface FlatLogEntry {
 const FEATURE_LABELS: Record<LogFeatureKey, string> = {
   console_logs: 'Console',
   network_logs: 'Network',
+  native_logs: 'Native',
   track_logs: 'Track',
 };
 
 const FEATURE_COLORS: Record<LogFeatureKey, string> = {
   console_logs: Colors.info,
   network_logs: Colors.success,
+  native_logs: '#FF9500',
   track_logs: Colors.purple,
 };
 

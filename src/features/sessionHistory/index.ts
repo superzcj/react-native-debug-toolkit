@@ -3,7 +3,7 @@ import type { LogFeatureKey } from '../../types';
 import { createDebugTab } from '../../utils/createDebugTab';
 import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
 
-const FEATURE_KEYS: LogFeatureKey[] = ['console_logs', 'network_logs', 'track_logs'];
+const FEATURE_KEYS: LogFeatureKey[] = ['console_logs', 'network_logs', 'native_logs', 'track_logs'];
 
 export function createSessionHistoryFeature(
   runtime: LogRuntimeContext = getDefaultLogRuntime(),
@@ -28,7 +28,7 @@ export function createSessionHistoryFeature(
     const counts: Record<string, LogCounts> = {};
     await Promise.all(
       sessionIds.map(async (id) => {
-        const c: LogCounts = { console_logs: 0, network_logs: 0, track_logs: 0 };
+        const c: LogCounts = { console_logs: 0, network_logs: 0, native_logs: 0, track_logs: 0 };
         await Promise.all(
           FEATURE_KEYS.map(async (key) => {
             c[key] = await runtime.sessionManager.getSessionLogCount(id, key);

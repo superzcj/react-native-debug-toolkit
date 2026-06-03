@@ -31,4 +31,31 @@ describe('session log storage for built-in features', () => {
     expect(feature.getSnapshot()).toEqual([]);
     expect(await logStorage.getItem(storageKey)).toBe(persistedBeforeCleanup);
   });
+
+  it('persists native logs under the current session key and cleans old native sessions', async () => {
+    const logStorage = new MemoryStorageAdapter();
+    const sessionManager = new SessionManager(logStorage, { maxSessions: 1 });
+    const storageKey = sessionManager.getLogStorageKey('native_logs');
+
+    await logStorage.setItem(storageKey, JSON.stringify([{ id: 'n1', message: 'boot' }]));
+    await sessionManager.initialize();
+
+    expect(await logStorage.getItem(storageKey)).toContain('boot');
+
+    const oldSessionId = 'old-session';
+    await logStorage.setItem(
+      sessionManager.getLogStorageKey('native_logs', oldSessionId),
+      JSON.stringify([{ id: 'old', message: 'stale' }]),
+    );
+    await logStorage.setItem('@react_native_debug_toolkit/sessions', JSON.stringify({
+      currentSessionId: oldSessionId,
+      sessions: [{ id: oldSessionId, startedAt: 1 }, sessionManager.getCurrentSession()],
+      maxSessions: 1,
+    }));
+
+    const removed = await sessionManager.cleanupOldSessions();
+
+    expect(removed).toBe(1);
+    expect(await logStorage.getItem(sessionManager.getLogStorageKey('native_logs', oldSessionId))).toBeNull();
+  });
 });
