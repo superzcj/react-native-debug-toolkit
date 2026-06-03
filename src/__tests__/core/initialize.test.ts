@@ -157,6 +157,22 @@ describe('initializeDebugToolkit', () => {
     }
   });
 
+  it('registers native logs in default features', async () => {
+    await initializeDebugToolkit({ enabled: true });
+    expect(DebugToolkit.features.map((f) => f.name)).toContain('native');
+  });
+
+  it('allows native logs to be disabled through feature config', async () => {
+    await initializeDebugToolkit({ enabled: true, features: { native: false, console: true } });
+    expect(DebugToolkit.features.map((f) => f.name)).toEqual(['console']);
+  });
+
+  it('uses enabled true as the release opt-in without a native-specific release flag', async () => {
+    await initializeDebugToolkit({ enabled: true, features: { native: true } });
+    expect(DebugToolkit.enabled).toBe(true);
+    expect(DebugToolkit.features.map((f) => f.name)).toEqual(['native']);
+  });
+
   it('accepts a custom log storage adapter during initialization', async () => {
     const logStorage = new MemoryStorageAdapter();
 

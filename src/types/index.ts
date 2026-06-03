@@ -10,6 +10,9 @@ export type {
 export type {
   ConsoleLogEntry,
   NavigationLogEntry,
+  NativeLogEntry,
+  NativeLogLevel,
+  NativeLogSource,
   NetworkLogEntry,
   TrackLogEntry,
   ZustandLogEntry,

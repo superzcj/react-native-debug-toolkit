@@ -13,6 +13,8 @@ import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
 import { createDevConnectFeature, restoreDevConnectSettingsToDaemon, nativeIsDebugBuild } from '../features/devConnect';
 import { createSessionHistoryFeature } from '../features/sessionHistory';
+import { createNativeLogsFeature } from '../features/nativeLogs';
+import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
 import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 import type { StorageAdapter } from '../utils/StorageAdapter';
@@ -28,6 +30,7 @@ const isDebugMode = __DEV__;
 export interface FeatureConfigs {
   network?: boolean | NetworkFeatureConfig;
   console?: boolean | ConsoleFeatureConfig;
+  native?: boolean | NativeLogsFeatureConfig;
   zustand?: boolean | ZustandFeatureConfig;
   navigation?: boolean | NavigationFeatureConfig;
   track?: boolean | TrackFeatureConfig;
@@ -52,6 +55,7 @@ type BuiltInFeatureCreator = (config?: unknown, runtime?: LogRuntimeContext) => 
 const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   network: (config, runtime) => createNetworkFeature(config as NetworkFeatureConfig | undefined, runtime),
   console: (config, runtime) => createConsoleLogFeature(config as ConsoleFeatureConfig | undefined, runtime),
+  native: (config) => createNativeLogsFeature(config as NativeLogsFeatureConfig | undefined),
   zustand: (config) => createZustandLogFeature(config as ZustandFeatureConfig | undefined),
   navigation: (config) => createNavigationLogFeature(config as NavigationFeatureConfig | undefined),
   track: (config, runtime) => createTrackFeature(config as TrackFeatureConfig | undefined, runtime),
@@ -64,6 +68,7 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
 const DEFAULT_FEATURES: BuiltInFeatureName[] = [
   'network',
   'console',
+  'native',
   'navigation',
   'zustand',
   'track',

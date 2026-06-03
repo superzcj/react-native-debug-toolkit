@@ -52,6 +52,7 @@ export function DebugView({
     const resolvedFeatures: FeatureConfigs = {
       network: true,
       console: true,
+      native: true,
       zustand: true,
       navigation: true,
       track: true,

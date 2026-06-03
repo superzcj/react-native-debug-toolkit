@@ -5,6 +5,7 @@ export type DebugFeatureListener = () => void;
 export type BuiltInFeatureName =
   | 'network'
   | 'console'
+  | 'native'
   | 'zustand'
   | 'navigation'
   | 'track'

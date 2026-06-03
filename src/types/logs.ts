@@ -52,3 +52,20 @@ export interface TrackLogEntry {
   eventName: string;
   [key: string]: unknown;
 }
+
+export type NativeLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'unknown';
+export type NativeLogSource = 'logcat' | 'rctLog' | 'manual';
+
+export interface NativeLogEntry {
+  id: string;
+  timestamp: number;
+  platform: 'android' | 'ios' | 'unknown';
+  level: NativeLogLevel;
+  source: NativeLogSource;
+  message: string;
+  tag?: string;
+  thread?: string;
+  file?: string;
+  line?: number;
+  raw?: string;
+}
