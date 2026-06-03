@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import type { FeatureSummary } from './buildFeatureSummary';
 
@@ -13,6 +13,9 @@ interface FeatureIntroCardProps {
   summary: FeatureSummary;
   filterBad: boolean;
   onFilterBad: (bad: boolean) => void;
+  searchQuery?: string;
+  onSearchChange?: (text: string) => void;
+  showSearch?: boolean;
 }
 
 export function FeatureIntroCard({
@@ -20,12 +23,11 @@ export function FeatureIntroCard({
   summary,
   filterBad,
   onFilterBad,
+  searchQuery,
+  onSearchChange,
+  showSearch,
 }: FeatureIntroCardProps) {
-  const {
-    statusLabel,
-    statusColor,
-    supportsBadFilter,
-  } = summary;
+  const { statusLabel, statusColor, supportsBadFilter } = summary;
 
   return (
     <View style={styles.card}>
@@ -38,24 +40,32 @@ export function FeatureIntroCard({
             </Text>
           </View>
         )}
-      </View>
-      {supportsBadFilter && (
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.chip, !filterBad && styles.chipActive]}
-            onPress={() => onFilterBad(false)}
-          >
-            <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>All</Text>
-          </Pressable>
-          {supportsBadFilter && (
+        {supportsBadFilter && (
+          <View style={styles.filterRow}>
+            <Pressable
+              style={[styles.chip, !filterBad && styles.chipActive]}
+              onPress={() => onFilterBad(false)}
+            >
+              <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>All</Text>
+            </Pressable>
             <Pressable
               style={[styles.chip, filterBad && styles.chipBadActive]}
               onPress={() => onFilterBad(true)}
             >
               <Text style={[styles.chipText, filterBad && styles.chipTextBad]}>Bad</Text>
             </Pressable>
-          )}
-        </View>
+          </View>
+        )}
+      </View>
+      {showSearch && (
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search..."
+          placeholderTextColor={Colors.textLight}
+          value={searchQuery}
+          onChangeText={onSearchChange}
+          returnKeyType="search"
+        />
       )}
     </View>
   );
@@ -63,8 +73,9 @@ export function FeatureIntroCard({
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
@@ -75,10 +86,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     color: Colors.text,
-    flex: 1,
   },
   statusChip: {
     paddingHorizontal: 8,
@@ -91,16 +101,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textSecondary,
   },
-  actionRow: {
+  filterRow: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 8,
   },
   chip: {
-    height: 26,
-    paddingHorizontal: 12,
+    height: 24,
+    paddingHorizontal: 10,
     justifyContent: 'center',
-    borderRadius: 13,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -123,5 +132,16 @@ const styles = StyleSheet.create({
   },
   chipTextBad: {
     color: '#fff',
+  },
+  searchInput: {
+    height: 32,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 6,
   },
 });

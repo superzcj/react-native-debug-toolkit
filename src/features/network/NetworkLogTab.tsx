@@ -62,7 +62,7 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
                 <View style={[s.methodChip, { backgroundColor: getMethodColor(item.request.method) }]}>
                   <Text style={s.methodChipText}>{item.request.method}</Text>
                 </View>
-                <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={1}>
+                <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={2}>
                   {urlParts.path}
                 </Text>
                 <View style={[s.statusChip, { backgroundColor: statusColor }]}>

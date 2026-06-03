@@ -2,7 +2,6 @@ import React, { Component, useCallback, useEffect, useRef, useState } from 'reac
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   Animated,
 } from 'react-native';
@@ -239,19 +238,10 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                     summary={activeSummary}
                     filterBad={filterBad}
                     onFilterBad={setFilterBad}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    showSearch={showSearch}
                   />
-                )}
-                {showSearch && (
-                  <View style={styles.toolbar}>
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search..."
-                      placeholderTextColor={Colors.textLight}
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      returnKeyType="search"
-                    />
-                  </View>
                 )}
                 <Animated.View
                   style={[
@@ -286,27 +276,6 @@ const styles = StyleSheet.create({
   },
   contentColumn: {
     flex: 1,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  searchInput: {
-    flex: 1,
-    height: 34,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 10,
-    fontSize: 13,
-    color: Colors.text,
   },
   contentContainer: { flex: 1 },
   emptyText: {

@@ -128,10 +128,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   itemName: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '700',
     color: Colors.textSecondary,
-    letterSpacing: 0,
+    letterSpacing: 0.2,
   },
   activeItemName: {
     color: Colors.text,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countText: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '800',
     color: Colors.textSecondary,
   },
