@@ -300,6 +300,7 @@ header h1 span{color:var(--text3);font-weight:400}
 }
 .log-type-network{color:var(--cyan)}
 .log-type-console{color:var(--green)}
+.log-type-native{color:var(--amber)}
 .log-type-navigation{color:var(--purple)}
 .log-type-track{color:var(--orange)}
 .log-type-zustand{color:var(--pink)}
@@ -713,6 +714,7 @@ mark{
       navigation: 'Navigation',
       track: 'Track',
       zustand: 'State',
+      native: 'Native',
       clipboard: 'Clipboard',
       environment: 'Environment',
     };
@@ -764,6 +766,9 @@ mark{
       var data = Array.isArray(entry.data) ? entry.data.map(formatInlineValue).join(' ') : formatInlineValue(entry.data);
       return escapeHtml(data.substring(0, 200));
     }
+    if (entry.source === 'logcat' || entry.source === 'rctLog') {
+      return escapeHtml([entry.tag, entry.message].filter(Boolean).join(': ').substring(0, 200));
+    }
     if (entry.from || entry.to) return escapeHtml((entry.from || '-') + ' -> ' + (entry.to || '-'));
     if (entry.eventName) return escapeHtml(String(entry.eventName));
     if (entry.event) return escapeHtml(String(entry.event));
@@ -778,6 +783,7 @@ mark{
     if (entry.from || entry.to || entry.path) return 'navigation';
     if (entry.eventName || entry.event) return 'track';
     if (entry.prevState !== undefined || entry.nextState !== undefined || entry.storeName) return 'zustand';
+    if (entry.source === 'logcat' || entry.source === 'rctLog' || entry.platform === 'android' || entry.platform === 'ios') return 'native';
     if (entry.action) return 'zustand';
     return 'unknown';
   }
@@ -917,6 +923,17 @@ mark{
     ])) + renderSection('Messages',
       '<div class="value-list">' + messages.map(renderValue).join('') + '</div>',
       entry.data);
+  }
+
+  function renderNativeDetails(entry) {
+    return renderSection('Native Log', renderRows([
+      ['Level', entry.level], ['Platform', entry.platform], ['Source', entry.source],
+      ['Tag', entry.tag], ['Thread', entry.thread], ['File', entry.file],
+      ['Line', entry.line], ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
+    ])) +
+    renderSection('Message', renderValue(entry.message || ''), entry.message || '') +
+    (entry.raw ? renderSection('Raw', renderValue(entry.raw), entry.raw) : '') +
+    renderSection('Entry JSON', renderValue(entry), entry);
   }
 
   function estimateByteSize(value) {
@@ -1084,6 +1101,7 @@ mark{
     }
     if (logType === 'network') return renderNetworkDetails(entry);
     if (logType === 'console') return renderConsoleDetails(entry);
+    if (logType === 'native') return renderNativeDetails(entry);
     if (logType === 'navigation') return renderNavigationDetails(entry);
     if (logType === 'track') return renderTrackDetails(entry);
     if (logType === 'zustand') return renderStateDetails(entry);

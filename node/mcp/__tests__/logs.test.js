@@ -45,6 +45,21 @@ describe('MCP log selection', () => {
     expect(logs).toEqual([]);
   });
 
+  test('selects native logs by type', () => {
+    const payload = createToolPayload({
+      deviceId: 'ios-1',
+      receivedAt: '2026-06-02T00:00:00.000Z',
+      lastSeenAt: '2026-06-02T00:00:00.000Z',
+      report: {
+        version: 2,
+        logs: { native: [{ id: 'n1', timestamp: 1, level: 'error', source: 'rctLog', message: 'native failed' }] },
+      },
+    }, { logType: 'native' });
+
+    expect(payload.logType).toBe('native');
+    expect(payload.logs).toEqual([{ id: 'n1', timestamp: 1, level: 'error', source: 'rctLog', message: 'native failed' }]);
+  });
+
   it('filters failed logs across types', () => {
     const payload = createToolPayload(
       { deviceId: 'ios_phone_127_0_0_1', receivedAt: 'now', report },

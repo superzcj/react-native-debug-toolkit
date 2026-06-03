@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const { createDaemonServer } = require('../src/server');
+
 function readConsoleHtml() {
   return fs.readFileSync(
     path.join(__dirname, '../src/console/console.html'),
@@ -105,5 +107,14 @@ describe('daemon web console script', () => {
     expect(html).toContain('function updateLiveNotice()');
     expect(html).toContain('window.showLiveUpdates = function()');
     expect(html).toContain('if (currentPage !== 1)');
+  });
+
+  it('includes native log rendering support', async () => {
+    const { server } = createDaemonServer({ token: '' });
+    const html = readConsoleHtml();
+    expect(html).toContain("native: 'Native'");
+    expect(html).toContain('function renderNativeDetails');
+    expect(html).toContain('log-type-native');
+    await new Promise((resolve) => server.close(resolve));
   });
 });

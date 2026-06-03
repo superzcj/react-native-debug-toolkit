@@ -1,6 +1,6 @@
 'use strict';
 
-const KNOWN_LOG_TYPES = ['network', 'console', 'navigation', 'track', 'zustand'];
+const KNOWN_LOG_TYPES = ['network', 'console', 'native', 'navigation', 'track', 'zustand'];
 
 function isFailedLog(entry) {
   return Boolean(
