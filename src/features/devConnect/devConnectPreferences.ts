@@ -65,4 +65,8 @@ export async function restoreDevConnectSettingsToDaemon(): Promise<void> {
       : buildDaemonDeviceHost(preferences.computerHost, preferences.daemonPort),
     token: '',
   });
+
+  if (mode === 'simulator') {
+    daemonClient.setStreamingEnabled(true);
+  }
 }
