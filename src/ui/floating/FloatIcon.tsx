@@ -9,11 +9,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
-import { ICON_SIZE } from '../theme/layout';
+import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
 
 const EDGE_MARGIN = 16;
-const RING_SIZE = ICON_SIZE + 12;
+const LAUNCHER_WIDTH = 74;
+const LAUNCHER_HEIGHT = 44;
+const RING_WIDTH = LAUNCHER_WIDTH + 10;
+const RING_HEIGHT = LAUNCHER_HEIGHT + 10;
 
 interface FloatIconProps {
   visible: boolean;
@@ -24,8 +27,10 @@ interface FloatIconProps {
 
 export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const defaultX = screenWidth - ICON_SIZE - EDGE_MARGIN;
-  const defaultY = screenHeight / 2 - ICON_SIZE / 2;
+  const maxX = screenWidth - LAUNCHER_WIDTH;
+  const maxY = screenHeight - LAUNCHER_HEIGHT;
+  const defaultX = screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
+  const defaultY = screenHeight / 2 - LAUNCHER_HEIGHT / 2;
 
   const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -64,8 +69,8 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       if (!mounted || !saved) return;
       try {
         const pos = JSON.parse(saved) as { x: number; y: number };
-        const x = Math.max(0, Math.min(pos.x, screenWidth - ICON_SIZE));
-        const y = Math.max(0, Math.min(pos.y, screenHeight - ICON_SIZE));
+        const x = Math.max(0, Math.min(pos.x, maxX));
+        const y = Math.max(0, Math.min(pos.y, maxY));
         lastPosition.current = { x, y };
         pan.setValue({ x, y });
         positionLoaded.current = true;
@@ -74,7 +79,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       }
     });
     return () => { mounted = false; };
-  }, [screenWidth, screenHeight, pan]);
+  }, [maxX, maxY, pan]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -90,11 +95,11 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       onPanResponderMove: (_: unknown, gs: { dx: number; dy: number }) => {
         const x = Math.max(
           0,
-          Math.min(lastPosition.current.x + gs.dx, screenWidth - ICON_SIZE),
+          Math.min(lastPosition.current.x + gs.dx, maxX),
         );
         const y = Math.max(
           0,
-          Math.min(lastPosition.current.y + gs.dy, screenHeight - ICON_SIZE),
+          Math.min(lastPosition.current.y + gs.dy, maxY),
         );
         pan.setValue({ x, y });
       },
@@ -107,12 +112,12 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
 
         const rawX = lastPosition.current.x + gs.dx;
-        const midX = screenWidth / 2 - ICON_SIZE / 2;
-        const snappedX = rawX < midX ? EDGE_MARGIN : screenWidth - ICON_SIZE - EDGE_MARGIN;
+        const midX = screenWidth / 2 - LAUNCHER_WIDTH / 2;
+        const snappedX = rawX < midX ? EDGE_MARGIN : screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
 
         const finalY = Math.max(
           0,
-          Math.min(lastPosition.current.y + gs.dy, screenHeight - ICON_SIZE),
+          Math.min(lastPosition.current.y + gs.dy, maxY),
         );
 
         lastPosition.current = { x: snappedX, y: finalY };
@@ -127,12 +132,12 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
         const snappedX =
-          lastPosition.current.x + gs.dx < screenWidth / 2 - ICON_SIZE / 2
+          lastPosition.current.x + gs.dx < screenWidth / 2 - LAUNCHER_WIDTH / 2
             ? EDGE_MARGIN
-            : screenWidth - ICON_SIZE - EDGE_MARGIN;
+            : screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
         const finalY = Math.max(
           0,
-          Math.min(lastPosition.current.y + gs.dy, screenHeight - ICON_SIZE),
+          Math.min(lastPosition.current.y + gs.dy, maxY),
         );
         lastPosition.current = { x: snappedX, y: finalY };
       },
@@ -151,7 +156,6 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       ]}
       {...panResponder.panHandlers}
     >
-      {/* Streaming ring */}
       <Animated.View
         style={[
           styles.streamingRing,
@@ -161,15 +165,17 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       />
 
       <Pressable onPress={onPress} style={styles.inner}>
-        {/* Crosshair icon — horizontal bar */}
-        <View style={styles.crosshairH} />
-        {/* Crosshair icon — vertical bar */}
-        <View style={styles.crosshairV} />
+        <View style={styles.mark}>
+          <View style={styles.markDot} />
+          <View style={styles.markLine} />
+        </View>
+        <Text style={styles.label}>DT</Text>
+        <View style={[styles.statusDot, streaming && styles.statusDotLive]} />
       </Pressable>
 
       {badge && (
         <View style={[styles.badge, { backgroundColor: badge.color }]}>
-          <Text style={styles.badgeText}>{badge.label}</Text>
+          <Text style={styles.badgeText} numberOfLines={1}>{badge.label}</Text>
         </View>
       )}
     </Animated.View>
@@ -179,26 +185,26 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    width: ICON_SIZE,
-    height: ICON_SIZE,
-    borderRadius: ICON_SIZE / 2,
+    width: LAUNCHER_WIDTH,
+    height: LAUNCHER_HEIGHT,
+    borderRadius: LAUNCHER_HEIGHT / 2,
     backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.26,
+    shadowRadius: 14,
   },
   streamingRing: {
     position: 'absolute',
-    top: -(RING_SIZE - ICON_SIZE) / 2,
-    left: -(RING_SIZE - ICON_SIZE) / 2,
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: 1.5,
+    top: -(RING_HEIGHT - LAUNCHER_HEIGHT) / 2,
+    left: -(RING_WIDTH - LAUNCHER_WIDTH) / 2,
+    width: RING_WIDTH,
+    height: RING_HEIGHT,
+    borderRadius: RING_HEIGHT / 2,
+    borderWidth: 1,
     borderColor: Colors.primary,
   },
   inner: {
@@ -206,38 +212,66 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.XS,
+    paddingHorizontal: Spacing.SM,
   },
-  crosshairH: {
-    position: 'absolute',
-    width: 20,
+  mark: {
+    width: 22,
+    height: 22,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: Colors.primaryDim,
+    backgroundColor: Colors.primaryGhost,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  markDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  markLine: {
+    width: 10,
     height: 2,
     borderRadius: 1,
     backgroundColor: Colors.primary,
   },
-  crosshairV: {
-    position: 'absolute',
-    width: 2,
-    height: 20,
-    borderRadius: 1,
-    backgroundColor: Colors.primary,
+  label: {
+    color: Colors.text,
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.bold,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.textMuted,
+  },
+  statusDotLive: {
+    backgroundColor: Colors.success,
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 20,
+    top: -7,
+    right: -8,
+    minWidth: 24,
+    maxWidth: 54,
     height: 18,
     borderRadius: 9,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.surface,
     elevation: 4,
   },
   badgeText: {
     color: Colors.textInverse,
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: FontWeight.bold,
+    maxWidth: 44,
   },
 });

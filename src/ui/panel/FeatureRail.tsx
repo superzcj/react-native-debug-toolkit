@@ -70,8 +70,8 @@ export function FeatureRail({ items, activeIndex, onSelectTab }: FeatureRailProp
                   <View style={[styles.dot, { backgroundColor: dotColor }]} />
                 )}
                 {hasCount && (
-                  <View style={styles.countPill}>
-                    <Text style={styles.countText}>{item.count}</Text>
+                  <View style={[styles.countPill, isActive && styles.activeCountPill]}>
+                    <Text style={[styles.countText, isActive && styles.activeCountText]}>{item.count}</Text>
                   </View>
                 )}
               </View>
@@ -96,8 +96,10 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   item: {
-    minHeight: 48,
-    borderRadius: Radius.SM,
+    minHeight: 50,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: Spacing.SM,
@@ -107,14 +109,16 @@ const styles = StyleSheet.create({
   },
   activeItem: {
     backgroundColor: Colors.railActiveBg,
+    borderColor: Colors.primaryDim,
   },
   activeBar: {
     position: 'absolute',
     left: 0,
-    top: 8,
-    bottom: 8,
-    width: 2,
-    borderRadius: 1,
+    top: 9,
+    bottom: 9,
+    width: 3,
+    borderTopRightRadius: 2,
+    borderBottomRightRadius: 2,
     backgroundColor: Colors.railActiveBar,
   },
   itemName: {
@@ -141,14 +145,20 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 13,
     borderRadius: Radius.Pill,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surfaceElevated,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  activeCountPill: {
+    backgroundColor: Colors.primary,
+  },
   countText: {
     fontSize: FontSize.XXS,
     fontWeight: FontWeight.bold,
+    color: Colors.textSecondary,
+  },
+  activeCountText: {
     color: Colors.textInverse,
   },
 });

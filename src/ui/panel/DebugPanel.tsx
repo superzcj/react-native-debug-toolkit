@@ -6,7 +6,6 @@ import {
   Animated,
   PanResponder,
   Pressable,
-  TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
@@ -97,41 +96,44 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
       <Animated.View
         style={[styles.panel, { transform: [{ translateY: panelTranslateY }] }]}
       >
-        <View style={styles.accentBar} />
         <View {...panelResponder.panHandlers}>
           <View style={styles.dragHandle}>
             <View style={styles.dragIndicator} />
           </View>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.headerTitle}>Debug Toolkit</Text>
-              {syncLabel && (
-                <View style={styles.syncRow}>
-                  <View style={[styles.syncDot, syncColor ? { backgroundColor: syncColor } : null]} />
-                  <Text style={styles.syncText} numberOfLines={1}>{syncLabel}</Text>
-                </View>
-              )}
+              <View style={styles.headerMark}>
+                <Text style={styles.headerMarkText}>DT</Text>
+              </View>
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.headerTitle}>Debug Toolkit</Text>
+                {syncLabel && (
+                  <View style={styles.syncRow}>
+                    <View style={[styles.syncDot, syncColor ? { backgroundColor: syncColor } : null]} />
+                    <Text style={styles.syncText} numberOfLines={1}>{syncLabel}</Text>
+                  </View>
+                )}
+              </View>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity
+              <Pressable
                 onPress={() => {
                   onClearAll();
                   closePanel();
                 }}
-                style={styles.iconButton}
-                activeOpacity={0.6}
+                style={styles.clearButton}
                 accessibilityLabel="Clear all"
                 accessibilityRole="button"
               >
-                <Text style={styles.iconButtonText}>C</Text>
-              </TouchableOpacity>
+                <Text style={styles.clearButtonText}>Clear</Text>
+              </Pressable>
               <Pressable
                 onPress={closePanel}
                 style={styles.iconButton}
                 accessibilityLabel="Close panel"
                 accessibilityRole="button"
               >
-                <Text style={styles.iconButtonText}>✕</Text>
+                <Text style={styles.iconButtonText}>X</Text>
               </Pressable>
             </View>
           </View>
@@ -173,14 +175,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
   },
-  accentBar: {
-    width: '100%',
-    height: 2,
-    backgroundColor: Colors.primary,
-  },
   dragHandle: {
     width: '100%',
-    height: 24,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
@@ -197,13 +194,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.LG,
-    paddingTop: Spacing.SM,
+    paddingTop: Spacing.XS,
     paddingBottom: Spacing.MD,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: Colors.panelDivider,
   },
   headerLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.SM,
+  },
+  headerMark: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.LG,
+    backgroundColor: Colors.primaryGhost,
+    borderWidth: 1,
+    borderColor: Colors.primaryDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerMarkText: {
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.bold,
+    color: Colors.primaryLight,
+  },
+  headerTextBlock: {
     flex: 1,
     minWidth: 0,
   },
@@ -226,21 +245,37 @@ const styles = StyleSheet.create({
   },
   syncText: {
     fontSize: FontSize.XXS,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
+    flex: 1,
   },
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.XS,
   },
-  iconButton: {
-    width: 28,
-    height: 28,
+  clearButton: {
+    height: 30,
     borderRadius: Radius.MD,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.surfaceHover,
+    paddingHorizontal: Spacing.MD,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButtonText: {
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textSecondary,
+  },
+  iconButton: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceHover,
     alignItems: 'center',
     justifyContent: 'center',
   },
