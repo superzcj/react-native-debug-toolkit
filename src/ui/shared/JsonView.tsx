@@ -94,10 +94,13 @@ function truncate(str: string, len: number): string {
 const s = StyleSheet.create({
   scroll: {
     backgroundColor: '#1E1E2E',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 12,
   },
-  block: {},
+  block: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#313244',
+  },
   node: {
     fontFamily: 'Courier',
     fontSize: 12,
@@ -105,7 +108,7 @@ const s = StyleSheet.create({
     color: '#CDD6F4',
   },
   indent: {
-    paddingLeft: 16,
+    paddingLeft: 14,
   },
   line: {
     flexDirection: 'row',

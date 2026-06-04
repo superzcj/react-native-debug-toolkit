@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   card: {
     paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 6,
+    paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
@@ -86,14 +86,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
+    letterSpacing: 0.2,
   },
   statusChip: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: Colors.signalDefaultBg,
   },
   statusText: {
@@ -106,17 +107,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chip: {
-    height: 24,
+    height: 26,
     paddingHorizontal: 10,
     justifyContent: 'center',
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   chipActive: {
-    backgroundColor: Colors.text,
-    borderColor: Colors.text,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   chipBadActive: {
     backgroundColor: Colors.error,
@@ -128,18 +129,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   chipTextActive: {
-    color: '#fff',
+    color: '#FFFFFF',
   },
   chipTextBad: {
     color: '#fff',
   },
   searchInput: {
-    height: 32,
+    height: 34,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     fontSize: 13,
     color: Colors.text,
     marginTop: 6,

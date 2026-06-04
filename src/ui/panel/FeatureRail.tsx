@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Colors } from '../theme/colors';
+import { RAIL_WIDTH } from '../theme/layout';
 
 // ─── Label Model ──────────────────────────────────────
 
@@ -86,8 +87,6 @@ export function FeatureRail({ items, activeIndex, onSelectTab }: FeatureRailProp
   );
 }
 
-const RAIL_WIDTH = 80;
-
 const styles = StyleSheet.create({
   rail: {
     width: RAIL_WIDTH,
@@ -111,12 +110,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   activeItem: {
-    backgroundColor: Colors.surface,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    backgroundColor: Colors.railActiveBg,
   },
   activeBar: {
     position: 'absolute',
@@ -125,16 +119,16 @@ const styles = StyleSheet.create({
     bottom: 10,
     width: 3,
     borderRadius: 1.5,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
   },
   itemName: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: Colors.railInactiveText,
     letterSpacing: 0.2,
   },
   activeItemName: {
-    color: Colors.text,
+    color: Colors.railActiveText,
     fontWeight: '800',
   },
   itemMeta: {
@@ -152,7 +146,7 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 14,
     borderRadius: 7,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primary,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -160,6 +154,6 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 10,
     fontWeight: '800',
-    color: Colors.textSecondary,
+    color: '#FFFFFF',
   },
 });

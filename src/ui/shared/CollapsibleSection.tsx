@@ -48,31 +48,34 @@ export const CollapsibleSection: React.FC<Props> = ({
 const styles = StyleSheet.create({
   section: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: 8,
+    borderRadius: 10,
+    marginBottom: 6,
     overflow: 'hidden',
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.primary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.text,
   },
   chevron: {
     fontSize: 20,
     fontWeight: '500',
-    color: Colors.textLight,
+    color: Colors.textSecondary,
     width: 20,
     textAlign: 'center',
   },
   body: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingLeft: 14,
+    paddingRight: 14,
+    paddingBottom: 12,
   },
 });

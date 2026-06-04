@@ -96,6 +96,7 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
       <Animated.View
         style={[styles.panel, { transform: [{ translateY: panelTranslateY }] }]}
       >
+        <View style={styles.accentBar} />
         <View {...panelResponder.panHandlers}>
           <View style={styles.dragHandle}>
             <View style={styles.dragIndicator} />
@@ -171,6 +172,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
   },
+  accentBar: {
+    width: '100%',
+    height: 3,
+    backgroundColor: Colors.primary,
+  },
   dragHandle: {
     width: '100%',
     height: 26,
@@ -179,10 +185,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   dragIndicator: {
-    width: 42,
+    width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.textLight,
+    backgroundColor: Colors.dragHandle,
   },
   panelContent: { flex: 1 },
   header: {
@@ -201,9 +207,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
+    letterSpacing: 0.3,
   },
   syncRow: {
     flexDirection: 'row',
@@ -212,13 +219,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   syncDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: Colors.success,
   },
   syncText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.textSecondary,
   },
@@ -228,9 +235,9 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   iconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.background,
@@ -238,7 +245,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.textSecondary,
   },

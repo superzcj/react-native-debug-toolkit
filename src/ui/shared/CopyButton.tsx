@@ -50,19 +50,22 @@ const s = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     alignSelf: 'flex-end',
   },
   copyBtnCompact: {
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   copyBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   copyBtnTextCompact: {
-    fontSize: 11,
+    fontSize: 10,
   },
 });

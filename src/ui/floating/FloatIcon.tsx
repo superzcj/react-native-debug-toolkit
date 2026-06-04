@@ -157,8 +157,8 @@ const styles = StyleSheet.create({
     elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
   },
   inner: {
     width: '100%',
@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconGrid: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     justifyContent: 'space-between',
   },
   iconRow: {
@@ -176,9 +176,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   iconCell: {
-    width: 8,
-    height: 8,
-    borderRadius: 2.5,
+    width: 9,
+    height: 9,
+    borderRadius: 3,
   },
   badge: {
     position: 'absolute',
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#FFF',
     elevation: 4,
   },

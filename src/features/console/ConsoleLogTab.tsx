@@ -62,21 +62,21 @@ export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>>
 ));
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: 14, alignItems: 'flex-start' },
+  cardRow: { flexDirection: 'row', padding: 12, alignItems: 'flex-start' },
   levelDot: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 22, height: 22, borderRadius: 6,
     alignItems: 'center', justifyContent: 'center',
     marginRight: 12, marginTop: 1,
   },
-  levelIcon: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  levelIcon: { color: '#FFF', fontSize: 10, fontWeight: '700' },
   cardContent: { flex: 1 },
-  logMessage: { fontSize: 14, color: Colors.text, lineHeight: 20 },
-  time: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  levelBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  detailTime: { flex: 1, fontSize: 13, color: Colors.textSecondary, textAlign: 'right' },
+  logMessage: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+  time: { fontSize: 11, color: Colors.textSecondary, marginTop: 3 },
+  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  levelBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  detailTime: { flex: 1, fontSize: 12, color: Colors.textSecondary, textAlign: 'right' },
   detailBody: { flex: 1 },
   detailBodyContent: { padding: 12 },
   sectionWithCopy: { gap: 8 },
-  plainText: { fontFamily: 'Courier', fontSize: 13, color: Colors.text, lineHeight: 20 },
+  plainText: { fontFamily: 'Courier', fontSize: 12, color: Colors.text, lineHeight: 18 },
 });

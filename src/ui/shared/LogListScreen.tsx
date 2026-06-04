@@ -60,7 +60,7 @@ export function LogListScreen<T extends LogListItem>({
         {renderListHeader?.()}
         {displayData.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>~</Text>
+            <Text style={styles.emptyIcon}>{"—"}</Text>
             <Text style={styles.empty}>{emptyText}</Text>
           </View>
         ) : (
@@ -115,13 +115,15 @@ const styles = StyleSheet.create({
   listWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   listContent: { padding: 12 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyIcon: { fontSize: 40, color: Colors.textLight, marginBottom: 4 },
-  empty: { textAlign: 'center', color: Colors.textLight, fontSize: 14 },
+  emptyIcon: { fontSize: 36, color: Colors.textSecondary, marginBottom: 4 },
+  empty: { textAlign: 'center', color: Colors.textSecondary, fontSize: 13 },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
     marginBottom: 8,
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.borderLight,
   },
   detailOverlay: {
     position: 'absolute',
@@ -139,7 +141,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.borderLight,
     gap: 8,
   },
   backBtn: {
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
   backText: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.primary,
     fontWeight: '500',
   },
