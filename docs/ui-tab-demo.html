@@ -31,6 +31,18 @@
       --amber-soft: #fff1d6;
       --purple: #7447c8;
       --purple-soft: #efe7ff;
+      --tool-bg: #111416;
+      --tool-surface: #171b1e;
+      --tool-surface-2: #1c2226;
+      --tool-surface-3: #22282c;
+      --tool-line: #30383d;
+      --tool-line-soft: rgba(183, 192, 199, 0.12);
+      --tool-text: #f4f7f8;
+      --tool-muted: #b7c0c7;
+      --tool-faint: #7b8790;
+      --tool-primary: #2dd4bf;
+      --tool-primary-soft: rgba(45, 212, 191, 0.12);
+      --tool-primary-dim: #134e4a;
       --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
       --sans: "Instrument Sans", Avenir, "Avenir Next", Helvetica, sans-serif;
     }
@@ -264,39 +276,82 @@
       position: absolute;
       right: 18px;
       bottom: 22px;
-      width: 56px;
-      height: 56px;
-      border: 0;
-      border-radius: 16px;
-      background: var(--ink);
-      color: #fff;
-      font: 800 17px var(--mono);
-      box-shadow: 0 18px 28px rgba(21, 27, 36, 0.24);
+      width: 74px;
+      height: 44px;
+      border: 1px solid var(--tool-line);
+      border-radius: 999px;
+      background: var(--tool-surface);
+      color: var(--tool-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 0 8px;
+      font: 800 11px var(--mono);
+      box-shadow: 0 16px 30px rgba(7, 16, 15, 0.34);
+    }
+
+    .launcher-mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 8px;
+      border: 1px solid var(--tool-primary-dim);
+      background: var(--tool-primary-soft);
+      display: grid;
+      place-items: center;
+      gap: 2px;
+    }
+
+    .launcher-mark::before,
+    .launcher-mark::after {
+      content: "";
+      display: block;
+      border-radius: 999px;
+      background: var(--tool-primary);
+    }
+
+    .launcher-mark::before {
+      width: 4px;
+      height: 4px;
+    }
+
+    .launcher-mark::after {
+      width: 10px;
+      height: 2px;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--green);
     }
 
     .launcher::after {
       content: "4";
       position: absolute;
       top: -7px;
-      right: -7px;
-      width: 23px;
-      height: 23px;
+      right: -8px;
+      min-width: 24px;
+      height: 18px;
       display: grid;
       place-items: center;
       border-radius: 999px;
-      border: 2px solid #fff;
+      border: 1px solid var(--tool-surface);
       background: var(--red);
       color: #fff;
-      font: 800 11px var(--mono);
+      padding: 0 6px;
+      font: 800 9px var(--mono);
     }
 
     .sheet {
       position: absolute;
       inset: auto 0 0;
       height: 92%;
-      background: var(--sheet);
+      background: var(--tool-bg);
+      color: var(--tool-text);
       border-radius: 26px 26px 0 0;
-      box-shadow: 0 -22px 44px rgba(21, 27, 36, 0.18);
+      box-shadow: 0 -22px 44px rgba(7, 16, 15, 0.34);
       overflow: hidden;
       display: grid;
       grid-template-rows: auto auto 1fr;
@@ -306,7 +361,7 @@
       height: 26px;
       display: grid;
       place-items: center;
-      background: var(--surface);
+      background: var(--tool-surface);
     }
 
     .grab::before {
@@ -314,13 +369,13 @@
       width: 42px;
       height: 4px;
       border-radius: 999px;
-      background: #c2cbd6;
+      background: #4b555b;
     }
 
     .console-head {
       padding: 8px 14px 10px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
+      background: var(--tool-surface);
+      border-bottom: 1px solid var(--tool-line-soft);
     }
 
     .topline {
@@ -332,6 +387,24 @@
 
     .title {
       min-width: 0;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      column-gap: 8px;
+      align-items: center;
+    }
+
+    .title::before {
+      content: "DT";
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      border: 1px solid var(--tool-primary-dim);
+      background: var(--tool-primary-soft);
+      color: #67e8f9;
+      font: 800 11px var(--mono);
+      grid-row: span 2;
     }
 
     .title h2 {
@@ -339,6 +412,7 @@
       font-size: 17px;
       line-height: 1.1;
       letter-spacing: 0;
+      color: var(--tool-text);
     }
 
     .sync {
@@ -346,7 +420,7 @@
       display: flex;
       align-items: center;
       gap: 7px;
-      color: var(--muted);
+      color: var(--tool-muted);
       font: 700 11px var(--mono);
       white-space: nowrap;
       overflow: hidden;
@@ -359,7 +433,6 @@
       height: 7px;
       border-radius: 50%;
       background: var(--green);
-      box-shadow: 0 0 0 4px var(--green-soft);
       flex: 0 0 auto;
     }
 
@@ -369,12 +442,13 @@
     }
 
     .icon-btn {
-      width: 32px;
+      min-width: 32px;
       height: 32px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--surface-2);
-      color: var(--muted);
+      background: var(--tool-surface-2);
+      color: var(--tool-muted);
+      padding: 0 9px;
       font-weight: 900;
     }
 
@@ -389,9 +463,9 @@
       min-width: 0;
       height: 54px;
       padding: 8px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--sheet);
+      background: var(--tool-surface-2);
     }
 
     .signal strong {
@@ -403,7 +477,7 @@
     .signal span {
       display: block;
       margin-top: 5px;
-      color: var(--muted);
+      color: var(--tool-faint);
       font-size: 11px;
       font-weight: 800;
       white-space: nowrap;
@@ -412,8 +486,8 @@
     }
 
     .signal.bad {
-      background: var(--red-soft);
-      border-color: #f3c2be;
+      background: rgba(251, 113, 133, 0.12);
+      border-color: rgba(251, 113, 133, 0.32);
     }
 
     .signal.bad strong {
@@ -421,8 +495,8 @@
     }
 
     .signal.warn {
-      background: var(--amber-soft);
-      border-color: #ecd0a0;
+      background: rgba(250, 204, 21, 0.12);
+      border-color: rgba(250, 204, 21, 0.32);
     }
 
     .signal.warn strong {
@@ -433,14 +507,14 @@
       min-height: 0;
       display: grid;
       grid-template-columns: 88px minmax(0, 1fr);
-      border-top: 1px solid var(--line);
+      border-top: 1px solid var(--tool-line-soft);
     }
 
     .rail {
       min-height: 0;
       padding: 8px 7px;
-      background: #e2eaf3;
-      border-right: 1px solid var(--line-strong);
+      background: #0e1113;
+      border-right: 1px solid var(--tool-line-soft);
       overflow: auto;
       scrollbar-width: none;
     }
@@ -456,7 +530,7 @@
       border: 1px solid transparent;
       border-radius: 8px;
       background: transparent;
-      color: var(--muted);
+      color: var(--tool-faint);
       display: grid;
       grid-template-rows: auto auto;
       align-content: center;
@@ -466,14 +540,14 @@
     }
 
     .tab:hover {
-      background: rgba(255, 255, 255, 0.55);
+      background: var(--tool-surface-2);
     }
 
     .tab.is-active {
-      background: var(--surface);
-      color: var(--ink);
-      border-color: var(--line-strong);
-      box-shadow: 0 7px 16px rgba(21, 27, 36, 0.08);
+      background: var(--tool-primary-soft);
+      color: var(--tool-text);
+      border-color: var(--tool-primary-dim);
+      box-shadow: none;
     }
 
     .tab-name {
@@ -489,7 +563,7 @@
       align-items: center;
       gap: 5px;
       font: 800 10px var(--mono);
-      color: var(--faint);
+      color: var(--tool-faint);
     }
 
     .tab-count {
@@ -499,7 +573,7 @@
       display: inline-grid;
       place-items: center;
       border-radius: 999px;
-      background: var(--surface-3);
+      background: var(--tool-surface-3);
     }
 
     .tab-dot {
@@ -529,25 +603,25 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       padding: 9px;
-      background: var(--sheet);
-      border-bottom: 1px solid var(--line);
+      background: var(--tool-bg);
+      border-bottom: 1px solid var(--tool-line-soft);
     }
 
     .search {
       min-width: 0;
       height: 36px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--surface);
-      color: var(--ink);
+      background: var(--tool-surface);
+      color: var(--tool-text);
       outline: 0;
       padding: 0 10px;
       font-size: 13px;
     }
 
     .search:focus {
-      border-color: #9ec0ff;
-      box-shadow: 0 0 0 3px var(--blue-soft);
+      border-color: var(--tool-primary);
+      box-shadow: 0 0 0 3px var(--tool-primary-soft);
     }
 
     .filter {
@@ -556,9 +630,9 @@
       gap: 3px;
       height: 36px;
       padding: 3px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--surface);
+      background: var(--tool-surface);
     }
 
     .filter button {
@@ -566,15 +640,15 @@
       border: 0;
       border-radius: 6px;
       background: transparent;
-      color: var(--muted);
+      color: var(--tool-faint);
       padding: 0 8px;
       font-size: 11px;
       font-weight: 900;
     }
 
     .filter button.is-on {
-      background: var(--ink);
-      color: #fff;
+      background: var(--tool-primary);
+      color: #07100f;
     }
 
     .pane {
@@ -591,9 +665,9 @@
 
     .row {
       width: 100%;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--surface);
+      background: var(--tool-surface);
       color: inherit;
       text-align: left;
       padding: 10px;
@@ -604,9 +678,9 @@
     }
 
     .row:hover {
-      border-color: var(--line-strong);
+      border-color: var(--tool-line);
       transform: translateY(-1px);
-      box-shadow: 0 8px 16px rgba(21, 27, 36, 0.08);
+      box-shadow: 0 8px 16px rgba(7, 16, 15, 0.22);
     }
 
     .row-top {
@@ -663,7 +737,7 @@
 
     .meta {
       margin: 0;
-      color: var(--muted);
+      color: var(--tool-faint);
       font: 700 10.5px/1.4 var(--mono);
       white-space: nowrap;
       overflow: hidden;
@@ -682,25 +756,25 @@
       align-items: center;
       padding: 0 7px;
       border-radius: 999px;
-      background: var(--surface-2);
-      color: var(--muted);
+      background: var(--tool-surface-3);
+      color: var(--tool-muted);
       font: 800 10px var(--mono);
     }
 
     .pill.bad {
-      background: var(--red-soft);
+      background: rgba(251, 113, 133, 0.12);
       color: var(--red);
     }
 
     .pill.blue {
-      background: var(--blue-soft);
+      background: rgba(56, 189, 248, 0.12);
       color: var(--blue);
     }
 
     .detail {
       position: absolute;
       inset: 0;
-      background: var(--sheet);
+      background: var(--tool-bg);
       transform: translateX(104%);
       transition: transform 0.22s ease;
       display: grid;
@@ -715,8 +789,8 @@
     .detail-head {
       min-height: 52px;
       padding: 9px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
+      background: var(--tool-surface);
+      border-bottom: 1px solid var(--tool-line-soft);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -726,8 +800,8 @@
       height: 34px;
       border: 0;
       border-radius: 8px;
-      background: var(--blue-soft);
-      color: var(--blue);
+      background: var(--tool-primary-soft);
+      color: var(--tool-primary);
       padding: 0 10px;
       font-size: 12px;
       font-weight: 900;
@@ -746,7 +820,7 @@
 
     .detail-time {
       margin-left: auto;
-      color: var(--muted);
+      color: var(--tool-faint);
       font: 700 10.5px var(--mono);
     }
 
@@ -760,15 +834,15 @@
     }
 
     .block {
-      background: var(--surface);
-      border: 1px solid var(--line);
+      background: var(--tool-surface);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
       padding: 11px;
     }
 
     .block h3 {
       margin: 0 0 8px;
-      color: var(--muted);
+      color: var(--tool-faint);
       font: 900 11px var(--mono);
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -776,7 +850,7 @@
 
     .code {
       margin: 0;
-      color: #263244;
+      color: #d6dee3;
       font: 500 11.5px/1.55 var(--mono);
       white-space: pre-wrap;
       word-break: break-word;
@@ -789,8 +863,8 @@
     }
 
     .connect {
-      background: var(--surface);
-      border: 1px solid var(--line);
+      background: var(--tool-surface);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
       padding: 11px;
     }
@@ -803,7 +877,7 @@
 
     .connect p {
       margin: 5px 0 10px;
-      color: var(--muted);
+      color: var(--tool-faint);
       font-size: 12px;
       line-height: 1.45;
     }
@@ -820,10 +894,10 @@
       align-items: center;
       min-width: 0;
       padding: 0 10px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--tool-line);
       border-radius: 8px;
-      background: var(--sheet);
-      color: var(--ink);
+      background: var(--tool-bg);
+      color: var(--tool-text);
       font: 700 11px var(--mono);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -835,8 +909,8 @@
       border: 0;
       border-radius: 8px;
       padding: 0 10px;
-      background: var(--blue);
-      color: #fff;
+      background: var(--tool-primary);
+      color: #07100f;
       font-size: 11px;
       font-weight: 900;
     }
@@ -947,7 +1021,11 @@
             <p class="caption">Latest request</p>
             <p class="big">POST /orders</p>
           </section>
-          <button class="launcher" type="button">DT</button>
+          <button class="launcher" type="button">
+            <span class="launcher-mark" aria-hidden="true"></span>
+            <span>DT</span>
+            <span class="live-dot" aria-hidden="true"></span>
+          </button>
         </div>
 
         <section class="sheet" aria-label="Debug Toolkit panel">
@@ -960,7 +1038,7 @@
                 <div class="sync">live 192.168.31.12:3799</div>
               </div>
               <div class="head-actions">
-                <button class="icon-btn" type="button" aria-label="Clear">C</button>
+                <button class="icon-btn" type="button" aria-label="Clear">Clear</button>
                 <button class="icon-btn" type="button" aria-label="Close">x</button>
               </div>
             </div>

@@ -87,11 +87,14 @@ const styles = StyleSheet.create({
     gap: Spacing.SM,
   },
   title: {
+    flex: 1,
+    minWidth: 0,
     fontSize: FontSize.MD,
     fontWeight: FontWeight.bold,
     color: Colors.text,
   },
   statusChip: {
+    maxWidth: 120,
     paddingHorizontal: Spacing.SM,
     paddingVertical: 2,
     borderRadius: Radius.SM,
@@ -105,6 +108,7 @@ const styles = StyleSheet.create({
   filterRow: {
     flexDirection: 'row',
     gap: Spacing.XS,
+    marginLeft: 'auto',
   },
   chip: {
     height: 24,
