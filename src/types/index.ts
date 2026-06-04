@@ -38,6 +38,10 @@ export type {
 
 export type {
   LogFeatureKey,
+  LogCounts,
+} from '../utils/sessionLogKeys';
+
+export type {
   LogSession,
   SessionManagerOptions,
 } from '../utils/SessionManager';

@@ -15,11 +15,20 @@ import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { safeStringify } from '../../utils/safeStringify';
 import { fmt } from '../../utils/copyToComputer';
 import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
-import type { DebugFeature, DebugFeatureRenderProps, LogFeatureKey, LogSession } from '../../types';
+import type { DebugFeature, DebugFeatureRenderProps, LogSession } from '../../types';
+import {
+  SESSION_HISTORY_LOG_KEYS,
+  SESSION_LOG_COLORS,
+  SESSION_LOG_LABELS,
+  countSessionLogs,
+  flattenSessionLogs,
+  type DetailFilter,
+  type FlatSessionLogEntry,
+  type LogCounts,
+  type LogFeatureKey,
+} from './sessionLogCatalog';
 
 // ── Types ──────────────────────────────────────────────────────────────
-
-export type LogCounts = Record<LogFeatureKey, number>;
 
 export interface SessionHistoryState {
   sessions: LogSession[];
@@ -38,31 +47,6 @@ export interface SelectedSession {
   sessionId: string;
   logs: Record<LogFeatureKey, unknown[]>;
 }
-
-interface FlatLogEntry {
-  id: string;
-  type: LogFeatureKey;
-  timestamp: number;
-  raw: unknown;
-}
-
-// ── Constants ──────────────────────────────────────────────────────────
-
-const FEATURE_LABELS: Record<LogFeatureKey, string> = {
-  console_logs: 'Console',
-  network_logs: 'Network',
-  native_logs: 'Native',
-  track_logs: 'Track',
-};
-
-const FEATURE_COLORS: Record<LogFeatureKey, string> = {
-  console_logs: Colors.info,
-  network_logs: Colors.success,
-  native_logs: '#FF9500',
-  track_logs: Colors.purple,
-};
-
-const FEATURE_KEYS: LogFeatureKey[] = Object.keys(FEATURE_LABELS) as LogFeatureKey[];
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -92,10 +76,6 @@ function formatFullDate(ts: number): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time;
 }
 
-function totalCounts(counts: LogCounts): number {
-  return (counts.console_logs ?? 0) + (counts.network_logs ?? 0) + (counts.track_logs ?? 0);
-}
-
 function totalLogs(logs: Record<LogFeatureKey, unknown[]>): number {
   return Object.values(logs).reduce((sum, arr) => sum + arr.length, 0);
 }
@@ -104,28 +84,7 @@ function shortId(id: string): string {
   return id.slice(-6).toUpperCase();
 }
 
-function flattenLogs(logs: Record<LogFeatureKey, unknown[]>, filter: DetailFilter): FlatLogEntry[] {
-  const keys: LogFeatureKey[] = filter === 'all'
-    ? ['console_logs', 'network_logs', 'track_logs']
-    : [filter];
-  const entries: FlatLogEntry[] = [];
-  for (const key of keys) {
-    const items = logs[key] ?? [];
-    items.forEach((raw, i) => {
-      const e = raw as Record<string, any>;
-      entries.push({
-        id: `${key}-${i}`,
-        type: key,
-        timestamp: e.timestamp ?? 0,
-        raw,
-      });
-    });
-  }
-  entries.sort((a, b) => b.timestamp - a.timestamp);
-  return entries;
-}
-
-function toRecord(entry: FlatLogEntry): Record<string, any> {
+function toRecord(entry: FlatSessionLogEntry): Record<string, any> {
   return entry.raw as Record<string, any>;
 }
 
@@ -207,7 +166,7 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
           <Text style={s.timelineHeader}>PREVIOUS SESSIONS</Text>
           {previousSessions.map((session, idx) => {
             const counts = logCounts[session.id];
-            const total = counts ? totalCounts(counts) : 0;
+            const total = counts ? countSessionLogs(counts) : 0;
             return (
               <Pressable
                 key={session.id}
@@ -228,14 +187,14 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
 
                   {counts && total > 0 ? (
                     <View style={s.pillRow}>
-                      {FEATURE_KEYS.map((key) => {
+                      {SESSION_HISTORY_LOG_KEYS.map((key) => {
                         const c = counts[key] ?? 0;
                         if (c === 0) return null;
                         return (
-                          <View key={key} style={[s.pill, { backgroundColor: FEATURE_COLORS[key] + '18' }]}>
-                            <View style={[s.pillDot, { backgroundColor: FEATURE_COLORS[key] }]} />
-                            <Text style={[s.pillText, { color: FEATURE_COLORS[key] }]}>
-                              {c} {FEATURE_LABELS[key]}
+                          <View key={key} style={[s.pill, { backgroundColor: SESSION_LOG_COLORS[key] + '18' }]}>
+                            <View style={[s.pillDot, { backgroundColor: SESSION_LOG_COLORS[key] }]} />
+                            <Text style={[s.pillText, { color: SESSION_LOG_COLORS[key] }]}>
+                              {c} {SESSION_LOG_LABELS[key]}
                             </Text>
                           </View>
                         );
@@ -261,8 +220,6 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
 
 // ── Session Detail (uses LogListScreen for tap-to-detail) ──────────────
 
-type DetailFilter = 'all' | LogFeatureKey;
-
 const SessionDetail: React.FC<{
   logs: Record<LogFeatureKey, unknown[]>;
   sessionId: string;
@@ -271,7 +228,7 @@ const SessionDetail: React.FC<{
   const [filter, setFilter] = useState<DetailFilter>('all');
   const total = totalLogs(logs);
 
-  const flatEntries = useMemo(() => flattenLogs(logs, filter), [logs, filter]);
+  const flatEntries = useMemo(() => flattenSessionLogs(logs, filter), [logs, filter]);
 
   return (
     <View style={s.container}>
@@ -286,20 +243,20 @@ const SessionDetail: React.FC<{
       <LogListScreen
         data={flatEntries}
         reversed={false}
-        emptyText={filter === 'all' ? 'No logs in this session' : `No ${FEATURE_LABELS[filter]} logs`}
+        emptyText={filter === 'all' ? 'No logs in this session' : `No ${SESSION_LOG_LABELS[filter]} logs`}
         renderListHeader={() => (
           <View style={s.filterBar}>
             <FilterChip label="All" count={total} active={filter === 'all'} onPress={() => setFilter('all')} color={Colors.text} />
-            {FEATURE_KEYS.map((key) => {
+            {SESSION_HISTORY_LOG_KEYS.map((key) => {
               const c = (logs[key] ?? []).length;
               return (
                 <FilterChip
                   key={key}
-                  label={FEATURE_LABELS[key]}
+                  label={SESSION_LOG_LABELS[key]}
                   count={c}
                   active={filter === key}
                   onPress={() => setFilter(key)}
-                  color={FEATURE_COLORS[key]}
+                  color={SESSION_LOG_COLORS[key]}
                 />
               );
             })}
@@ -335,7 +292,7 @@ const FilterChip: React.FC<{
 
 // ── Log List Row ───────────────────────────────────────────────────────
 
-const LogRow: React.FC<{ entry: FlatLogEntry }> = React.memo(({ entry }) => {
+const LogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) => {
   const e = toRecord(entry);
 
   if (entry.type === 'console_logs') {
@@ -395,7 +352,7 @@ const LogRow: React.FC<{ entry: FlatLogEntry }> = React.memo(({ entry }) => {
 
 // ── Log Detail Header ──────────────────────────────────────────────────
 
-const LogDetailHeader: React.FC<{ entry: FlatLogEntry }> = React.memo(({ entry }) => {
+const LogDetailHeader: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) => {
   const e = toRecord(entry);
 
   if (entry.type === 'console_logs') {
@@ -438,7 +395,7 @@ const LogDetailHeader: React.FC<{ entry: FlatLogEntry }> = React.memo(({ entry }
 
 // ── Log Detail Body ────────────────────────────────────────────────────
 
-const LogDetailBody: React.FC<{ entry: FlatLogEntry }> = React.memo(({ entry }) => {
+const LogDetailBody: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) => {
   const e = toRecord(entry);
 
   if (entry.type === 'console_logs') {

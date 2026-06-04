@@ -1,7 +1,11 @@
 import type { SessionInfo } from './deviceReport';
 import type { StorageAdapter } from './StorageAdapter';
+import {
+  SESSION_LOG_FEATURE_KEYS,
+  type LogFeatureKey,
+} from './sessionLogKeys';
 
-export type LogFeatureKey = 'console_logs' | 'network_logs' | 'native_logs' | 'track_logs';
+export type { LogFeatureKey } from './sessionLogKeys';
 
 export type LogSession = SessionInfo;
 
@@ -18,7 +22,7 @@ export interface SessionManagerOptions {
 
 const SESSION_INDEX_KEY = '@react_native_debug_toolkit/sessions';
 const DEFAULT_MAX_SESSIONS = 5;
-const DEFAULT_FEATURE_KEYS: LogFeatureKey[] = ['console_logs', 'network_logs', 'native_logs', 'track_logs'];
+const DEFAULT_FEATURE_KEYS = SESSION_LOG_FEATURE_KEYS;
 
 function randomHex(): string {
   return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
@@ -69,7 +73,7 @@ export class SessionManager {
   private readonly storage: StorageAdapter;
   private readonly currentSession: LogSession;
   private readonly maxSessions: number;
-  private readonly featureKeys: LogFeatureKey[];
+  private readonly featureKeys: readonly LogFeatureKey[];
 
   constructor(storage: StorageAdapter, options: SessionManagerOptions = {}) {
     this.storage = storage;
