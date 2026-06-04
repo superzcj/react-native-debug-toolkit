@@ -7,16 +7,17 @@ import {
   ScrollView,
 } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import type { DebugFeatureRenderProps, EnvironmentState } from '../../types';
 import type { EnvironmentFeatureAPI } from './index';
 
 const DEFAULT_COLORS: Record<string, string> = {
-  dev: '#34C759',
-  development: '#34C759',
-  staging: '#FF9500',
-  stage: '#FF9500',
-  production: '#FF3B30',
-  prod: '#FF3B30',
+  dev: '#22C55E',
+  development: '#22C55E',
+  staging: '#F59E0B',
+  stage: '#F59E0B',
+  production: '#EF4444',
+  prod: '#EF4444',
 };
 
 export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>> = React.memo(({
@@ -122,7 +123,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  // Empty state
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -130,71 +130,69 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
   },
   emptyIcon: {
-    fontSize: 36,
-    color: Colors.textLight,
-    marginBottom: 8,
+    fontSize: 32,
+    color: Colors.textMuted,
+    marginBottom: Spacing.SM,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: FontSize.XL,
+    fontWeight: FontWeight.bold,
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Spacing.SM,
   },
   emptyDesc: {
-    fontSize: 14,
+    fontSize: FontSize.MD,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
   code: {
     fontFamily: 'monospace',
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
     color: Colors.primary,
   },
 
-  // Header
   headerSection: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 14,
+    paddingHorizontal: Spacing.LG,
+    paddingTop: Spacing.XL,
+    paddingBottom: Spacing.MD,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
-    marginBottom: 6,
+    marginBottom: Spacing.XXS,
   },
   sectionDesc: {
-    fontSize: 14,
+    fontSize: FontSize.MD,
     color: Colors.textSecondary,
     lineHeight: 20,
   },
 
-  // Grouped list (iOS Settings style)
   list: {
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: Spacing.LG,
+    paddingBottom: Spacing.LG,
   },
   groupedCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Radius.LG,
     overflow: 'hidden',
   },
   envItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: Spacing.LG,
+    paddingVertical: Spacing.MD,
   },
   envItemActive: {
-    backgroundColor: 'rgba(0,122,255,0.03)',
+    backgroundColor: Colors.primaryGhost,
   },
   envItemSeparator: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    marginLeft: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    marginLeft: 44,
   },
   envRow: {
     flexDirection: 'row',
@@ -204,38 +202,37 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginRight: 14,
+    marginRight: Spacing.MD,
   },
   envInfo: {
     flex: 1,
   },
   envLabel: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: FontSize.LG,
+    fontWeight: FontWeight.medium,
     color: Colors.text,
   },
   envHost: {
-    fontSize: 13,
+    fontSize: FontSize.SM,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   checkmark: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: FontSize.LG,
+    fontWeight: FontWeight.semibold,
     color: Colors.primary,
-    marginLeft: 8,
+    marginLeft: Spacing.SM,
   },
 
-  // Footer
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: Spacing.LG,
+    paddingVertical: Spacing.MD,
     backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
   },
   footerInfo: {
     flex: 1,
@@ -243,8 +240,8 @@ const styles = StyleSheet.create({
   footerActiveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    gap: Spacing.XS,
+    marginBottom: 1,
   },
   footerDot: {
     width: 8,
@@ -252,25 +249,25 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   footerLabel: {
-    fontSize: 11,
+    fontSize: FontSize.XS,
     color: Colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
     textTransform: 'uppercase',
   },
   footerValue: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: FontSize.LG,
+    fontWeight: FontWeight.semibold,
     color: Colors.text,
   },
   resetButton: {
-    backgroundColor: 'rgba(255,59,48,0.08)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
+    backgroundColor: Colors.errorDim,
+    paddingHorizontal: Spacing.XL,
+    paddingVertical: Spacing.SM,
+    borderRadius: Radius.LG,
   },
   resetButtonText: {
     color: Colors.error,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: FontSize.MD,
+    fontWeight: FontWeight.semibold,
   },
 });

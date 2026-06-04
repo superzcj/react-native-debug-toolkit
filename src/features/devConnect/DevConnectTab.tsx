@@ -12,6 +12,7 @@ import {
 
 import type { DebugFeatureRenderProps } from '../../types';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import {
   buildDeviceDaemonEndpoint,
   daemonClient,
@@ -271,7 +272,7 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
                 value={computerHost}
                 onChangeText={handleHostChange}
                 placeholder={ipPlaceholder}
-                placeholderTextColor={Colors.textLight}
+                placeholderTextColor={Colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="numbers-and-punctuation"
@@ -303,7 +304,7 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
               value={daemonPort}
               onChangeText={handleDaemonPortChange}
               placeholder={DEFAULT_DAEMON_PORT}
-              placeholderTextColor={Colors.textLight}
+              placeholderTextColor={Colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="number-pad"
@@ -343,55 +344,55 @@ export function DevConnectTab({ snapshot, feature }: DebugFeatureRenderProps<Dev
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
+  scrollContent: { paddingHorizontal: Spacing.LG, paddingTop: Spacing.MD, paddingBottom: Spacing.XXL },
   badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: `${Colors.primary}15`,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.SM,
+    borderRadius: Radius.MD,
+    backgroundColor: Colors.primaryGhost,
     borderWidth: 1,
-    borderColor: `${Colors.primary}30`,
-    marginBottom: 14,
+    borderColor: Colors.primaryDim,
+    marginBottom: Spacing.MD,
   },
-  badgeText: { fontSize: 13, fontWeight: '500', color: Colors.primary },
-  section: { marginBottom: 14 },
-  label: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary, marginBottom: 6 },
+  badgeText: { fontSize: FontSize.MD, fontWeight: FontWeight.medium, color: Colors.primary },
+  section: { marginBottom: Spacing.MD },
+  label: { fontSize: FontSize.SM, fontWeight: FontWeight.medium, color: Colors.textSecondary, marginBottom: Spacing.XXS },
   inputRow: { flexDirection: 'row', alignItems: 'center' },
-  subnetHint: { marginTop: 6 },
-  subnetHintText: { fontSize: 12, color: Colors.primary, fontWeight: '500' },
+  subnetHint: { marginTop: Spacing.XXS },
+  subnetHintText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.medium },
   input: {
     flex: 1,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: Radius.MD,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.SM,
+    fontSize: FontSize.MD,
     color: Colors.text,
     fontFamily: 'Courier',
   },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 12 },
+  actions: { flexDirection: 'row', gap: Spacing.SM, marginTop: Spacing.XXS, marginBottom: Spacing.MD },
   primaryButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
-    borderRadius: 10,
+    paddingVertical: Spacing.SM + 1,
+    borderRadius: Radius.LG,
     backgroundColor: Colors.primary,
   },
-  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  primaryButtonText: { color: Colors.textInverse, fontSize: FontSize.MD, fontWeight: FontWeight.semibold },
   secondaryButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
-    borderRadius: 10,
+    paddingVertical: Spacing.SM + 1,
+    borderRadius: Radius.LG,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  secondaryButtonText: { color: Colors.primary, fontSize: 14, fontWeight: '600' },
+  secondaryButtonText: { color: Colors.primary, fontSize: FontSize.MD, fontWeight: FontWeight.semibold },
   buttonDisabled: { opacity: 0.5 },
-  message: { fontSize: 12, lineHeight: 17, color: Colors.textSecondary, marginBottom: 12 },
+  message: { fontSize: FontSize.XS, lineHeight: 17, color: Colors.textSecondary, marginBottom: Spacing.MD },
 });

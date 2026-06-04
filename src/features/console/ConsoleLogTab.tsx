@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { safeStringify } from '../../utils/safeStringify';
 import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
@@ -16,7 +17,7 @@ export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>>
     emptyText="No console logs"
     renderRow={(item) => (
       <View style={s.cardRow}>
-        <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[item.level] ?? '#8E8E93' }]}>
+        <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[item.level] ?? Colors.textMuted }]}>
           <Text style={s.levelIcon}>{LEVEL_ICONS[item.level] ?? '●'}</Text>
         </View>
         <View style={s.cardContent}>
@@ -29,7 +30,7 @@ export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>>
     )}
     renderDetailHeader={(item) => (
       <>
-        <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[item.level] ?? '#8E8E93' }]}>
+        <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[item.level] ?? Colors.textMuted }]}>
           <Text style={s.levelBadgeText}>{item.level.toUpperCase()}</Text>
         </View>
         <Text style={s.detailTime}>{new Date(item.timestamp).toLocaleString()}</Text>
@@ -62,21 +63,25 @@ export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>>
 ));
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: 12, alignItems: 'flex-start' },
+  cardRow: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
   levelDot: {
-    width: 22, height: 22, borderRadius: 6,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 12, marginTop: 1,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.MD,
+    marginTop: 1,
   },
-  levelIcon: { color: '#FFF', fontSize: 10, fontWeight: '700' },
+  levelIcon: { color: Colors.textInverse, fontSize: FontSize.XXS, fontWeight: FontWeight.bold },
   cardContent: { flex: 1 },
-  logMessage: { fontSize: 13, color: Colors.text, lineHeight: 18 },
-  time: { fontSize: 11, color: Colors.textSecondary, marginTop: 3 },
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  levelBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  detailTime: { flex: 1, fontSize: 12, color: Colors.textSecondary, textAlign: 'right' },
+  logMessage: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 18 },
+  time: { fontSize: FontSize.XS, color: Colors.textSecondary, marginTop: Spacing.XXS },
+  levelBadge: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  levelBadgeText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
+  detailTime: { flex: 1, fontSize: FontSize.SM, color: Colors.textSecondary, textAlign: 'right' },
   detailBody: { flex: 1 },
-  detailBodyContent: { padding: 12 },
-  sectionWithCopy: { gap: 8 },
-  plainText: { fontFamily: 'Courier', fontSize: 12, color: Colors.text, lineHeight: 18 },
+  detailBodyContent: { padding: Spacing.MD },
+  sectionWithCopy: { gap: Spacing.SM },
+  plainText: { fontFamily: 'Courier', fontSize: FontSize.SM, color: Colors.text, lineHeight: 18 },
 });

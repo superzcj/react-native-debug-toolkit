@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { safeStringify } from '../../utils/safeStringify';
 import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
@@ -76,35 +77,44 @@ export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = R
 ));
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: 14, alignItems: 'flex-start' },
+  cardRow: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
   eventIcon: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: 'rgba(175,82,222,0.1)',
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 12, marginTop: 1,
+    width: 24,
+    height: 24,
+    borderRadius: Radius.SM,
+    backgroundColor: Colors.primaryGhost,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.MD,
+    marginTop: 1,
   },
-  eventIconText: { color: Colors.purple, fontSize: 10 },
+  eventIconText: { color: Colors.primary, fontSize: FontSize.XXS },
   cardContent: { flex: 1 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  eventName: { fontSize: 15, fontWeight: '600', color: Colors.text },
-  time: { fontSize: 12, color: Colors.textSecondary },
-  previewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  previewChip: { backgroundColor: Colors.background, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  previewText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
-  previewKey: { fontWeight: '600', color: Colors.text },
-  eventBadge: { backgroundColor: Colors.purple, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8 },
-  eventBadgeText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.XXS },
+  eventName: { fontSize: FontSize.MD, fontWeight: FontWeight.semibold, color: Colors.text },
+  time: { fontSize: FontSize.XS, color: Colors.textSecondary },
+  previewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.XXS },
+  previewChip: { backgroundColor: Colors.surfaceElevated, borderRadius: Radius.XS, paddingHorizontal: Spacing.SM, paddingVertical: 2 },
+  previewText: { fontSize: FontSize.XS, color: Colors.textSecondary, lineHeight: 16 },
+  previewKey: { fontWeight: FontWeight.semibold, color: Colors.text },
+  eventBadge: { backgroundColor: Colors.primary, paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  eventBadgeText: { color: Colors.textInverse, fontSize: FontSize.MD, fontWeight: FontWeight.bold },
   detailBody: { flex: 1 },
-  detailBodyContent: { padding: 12, paddingBottom: 40 },
-  sectionWithCopy: { gap: 8 },
-  propsGrid: { gap: 12 },
+  detailBodyContent: { padding: Spacing.MD, paddingBottom: 40 },
+  sectionWithCopy: { gap: Spacing.SM },
+  propsGrid: { gap: Spacing.MD },
   propRow: {},
-  propKey: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 3 },
-  propValue: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  propKey: { fontSize: FontSize.SM, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: 2 },
+  propValue: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 20 },
   timingCard: {
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.XXS,
   },
-  timingLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
-  timingValue: { fontSize: 13, color: Colors.text },
+  timingLabel: { fontSize: FontSize.SM, color: Colors.textSecondary, fontWeight: FontWeight.medium },
+  timingValue: { fontSize: FontSize.SM, color: Colors.text },
 });

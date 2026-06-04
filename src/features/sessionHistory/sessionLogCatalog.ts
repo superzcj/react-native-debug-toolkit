@@ -23,7 +23,7 @@ export const SESSION_LOG_COLORS: Record<LogFeatureKey, string> = {
   console_logs: Colors.info,
   network_logs: Colors.success,
   native_logs: '#FF9500',
-  track_logs: Colors.purple,
+  track_logs: Colors.primary,
 };
 
 export type DetailFilter = 'all' | LogFeatureKey;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Colors } from '../theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 
 interface Props {
   title: string;
@@ -19,7 +20,7 @@ export const CollapsibleSection: React.FC<Props> = ({
   useEffect(() => {
     Animated.timing(rotationAnim, {
       toValue: expanded ? 1 : 0,
-      duration: 200,
+      duration: 180,
       useNativeDriver: true,
     }).start();
   }, [expanded, rotationAnim]);
@@ -48,8 +49,8 @@ export const CollapsibleSection: React.FC<Props> = ({
 const styles = StyleSheet.create({
   section: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
-    marginBottom: 6,
+    borderRadius: Radius.LG,
+    marginBottom: Spacing.XS,
     overflow: 'hidden',
     borderLeftWidth: 2,
     borderLeftColor: Colors.primary,
@@ -58,24 +59,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.LG,
+    paddingVertical: Spacing.MD,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: FontSize.MD,
+    fontWeight: FontWeight.semibold,
     color: Colors.text,
   },
   chevron: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: Colors.textSecondary,
+    fontSize: 18,
+    fontWeight: FontWeight.medium,
+    color: Colors.textMuted,
     width: 20,
     textAlign: 'center',
   },
   body: {
-    paddingLeft: 14,
-    paddingRight: 14,
-    paddingBottom: 12,
+    paddingLeft: Spacing.LG,
+    paddingRight: Spacing.LG,
+    paddingBottom: Spacing.MD,
   },
 });

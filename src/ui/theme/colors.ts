@@ -1,61 +1,64 @@
 export const Colors = {
-  // Primary
-  primary: '#007AFF',
-  primaryLight: '#4DA3FF',
-  primaryDark: '#0055CC',
+  // Primary accent — teal/cyan
+  primary: '#0EA5E9',
+  primaryLight: '#38BDF8',
+  primaryDim: '#0C4A6E',
+  primaryGhost: 'rgba(14,165,233,0.12)',
 
-  // Text
-  text: '#1C1C1E',
-  textSecondary: '#8E8E93',
-  textLight: '#C7C7CC',
-  textInverse: '#FFFFFF',
+  // Text — 3-level hierarchy
+  text: '#E2E8F0',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  textInverse: '#0F172A',
 
-  // Surface & Background
-  background: '#F2F2F7',
-  surface: '#FFFFFF',
-  surfaceElevated: '#FFFFFF',
-  border: '#E5E5EA',
-  borderLight: '#F0F0F5',
+  // Surface — 3-level depth
+  background: '#1E293B',
+  surface: '#0F172A',
+  surfaceElevated: '#334155',
+  surfaceHover: '#1E293B',
+
+  // Border
+  border: '#334155',
+  borderLight: '#1E293B',
+  borderFocus: '#0EA5E9',
 
   // Status
-  success: '#34C759',
-  successLight: '#E8F9EE',
-  error: '#FF3B30',
-  errorLight: '#FFF0EF',
-  warning: '#FF9500',
-  warningLight: '#FFF5E5',
-  info: '#5AC8FA',
-  infoLight: '#EDF8FF',
+  success: '#22C55E',
+  successDim: 'rgba(34,197,94,0.12)',
+  error: '#EF4444',
+  errorDim: 'rgba(239,68,68,0.12)',
+  warning: '#F59E0B',
+  warningDim: 'rgba(245,158,11,0.12)',
+  info: '#0EA5E9',
 
-  // Accent
-  purple: '#AF52DE',
-  purpleLight: '#F3E8FF',
+  // Rail
+  railBackground: '#0F172A',
+  railInactiveText: '#64748B',
+  railActiveText: '#E2E8F0',
+  railActiveBg: 'rgba(14,165,233,0.08)',
+  railActiveBar: '#0EA5E9',
+  panelDivider: '#1E293B',
 
-  // Panel
-  railBackground: '#1C2433',
-  railInactiveText: '#8899AA',
-  railActiveText: '#FFFFFF',
-  railActiveBg: 'rgba(255,255,255,0.12)',
-  panelDivider: '#2A3544',
-  panelAccentStart: '#007AFF',
-  panelAccentEnd: '#AF52DE',
-  dragHandle: '#B0B8C4',
-
-  // Signal backgrounds
-  signalRedBg: '#FFE9E7',
-  signalAmberBg: '#FFF1D6',
-  signalDefaultBg: '#E7EDF5',
+  // Drag handle
+  dragHandle: '#475569',
 
   // HTTP Method Colors
-  get: '#007AFF',
-  post: '#34C759',
-  put: '#FF9500',
-  delete: '#FF3B30',
-  patch: '#5AC8FA',
+  get: '#38BDF8',
+  post: '#22C55E',
+  put: '#F59E0B',
+  delete: '#EF4444',
+  patch: '#A78BFA',
 
   // Code / JSON viewer
-  codeBackground: '#1E1E2E',
-  codeBorder: '#313244',
+  codeBackground: '#0F172A',
+  codeBorder: '#1E293B',
+  codeText: '#CBD5E1',
+  codeKey: '#7DD3FC',
+  codeString: '#86EFAC',
+  codeNumber: '#C4B5FD',
+  codeBoolean: '#7DD3FC',
+  codeNull: '#F87171',
+  codeComment: '#64748B',
 } as const;
 
 export function getMethodColor(method: string): string {

@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { Colors } from '../theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { useSlideDetailAnimation } from './useSlideDetailAnimation';
 
 interface LogListItem {
@@ -24,11 +25,6 @@ interface LogListScreenProps<T extends LogListItem> {
   reversed?: boolean;
 }
 
-/**
- * Shared list→detail screen with slide animation.
- * Handles: selected state, FlatList, empty state, back button, push navigation.
- * Each tab provides renderRow, renderDetailBody, and optional renderDetailHeader.
- */
 export function LogListScreen<T extends LogListItem>({
   data,
   renderRow,
@@ -48,7 +44,6 @@ export function LogListScreen<T extends LogListItem>({
 
   return (
     <View style={styles.container}>
-      {/* List */}
       <Animated.View
         style={[
           styles.listWrap,
@@ -60,7 +55,7 @@ export function LogListScreen<T extends LogListItem>({
         {renderListHeader?.()}
         {displayData.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>{"—"}</Text>
+            <Text style={styles.emptyIcon}>—</Text>
             <Text style={styles.empty}>{emptyText}</Text>
           </View>
         ) : (
@@ -85,7 +80,6 @@ export function LogListScreen<T extends LogListItem>({
         )}
       </Animated.View>
 
-      {/* Detail */}
       {selected && (
         <Animated.View
           style={[styles.detailOverlay, { transform: [{ translateX: detailTranslateX }] }]}
@@ -113,17 +107,15 @@ export function LogListScreen<T extends LogListItem>({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   listWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  listContent: { padding: 12 },
+  listContent: { padding: Spacing.SM },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyIcon: { fontSize: 36, color: Colors.textSecondary, marginBottom: 4 },
-  empty: { textAlign: 'center', color: Colors.textSecondary, fontSize: 13 },
+  emptyIcon: { fontSize: 32, color: Colors.textMuted, marginBottom: Spacing.XS },
+  empty: { textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.SM },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    marginBottom: 8,
+    borderRadius: Radius.LG,
+    marginBottom: Spacing.SM,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.borderLight,
   },
   detailOverlay: {
     position: 'absolute',
@@ -137,30 +129,30 @@ const styles = StyleSheet.create({
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: Spacing.SM,
     backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    gap: 8,
+    gap: Spacing.SM,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: Spacing.XS,
+    paddingVertical: 2,
+    borderRadius: Radius.SM,
   },
   backIcon: {
-    fontSize: 24,
-    fontWeight: '300',
+    fontSize: 22,
+    fontWeight: FontWeight.regular,
     color: Colors.primary,
     marginTop: -2,
-    marginRight: 2,
+    marginRight: Spacing.XXS,
   },
   backText: {
-    fontSize: 15,
+    fontSize: FontSize.LG,
     color: Colors.primary,
-    fontWeight: '500',
+    fontWeight: FontWeight.medium,
   },
 });

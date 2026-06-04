@@ -2,21 +2,21 @@ import { shortLabelForFeature } from '../../ui/panel/FeatureRail';
 
 describe('shortLabelForFeature', () => {
   it('maps known feature ids', () => {
-    expect(shortLabelForFeature('Network', 'network')).toBe('network');
-    expect(shortLabelForFeature('Console', 'console')).toBe('console');
-    expect(shortLabelForFeature('Navigation', 'navigation')).toBe('nav');
-    expect(shortLabelForFeature('Zustand', 'zustand')).toBe('zustand');
-    expect(shortLabelForFeature('DevConnect', 'devConnect')).toBe('dev');
-    expect(shortLabelForFeature('Native', 'native')).toBe('native');
-    expect(shortLabelForFeature('Track', 'track')).toBe('track');
-    expect(shortLabelForFeature('Clipboard', 'clipboard')).toBe('clip');
-    expect(shortLabelForFeature('Environment', 'environment')).toBe('env');
-    expect(shortLabelForFeature('Session', 'sessionHistory')).toBe('session');
-    expect(shortLabelForFeature('Third Party', 'thirdPartyLibs')).toBe('libs');
+    expect(shortLabelForFeature('Network', 'network')).toBe('Net');
+    expect(shortLabelForFeature('Console', 'console')).toBe('Log');
+    expect(shortLabelForFeature('Navigation', 'navigation')).toBe('Nav');
+    expect(shortLabelForFeature('Zustand', 'zustand')).toBe('State');
+    expect(shortLabelForFeature('DevConnect', 'devConnect')).toBe('Dev');
+    expect(shortLabelForFeature('Native', 'native')).toBe('Native');
+    expect(shortLabelForFeature('Track', 'track')).toBe('Track');
+    expect(shortLabelForFeature('Clipboard', 'clipboard')).toBe('Clip');
+    expect(shortLabelForFeature('Environment', 'environment')).toBe('Env');
+    expect(shortLabelForFeature('Session', 'sessionHistory')).toBe('Session');
+    expect(shortLabelForFeature('Third Party', 'thirdPartyLibs')).toBe('Libs');
   });
 
-  it('trims unknown label to 7 lowercase chars', () => {
-    expect(shortLabelForFeature('CustomFeature', 'custom')).toBe('customf');
+  it('trims unknown label to 5 lowercase chars', () => {
+    expect(shortLabelForFeature('CustomFeature', 'custom')).toBe('custo');
     expect(shortLabelForFeature('AB', 'ab')).toBe('ab');
   });
 

@@ -13,6 +13,7 @@ import { ICON_SIZE } from '../theme/layout';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
 
 const EDGE_MARGIN = 16;
+const RING_SIZE = ICON_SIZE + 12;
 
 interface FloatIconProps {
   visible: boolean;
@@ -30,33 +31,33 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
   const scale = useRef(new Animated.Value(1)).current;
   const lastPosition = useRef({ x: defaultX, y: defaultY });
   const positionLoaded = useRef(false);
-  const pulseScale = useRef(new Animated.Value(1)).current;
+  const ringOpacity = useRef(new Animated.Value(0)).current;
 
-  // Streaming pulse animation
+  // Streaming ring pulse animation
   useEffect(() => {
     if (!streaming) {
-      pulseScale.setValue(1);
+      ringOpacity.setValue(0);
       return;
     }
+    ringOpacity.setValue(0.6);
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseScale, {
-          toValue: 1.4,
-          duration: 800,
+        Animated.timing(ringOpacity, {
+          toValue: 0.15,
+          duration: 1000,
           useNativeDriver: true,
         }),
-        Animated.timing(pulseScale, {
-          toValue: 1,
-          duration: 800,
+        Animated.timing(ringOpacity, {
+          toValue: 0.6,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ]),
     );
     anim.start();
     return () => anim.stop();
-  }, [streaming, pulseScale]);
+  }, [streaming, ringOpacity]);
 
-  // Restore saved position
   useEffect(() => {
     let mounted = true;
     getPreference(KEYS.fabPosition).then((saved) => {
@@ -105,7 +106,6 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         }
         Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
 
-        // Snap to nearest edge
         const rawX = lastPosition.current.x + gs.dx;
         const midX = screenWidth / 2 - ICON_SIZE / 2;
         const snappedX = rawX < midX ? EDGE_MARGIN : screenWidth - ICON_SIZE - EDGE_MARGIN;
@@ -123,7 +123,6 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
           useNativeDriver: true,
         }).start();
 
-        // Persist
         setPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
@@ -152,8 +151,20 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       ]}
       {...panResponder.panHandlers}
     >
+      {/* Streaming ring */}
+      <Animated.View
+        style={[
+          styles.streamingRing,
+          { opacity: ringOpacity },
+        ]}
+        pointerEvents="none"
+      />
+
       <Pressable onPress={onPress} style={styles.inner}>
-        <Text style={styles.iconSymbol}>{"⚡"}</Text>
+        {/* Crosshair icon — horizontal bar */}
+        <View style={styles.crosshairH} />
+        {/* Crosshair icon — vertical bar */}
+        <View style={styles.crosshairV} />
       </Pressable>
 
       {badge && (
@@ -161,16 +172,6 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
           <Text style={styles.badgeText}>{badge.label}</Text>
         </View>
       )}
-
-      <Animated.View
-        style={[
-          styles.streamingDot,
-          {
-            backgroundColor: streaming ? Colors.success : Colors.textSecondary,
-            transform: [{ scale: pulseScale }],
-          },
-        ]}
-      />
     </Animated.View>
   );
 }
@@ -181,14 +182,24 @@ const styles = StyleSheet.create({
     width: ICON_SIZE,
     height: ICON_SIZE,
     borderRadius: ICON_SIZE / 2,
-    backgroundColor: Colors.railBackground,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
     elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  streamingRing: {
+    position: 'absolute',
+    top: -(RING_SIZE - ICON_SIZE) / 2,
+    left: -(RING_SIZE - ICON_SIZE) / 2,
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
   },
   inner: {
     width: '100%',
@@ -196,12 +207,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconSymbol: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+  crosshairH: {
+    position: 'absolute',
+    width: 20,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.primary,
+  },
+  crosshairV: {
+    position: 'absolute',
+    width: 2,
+    height: 20,
+    borderRadius: 1,
+    backgroundColor: Colors.primary,
   },
   badge: {
     position: 'absolute',
@@ -213,23 +231,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.railBackground,
+    borderWidth: 1.5,
+    borderColor: Colors.surface,
     elevation: 4,
   },
   badgeText: {
-    color: '#FFF',
+    color: Colors.textInverse,
     fontSize: 9,
     fontWeight: '700',
-  },
-  streamingDot: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: Colors.railBackground,
   },
 });

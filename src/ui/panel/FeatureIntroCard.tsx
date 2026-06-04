@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import type { FeatureSummary } from './buildFeatureSummary';
 
 function hexWithAlpha(hex: string, alpha: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex + alpha;
-  return Colors.signalDefaultBg;
+  return Colors.primaryGhost;
 }
 
 interface FeatureIntroCardProps {
@@ -61,7 +62,7 @@ export function FeatureIntroCard({
         <TextInput
           style={styles.searchInput}
           placeholder="Search..."
-          placeholderTextColor={Colors.textLight}
+          placeholderTextColor={Colors.textMuted}
           value={searchQuery}
           onChangeText={onSearchChange}
           returnKeyType="search"
@@ -73,47 +74,46 @@ export function FeatureIntroCard({
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.MD,
+    paddingTop: Spacing.SM,
+    paddingBottom: Spacing.SM,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.background,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.SM,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: FontSize.MD,
+    fontWeight: FontWeight.bold,
     color: Colors.text,
-    letterSpacing: 0.2,
   },
   statusChip: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.SM,
     paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: Colors.signalDefaultBg,
+    borderRadius: Radius.SM,
+    backgroundColor: Colors.primaryGhost,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: Spacing.XS,
   },
   chip: {
-    height: 26,
-    paddingHorizontal: 10,
+    height: 24,
+    paddingHorizontal: Spacing.MD,
     justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: 'transparent',
   },
   chipActive: {
     backgroundColor: Colors.primary,
@@ -124,25 +124,25 @@ const styles = StyleSheet.create({
     borderColor: Colors.error,
   },
   chipText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
   },
   chipTextActive: {
-    color: '#FFFFFF',
+    color: Colors.textInverse,
   },
   chipTextBad: {
-    color: '#fff',
+    color: Colors.textInverse,
   },
   searchInput: {
-    height: 34,
+    height: 32,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: Radius.LG,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 12,
-    fontSize: 13,
+    paddingHorizontal: Spacing.MD,
+    fontSize: FontSize.MD,
     color: Colors.text,
-    marginTop: 6,
+    marginTop: Spacing.SM,
   },
 });

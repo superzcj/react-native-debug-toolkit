@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import type { DebugFeatureRenderProps, ThirdPartyLib, ThirdPartyLibAction } from '../../types';
 
 export const ThirdPartyLibsTab: React.FC<DebugFeatureRenderProps<ThirdPartyLib[]>> = ({
@@ -10,7 +11,9 @@ export const ThirdPartyLibsTab: React.FC<DebugFeatureRenderProps<ThirdPartyLib[]
   if (data.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.empty}>No debug libraries available for this platform</Text>
+        <View style={styles.emptyWrap}>
+          <Text style={styles.empty}>No debug libraries available for this platform</Text>
+        </View>
       </View>
     );
   }
@@ -39,26 +42,25 @@ export const ThirdPartyLibsTab: React.FC<DebugFeatureRenderProps<ThirdPartyLib[]
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface, padding: 15 },
-  empty: { textAlign: 'center', color: Colors.textLight, marginTop: 20 },
+  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.MD },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.SM },
   libCard: {
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
   },
-  libName: { fontSize: 16, fontWeight: 'bold', color: Colors.text, marginBottom: 4 },
-  libDesc: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  libName: { fontSize: FontSize.LG, fontWeight: FontWeight.bold, color: Colors.text, marginBottom: Spacing.XXS },
+  libDesc: { fontSize: FontSize.SM, color: Colors.textSecondary, marginBottom: Spacing.MD },
   actions: { flexDirection: 'row', flexWrap: 'wrap' },
   actionButton: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.XS,
+    borderRadius: Radius.SM,
+    marginRight: Spacing.SM,
+    marginBottom: Spacing.SM,
   },
-  actionText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  actionText: { color: Colors.textInverse, fontSize: FontSize.MD, fontWeight: FontWeight.semibold },
 });

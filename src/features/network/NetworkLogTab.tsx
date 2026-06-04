@@ -6,6 +6,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Colors, getMethodColor } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
@@ -25,7 +26,6 @@ const formatSize = (data: unknown): string => {
   }
 };
 
-// Keep in sync with console.html buildCurlCommand()
 const buildCurl = (log: NetworkLogEntry): string => {
   const q = (s: string) => s.replace(/'/g, "'\\''");
   let c = `curl -X ${log.request.method} '${q(log.request.url)}'`;
@@ -176,90 +176,90 @@ function formatUrlParts(url: string): { host: string; path: string } {
 }
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: 12, paddingRight: 14 },
-  statusIndicator: { width: 4, borderRadius: 2, marginRight: 10 },
-  cardBody: { flex: 1, gap: 7 },
+  cardRow: { flexDirection: 'row', padding: Spacing.MD, paddingRight: Spacing.LG },
+  statusIndicator: { width: 3, borderRadius: 1.5, marginRight: Spacing.SM },
+  cardBody: { flex: 1, gap: Spacing.XS },
   primaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: Spacing.XS,
     minWidth: 0,
   },
   methodChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: 2,
+    borderRadius: Radius.SM,
   },
   methodChipText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
+    color: Colors.textInverse,
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.bold,
   },
   pathText: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: FontSize.MD,
+    fontWeight: FontWeight.semibold,
     color: Colors.text,
   },
-  statusChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusChipText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  statusChip: { paddingHorizontal: Spacing.SM, paddingVertical: 2, borderRadius: Radius.SM },
+  statusChipText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: Spacing.XS,
     minWidth: 0,
   },
-  metaText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
+  metaText: { fontSize: FontSize.XS, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   hostText: { flex: 1 },
-  time: { fontSize: 10, color: Colors.textLight },
+  time: { fontSize: FontSize.XXS, color: Colors.textMuted },
   detailHeaderCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.SM,
     flex: 1,
   },
   methodBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.XXS,
+    borderRadius: Radius.SM,
   },
-  methodBadgeText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
-  statusPillText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  durationText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  methodBadgeText: { color: Colors.textInverse, fontSize: FontSize.MD, fontWeight: FontWeight.bold },
+  statusPill: { paddingHorizontal: Spacing.SM, paddingVertical: 2, borderRadius: Radius.SM },
+  statusPillText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
+  durationText: { fontSize: FontSize.SM, color: Colors.textSecondary, fontWeight: FontWeight.medium },
   detailBody: { flex: 1 },
-  detailBodyContent: { padding: 12, paddingBottom: 32 },
+  detailBodyContent: { padding: Spacing.MD, paddingBottom: 32 },
   urlCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    gap: 8,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
+    gap: Spacing.SM,
   },
-  urlText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
-  sectionWithCopy: { gap: 8 },
-  emptySection: { fontSize: 12, color: Colors.textLight, paddingVertical: 4 },
+  urlText: { flex: 1, fontSize: FontSize.SM, color: Colors.textSecondary, lineHeight: 16 },
+  sectionWithCopy: { gap: Spacing.SM },
+  emptySection: { fontSize: FontSize.SM, color: Colors.textMuted, paddingVertical: Spacing.XXS },
   errorBox: {
-    backgroundColor: 'rgba(255,59,48,0.06)',
+    backgroundColor: Colors.errorDim,
     borderWidth: 1,
-    borderColor: 'rgba(255,59,48,0.15)',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
+    borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: Radius.MD,
+    padding: Spacing.MD,
+    marginBottom: Spacing.MD,
     borderLeftWidth: 3,
     borderLeftColor: Colors.error,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: Spacing.SM,
   },
-  errorIcon: { fontSize: 14, color: Colors.error },
-  errorText: { flex: 1, fontSize: 12, color: Colors.error, lineHeight: 18 },
+  errorIcon: { fontSize: FontSize.MD, color: Colors.error },
+  errorText: { flex: 1, fontSize: FontSize.SM, color: Colors.error, lineHeight: 18 },
   codeBlock: {
-    backgroundColor: '#1E1E2E',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: Colors.codeBackground,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
   },
-  codeText: { fontFamily: 'Courier', fontSize: 12, color: '#CDD6F4', lineHeight: 18 },
+  codeText: { fontFamily: 'Courier', fontSize: FontSize.SM, color: Colors.codeText, lineHeight: 18 },
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { safeStringify } from '../../utils/safeStringify';
 import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
@@ -9,17 +10,17 @@ import { LogListScreen } from '../../ui/shared/LogListScreen';
 import type { DebugFeatureRenderProps, ZustandLogEntry } from '../../types';
 
 const getActionColor = (action: string): string => {
-  if (action.includes('add') || action.includes('create')) return '#34C759';
-  if (action.includes('remove') || action.includes('delete')) return '#FF3B30';
-  if (action.includes('update') || action.includes('set')) return '#007AFF';
-  return '#AF52DE';
+  if (action.includes('add') || action.includes('create')) return Colors.success;
+  if (action.includes('remove') || action.includes('delete')) return Colors.error;
+  if (action.includes('update') || action.includes('set')) return Colors.primary;
+  return Colors.info;
 };
 
 const getActionBgColor = (action: string): string => {
-  if (action.includes('add') || action.includes('create')) return 'rgba(52,199,89,0.1)';
-  if (action.includes('remove') || action.includes('delete')) return 'rgba(255,59,48,0.1)';
-  if (action.includes('update') || action.includes('set')) return 'rgba(0,122,255,0.1)';
-  return 'rgba(175,82,222,0.1)';
+  if (action.includes('add') || action.includes('create')) return Colors.successDim;
+  if (action.includes('remove') || action.includes('delete')) return Colors.errorDim;
+  if (action.includes('update') || action.includes('set')) return Colors.primaryGhost;
+  return 'rgba(14,165,233,0.12)';
 };
 
 function findChanges(prev: unknown, next: unknown): string[] {
@@ -126,78 +127,73 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
 ));
 
 const s = StyleSheet.create({
-  // Row
-  cardRow: { flexDirection: 'row', padding: 14, alignItems: 'center' },
+  cardRow: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'center' },
   actionIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 26,
+    height: 26,
+    borderRadius: Radius.SM,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Spacing.MD,
   },
   actionDot: { width: 8, height: 8, borderRadius: 4 },
   cardContent: { flex: 1 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-  action: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.SM, marginBottom: 2 },
+  action: { fontSize: FontSize.MD, fontWeight: FontWeight.semibold, color: Colors.text },
   storeBadge: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: Colors.primaryGhost,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: 1,
+    borderRadius: Radius.XS,
   },
-  storeBadgeText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-  time: { fontSize: 12, color: Colors.textSecondary },
+  storeBadgeText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.semibold },
+  time: { fontSize: FontSize.XS, color: Colors.textSecondary },
   durationBadge: {
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: Radius.SM,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: Spacing.XXS,
   },
-  durationText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  durationText: { fontSize: FontSize.XS, color: Colors.textSecondary, fontWeight: FontWeight.medium },
 
-  // Detail header
   detailHeaderCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: Spacing.SM,
     flex: 1,
   },
-  detailAction: { fontSize: 17, fontWeight: '700' },
+  detailAction: { fontSize: FontSize.LG, fontWeight: FontWeight.bold },
 
-  // Detail body
   detailBody: { flex: 1 },
-  detailBodyContent: { padding: 12, paddingBottom: 40 },
-  sectionWithCopy: { gap: 8 },
+  detailBodyContent: { padding: Spacing.MD, paddingBottom: 40 },
+  sectionWithCopy: { gap: Spacing.SM },
 
-  // Meta
   metaCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
     flexDirection: 'row',
     alignItems: 'center',
   },
   metaItem: { flex: 1 },
-  metaDivider: { width: 1, height: 28, backgroundColor: Colors.border, marginHorizontal: 12 },
-  metaLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 },
-  metaValue: { fontSize: 14, color: Colors.text, fontWeight: '500' },
+  metaDivider: { width: 1, height: 28, backgroundColor: Colors.border, marginHorizontal: Spacing.MD },
+  metaLabel: { fontSize: FontSize.XS, color: Colors.textSecondary, fontWeight: FontWeight.semibold, textTransform: 'uppercase', marginBottom: 2 },
+  metaValue: { fontSize: FontSize.MD, color: Colors.text, fontWeight: FontWeight.medium },
 
-  // Changes
   changesCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
   },
-  changesTitle: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary, marginBottom: 10 },
-  changesTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  changesTitle: { fontSize: FontSize.SM, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.SM },
+  changesTags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.XXS },
   changeTag: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: Colors.primaryGhost,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: Spacing.XXS,
+    borderRadius: Radius.XS,
   },
-  changeTagText: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+  changeTagText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.semibold },
 });

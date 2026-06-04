@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { Colors } from '../theme/colors';
+import { FontSize, Spacing, Radius } from '../theme/layout';
 import { safeStringify } from '../../utils/safeStringify';
 
 const MAX_DEPTH = 3;
@@ -30,18 +32,18 @@ const Node: React.FC<{
 }> = ({ value, depth, isLast }) => {
   const comma = isLast ? '' : ',';
 
-  if (value === null) return <C color="#F38BA8">{`null${comma}`}</C>;
-  if (value === undefined) return <C color="#F38BA8">{`undefined${comma}`}</C>;
-  if (typeof value === 'boolean') return <C color="#89B4FA">{`${String(value)}${comma}`}</C>;
-  if (typeof value === 'number') return <C color="#CBA6F7">{`${value}${comma}`}</C>;
+  if (value === null) return <C color={Colors.codeNull}>{`null${comma}`}</C>;
+  if (value === undefined) return <C color={Colors.codeNull}>{`undefined${comma}`}</C>;
+  if (typeof value === 'boolean') return <C color={Colors.codeBoolean}>{`${String(value)}${comma}`}</C>;
+  if (typeof value === 'number') return <C color={Colors.codeNumber}>{`${value}${comma}`}</C>;
   if (typeof value === 'string') {
     const display = value.length > 500 ? value.slice(0, 500) + '...' : value;
-    return <C color="#A6E3A1" selectable>{`"${display}"${comma}`}</C>;
+    return <C color={Colors.codeString} selectable>{`"${display}"${comma}`}</C>;
   }
 
   if (depth >= MAX_DEPTH) {
     const collapsed = truncate(safeStringify(value), 200);
-    return <C color="#6C7086">{`${collapsed}${comma}`}</C>;
+    return <C color={Colors.codeComment}>{`${collapsed}${comma}`}</C>;
   }
 
   const entries = Object.entries(value as Record<string, unknown>);
@@ -49,13 +51,13 @@ const Node: React.FC<{
   const open = isArray ? '[' : '{';
   const close = isArray ? ']' : '}';
 
-  if (entries.length === 0) return <C color="#6C7086">{`${open}${close}${comma}`}</C>;
+  if (entries.length === 0) return <C color={Colors.codeComment}>{`${open}${close}${comma}`}</C>;
 
   const limited = entries.slice(0, MAX_CHILDREN);
 
   return (
     <View style={depth > 0 ? s.indent : undefined}>
-      <C color="#6C7086">{open}</C>
+      <C color={Colors.codeComment}>{open}</C>
       {limited.map(([key, val], i) => (
         <View key={key} style={s.line}>
           <Text style={s.row}>
@@ -70,9 +72,9 @@ const Node: React.FC<{
         </View>
       ))}
       {entries.length > MAX_CHILDREN && (
-        <C color="#6C7086">{`  ... ${entries.length - MAX_CHILDREN} more`}</C>
+        <C color={Colors.codeComment}>{`  ... ${entries.length - MAX_CHILDREN} more`}</C>
       )}
-      <C color="#6C7086">{`${close}${comma}`}</C>
+      <C color={Colors.codeComment}>{`${close}${comma}`}</C>
     </View>
   );
 };
@@ -93,22 +95,22 @@ function truncate(str: string, len: number): string {
 
 const s = StyleSheet.create({
   scroll: {
-    backgroundColor: '#1E1E2E',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: Colors.codeBackground,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
   },
   block: {
     borderLeftWidth: 2,
-    borderLeftColor: '#313244',
+    borderLeftColor: Colors.codeBorder,
   },
   node: {
     fontFamily: 'Courier',
-    fontSize: 12,
-    lineHeight: 18,
-    color: '#CDD6F4',
+    fontSize: FontSize.SM,
+    lineHeight: 17,
+    color: Colors.codeText,
   },
   indent: {
-    paddingLeft: 14,
+    paddingLeft: Spacing.LG,
   },
   line: {
     flexDirection: 'row',
@@ -117,12 +119,12 @@ const s = StyleSheet.create({
   row: {},
   key: {
     fontFamily: 'Courier',
-    fontSize: 12,
-    color: '#89DCEB',
+    fontSize: FontSize.SM,
+    color: Colors.codeKey,
   },
   colon: {
     fontFamily: 'Courier',
-    fontSize: 12,
-    color: '#CDD6F4',
+    fontSize: FontSize.SM,
+    color: Colors.codeText,
   },
 });

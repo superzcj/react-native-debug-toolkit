@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Colors, getMethodColor } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
@@ -302,7 +303,7 @@ const LogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) 
       : safeStringify(e.data);
     return (
       <View style={s.rowContent}>
-        <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[level] ?? '#8E8E93' }]}>
+        <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[level] ?? Colors.textMuted }]}>
           <Text style={s.levelIcon}>{LEVEL_ICONS[level] ?? '●'}</Text>
         </View>
         <View style={s.rowBody}>
@@ -359,7 +360,7 @@ const LogDetailHeader: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ 
     const level = e.level ?? 'log';
     return (
       <>
-        <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[level] ?? '#8E8E93' }]}>
+        <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[level] ?? Colors.textMuted }]}>
           <Text style={s.levelBadgeText}>{level.toUpperCase()}</Text>
         </View>
         <Text style={s.detailTimestamp}>{new Date(e.timestamp).toLocaleString()}</Text>
@@ -503,7 +504,7 @@ const LogDetailBody: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ en
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingTop: 12, paddingBottom: 60 },
+  scrollContent: { paddingTop: Spacing.MD, paddingBottom: 60 },
 
   // Center (loading / empty)
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background, padding: 32 },
@@ -512,35 +513,35 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.border,
-    marginBottom: 16,
+    marginBottom: Spacing.LG,
   },
   emptyClockText: { fontSize: 28 },
-  emptyTitle: { fontSize: 17, fontWeight: '600', color: Colors.text, marginBottom: 6 },
-  emptySub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: FontSize.LG, fontWeight: FontWeight.semibold, color: Colors.text, marginBottom: Spacing.XS },
+  emptySub: { fontSize: FontSize.MD, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   // Current session
   currentCard: {
     backgroundColor: Colors.primary,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 20,
+    marginHorizontal: Spacing.LG,
+    borderRadius: Radius.XL,
+    padding: Spacing.LG,
+    marginBottom: Spacing.XL,
   },
-  currentRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CD964', marginRight: 8 },
-  currentLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 0.8 },
-  currentTime: { fontSize: 15, color: '#FFFFFF', fontWeight: '500' },
+  currentRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.XS },
+  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.success, marginRight: Spacing.SM },
+  currentLabel: { fontSize: FontSize.XS, fontWeight: FontWeight.bold, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.8 },
+  currentTime: { fontSize: FontSize.LG, color: Colors.textInverse, fontWeight: FontWeight.medium },
 
   // Timeline
-  timelineSection: { paddingHorizontal: 16 },
-  timelineHeader: { fontSize: 11, fontWeight: '700', color: Colors.textLight, letterSpacing: 0.8, marginBottom: 12 },
+  timelineSection: { paddingHorizontal: Spacing.LG },
+  timelineHeader: { fontSize: FontSize.XS, fontWeight: FontWeight.bold, color: Colors.textMuted, letterSpacing: 0.8, marginBottom: Spacing.MD },
   timelineRow: { flexDirection: 'row' },
 
-  railCol: { width: 24, alignItems: 'center', paddingTop: 14 },
+  railCol: { width: 24, alignItems: 'center', paddingTop: Spacing.MD },
   railDot: {
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: Colors.surface,
-    borderWidth: 2, borderColor: Colors.textLight,
+    borderWidth: 2, borderColor: Colors.textMuted,
     zIndex: 1,
   },
   railLine: { width: 2, flex: 1, backgroundColor: Colors.border, marginTop: -1 },
@@ -548,103 +549,103 @@ const s = StyleSheet.create({
   historyCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    marginLeft: 8,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
+    marginLeft: Spacing.SM,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 },
-  cardTime: { fontSize: 15, fontWeight: '600', color: Colors.text },
-  cardRelative: { fontSize: 13, color: Colors.textSecondary },
-  cardEmpty: { fontSize: 13, color: Colors.textLight, marginBottom: 4 },
+  cardTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: Spacing.SM },
+  cardTime: { fontSize: FontSize.LG, fontWeight: FontWeight.semibold, color: Colors.text },
+  cardRelative: { fontSize: FontSize.SM, color: Colors.textSecondary },
+  cardEmpty: { fontSize: FontSize.SM, color: Colors.textMuted, marginBottom: Spacing.XXS },
 
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  pillDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  pillText: { fontSize: 12, fontWeight: '600' },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.XS, marginBottom: Spacing.SM },
+  pill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.SM, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  pillDot: { width: 6, height: 6, borderRadius: 3, marginRight: Spacing.XS },
+  pillText: { fontSize: FontSize.XS, fontWeight: FontWeight.semibold },
 
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  cardId: { fontSize: 11, color: Colors.textLight, fontFamily: 'Courier', fontWeight: '500' },
-  cardChevron: { fontSize: 20, color: Colors.textLight, fontWeight: '400' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.XXS },
+  cardId: { fontSize: FontSize.XS, color: Colors.textMuted, fontFamily: 'Courier', fontWeight: FontWeight.medium },
+  cardChevron: { fontSize: FontSize.XL, color: Colors.textMuted, fontWeight: FontWeight.regular },
 
   // ── Session detail header ──
   sessionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.LG,
+    paddingVertical: Spacing.SM,
     backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
   },
-  headerBackBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  headerArrow: { fontSize: 22, color: Colors.primary, fontWeight: '400', marginRight: 2 },
-  headerBackLabel: { fontSize: 15, color: Colors.primary, fontWeight: '600' },
-  headerMeta: { fontSize: 12, color: Colors.textSecondary, fontFamily: 'Courier' },
+  headerBackBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.XXS },
+  headerArrow: { fontSize: FontSize.XL, color: Colors.primary, fontWeight: FontWeight.regular, marginRight: Spacing.XXS },
+  headerBackLabel: { fontSize: FontSize.LG, color: Colors.primary, fontWeight: FontWeight.semibold },
+  headerMeta: { fontSize: FontSize.XS, color: Colors.textSecondary, fontFamily: 'Courier' },
 
   // ── Filter bar ──
   filterBar: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.SM,
     backgroundColor: Colors.background,
-    gap: 6,
+    gap: Spacing.XS,
   },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surface },
-  chipLabel: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary },
-  chipLabelActive: { color: '#FFFFFF' },
-  chipCount: { fontSize: 12, fontWeight: '600', color: Colors.textLight },
+  chip: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XS, borderRadius: Radius.MD, backgroundColor: Colors.surface },
+  chipLabel: { fontSize: FontSize.SM, fontWeight: FontWeight.medium, color: Colors.textSecondary },
+  chipLabelActive: { color: Colors.textInverse },
+  chipCount: { fontSize: FontSize.XS, fontWeight: FontWeight.semibold, color: Colors.textMuted },
   chipCountActive: { color: 'rgba(255,255,255,0.8)' },
 
   // ── Log rows (inside LogListScreen cards) ──
-  rowContent: { flexDirection: 'row', padding: 14, alignItems: 'flex-start' },
+  rowContent: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
   levelDot: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 12, marginTop: 1,
+    marginRight: Spacing.MD, marginTop: 1,
   },
-  levelIcon: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  statusBar: { width: 3, borderRadius: 2, marginRight: 12, minHeight: 36 },
+  levelIcon: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
+  statusBar: { width: 3, borderRadius: 2, marginRight: Spacing.MD, minHeight: 36 },
   rowBody: { flex: 1 },
-  rowMsg: { fontSize: 14, color: Colors.text, lineHeight: 20 },
-  rowTime: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 6 },
-  methodText: { fontSize: 13, fontWeight: '700' },
-  miniPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
-  miniPillText: { color: '#FFF', fontSize: 10, fontWeight: '700' },
-  trackDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.purple, marginRight: 10, marginTop: 5 },
+  rowMsg: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 20 },
+  rowTime: { fontSize: FontSize.XS, color: Colors.textSecondary, marginTop: Spacing.XXS },
+  rowMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.XXS, gap: Spacing.XS },
+  methodText: { fontSize: FontSize.SM, fontWeight: FontWeight.bold },
+  miniPill: { paddingHorizontal: Spacing.SM, paddingVertical: Spacing.XXS, borderRadius: Radius.XS },
+  miniPillText: { color: Colors.textInverse, fontSize: FontSize.XXS, fontWeight: FontWeight.bold },
+  trackDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary, marginRight: Spacing.SM, marginTop: 5 },
 
   // ── Log detail header ──
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  levelBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  detailTimestamp: { flex: 1, fontSize: 13, color: Colors.textSecondary, textAlign: 'right' },
-  networkHeaderBadges: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  methodBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  methodBadgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  statusPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6 },
-  statusPillText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
-  durationText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  levelBadge: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  levelBadgeText: { color: Colors.textInverse, fontSize: FontSize.SM, fontWeight: FontWeight.bold },
+  detailTimestamp: { flex: 1, fontSize: FontSize.SM, color: Colors.textSecondary, textAlign: 'right' },
+  networkHeaderBadges: { flexDirection: 'row', alignItems: 'center', gap: Spacing.SM, flex: 1 },
+  methodBadge: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  methodBadgeText: { color: Colors.textInverse, fontSize: FontSize.SM, fontWeight: FontWeight.bold },
+  statusPill: { paddingHorizontal: Spacing.SM, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  statusPillText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
+  durationText: { fontSize: FontSize.XS, color: Colors.textSecondary, fontWeight: FontWeight.medium },
 
   // ── Log detail body ──
   detailBody: { flex: 1 },
-  detailBodyContent: { padding: 12, paddingBottom: 40 },
-  sectionWithCopy: { gap: 8 },
-  plainText: { fontFamily: 'Courier', fontSize: 13, color: Colors.text, lineHeight: 20 },
+  detailBodyContent: { padding: Spacing.MD, paddingBottom: 40 },
+  sectionWithCopy: { gap: Spacing.SM },
+  plainText: { fontFamily: 'Courier', fontSize: FontSize.SM, color: Colors.text, lineHeight: 20 },
 
   urlCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12, padding: 14, marginBottom: 8, gap: 8,
+    borderRadius: Radius.LG, padding: Spacing.MD, marginBottom: Spacing.SM, gap: Spacing.SM,
   },
-  urlText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
-  emptySection: { fontSize: 13, color: Colors.textLight, paddingVertical: 4 },
+  urlText: { flex: 1, fontSize: FontSize.SM, color: Colors.textSecondary, lineHeight: 18 },
+  emptySection: { fontSize: FontSize.SM, color: Colors.textMuted, paddingVertical: Spacing.XXS },
   errorBox: {
-    backgroundColor: 'rgba(255,59,48,0.06)',
-    borderWidth: 1, borderColor: 'rgba(255,59,48,0.15)',
-    borderRadius: 10, padding: 12, marginBottom: 10,
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: Colors.errorDim,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+    borderRadius: Radius.LG, padding: Spacing.MD, marginBottom: Spacing.SM,
+    flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.SM,
   },
-  errorIcon: { fontSize: 14, color: Colors.error },
-  errorText: { flex: 1, fontSize: 13, color: Colors.error, lineHeight: 18 },
+  errorIcon: { fontSize: FontSize.MD, color: Colors.error },
+  errorText: { flex: 1, fontSize: FontSize.SM, color: Colors.error, lineHeight: 18 },
 });

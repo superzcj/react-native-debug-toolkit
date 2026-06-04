@@ -1,14 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { copyToComputer } from '../../utils/copyToComputer';
 
 interface CopyButtonProps {
-  /** Content to copy */
   text: string;
-  /** Label for console.log identification */
   label?: string;
-  /** Compact mode for inline use */
   compact?: boolean;
 }
 
@@ -34,11 +32,11 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) 
 
   return (
     <TouchableOpacity
-      style={[s.copyBtn, compact && s.copyBtnCompact]}
+      style={[s.copyBtn, compact && s.copyBtnCompact, feedback && s.copyBtnFeedback]}
       onPress={handleCopy}
       activeOpacity={0.7}
     >
-      <Text style={[s.copyBtnText, compact && s.copyBtnTextCompact]}>
+      <Text style={[s.copyBtnText, feedback && s.copyBtnTextFeedback]}>
         {feedbackLabel ?? 'Copy'}
       </Text>
     </TouchableOpacity>
@@ -47,25 +45,29 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) 
 
 const s = StyleSheet.create({
   copyBtn: {
-    backgroundColor: Colors.background,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'transparent',
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.XS,
+    borderRadius: Radius.SM,
+    borderWidth: 1,
     borderColor: Colors.border,
     alignSelf: 'flex-end',
   },
   copyBtnCompact: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: 2,
+    borderRadius: Radius.XS,
+  },
+  copyBtnFeedback: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryGhost,
   },
   copyBtnText: {
-    fontSize: 11,
+    fontSize: FontSize.XS,
     color: Colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
   },
-  copyBtnTextCompact: {
-    fontSize: 10,
+  copyBtnTextFeedback: {
+    color: Colors.primary,
   },
 });

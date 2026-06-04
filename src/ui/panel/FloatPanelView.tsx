@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
 import { Colors } from '../theme/colors';
+import { FontSize, Spacing } from '../theme/layout';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
 import { FloatIcon } from '../floating/FloatIcon';
 import { DebugPanel } from './DebugPanel';
@@ -76,7 +77,7 @@ interface DevConnectSnapshot {
 function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
   const devConnect = features.find((f) => f.name === 'devConnect');
   if (!devConnect) {
-    return { label: 'offline desktop sync unavailable', color: Colors.textLight };
+    return { label: 'offline desktop sync unavailable', color: Colors.textMuted };
   }
 
   try {
@@ -86,10 +87,10 @@ function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectio
     const target = host && port ? `${host}:${port}` : host || (port ? `port ${port}` : 'not configured');
     return {
       label: `${snap.streaming ? 'live' : 'offline'} ${target}`,
-      color: snap.streaming ? Colors.success : Colors.textLight,
+      color: snap.streaming ? Colors.success : Colors.textMuted,
     };
   } catch {
-    return { label: 'offline desktop sync unavailable', color: Colors.textLight };
+    return { label: 'offline desktop sync unavailable', color: Colors.textMuted };
   }
 }
 
@@ -289,11 +290,11 @@ const styles = StyleSheet.create({
   },
   contentContainer: { flex: 1 },
   emptyText: {
-    padding: 20,
+    padding: Spacing.XL,
     textAlign: 'center',
-    color: '#C7C7CC',
-    fontSize: 13,
+    color: Colors.textMuted,
+    fontSize: FontSize.SM,
   },
-  genericContent: { padding: 16, flex: 1 },
-  jsonContent: { fontFamily: 'monospace', fontSize: 12, color: '#1C1C1E' },
+  genericContent: { padding: Spacing.LG, flex: 1 },
+  jsonContent: { fontFamily: 'monospace', fontSize: FontSize.SM, color: Colors.text },
 });

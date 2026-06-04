@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { copyToComputer } from '../../utils/copyToComputer';
 import type { DebugFeatureRenderProps } from '../../types';
 
@@ -26,7 +27,7 @@ export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(
         value={text}
         onChangeText={setText}
         placeholder="Paste or type text here..."
-        placeholderTextColor={Colors.textLight}
+        placeholderTextColor={Colors.textMuted}
         multiline
         textAlignVertical="top"
       />
@@ -47,35 +48,35 @@ const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    padding: 12,
+    padding: Spacing.MD,
   },
   input: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
+    borderRadius: Radius.LG,
+    padding: Spacing.MD,
+    fontSize: FontSize.MD,
     color: Colors.text,
     lineHeight: 20,
   },
   footer: {
-    paddingTop: 8,
+    paddingTop: Spacing.SM,
     minHeight: 36,
     alignItems: 'flex-end',
   },
   hint: {
-    fontSize: 12,
-    color: Colors.textLight,
+    fontSize: FontSize.XS,
+    color: Colors.textMuted,
   },
   copyBtn: {
-    backgroundColor: Colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 8,
+    backgroundColor: Colors.surfaceElevated,
+    paddingHorizontal: Spacing.LG,
+    paddingVertical: Spacing.XS,
+    borderRadius: Radius.SM,
   },
   copyBtnText: {
-    fontSize: 13,
+    fontSize: FontSize.SM,
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: FontWeight.semibold,
   },
 });

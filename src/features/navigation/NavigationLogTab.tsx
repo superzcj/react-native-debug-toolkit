@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import type { DebugFeatureRenderProps, NavigationLogEntry } from '../../types';
 
@@ -36,7 +37,9 @@ export const NavigationLogTab: React.FC<DebugFeatureRenderProps<NavigationLogEnt
   return (
     <View style={styles.container}>
       {data.length === 0 ? (
-        <Text style={styles.empty}>No navigation events</Text>
+        <View style={styles.emptyWrap}>
+          <Text style={styles.empty}>No navigation events</Text>
+        </View>
       ) : (
         <FlatList
           data={[...data].reverse()}
@@ -46,6 +49,7 @@ export const NavigationLogTab: React.FC<DebugFeatureRenderProps<NavigationLogEnt
           maxToRenderPerBatch={10}
           windowSize={5}
           removeClippedSubviews={true}
+          contentContainerStyle={styles.listContent}
         />
       )}
     </View>
@@ -53,15 +57,22 @@ export const NavigationLogTab: React.FC<DebugFeatureRenderProps<NavigationLogEnt
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
-  empty: { textAlign: 'center', color: Colors.textLight, marginTop: 20 },
-  logItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  action: { fontSize: 14, fontWeight: 'bold', color: Colors.primary },
-  duration: { fontSize: 13, color: Colors.textLight },
-  routeRow: { flexDirection: 'row', marginBottom: 3 },
-  routeLabel: { fontSize: 13, color: Colors.textSecondary, marginRight: 8, fontWeight: '600' },
-  routeValue: { fontSize: 13, color: Colors.text, flex: 1 },
-  time: { fontSize: 12, color: Colors.textLight, marginTop: 4 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  listContent: { padding: Spacing.SM },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.SM },
+  logItem: {
+    padding: Spacing.MD,
+    marginBottom: Spacing.SM,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.LG,
+  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.XS },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.SM },
+  action: { fontSize: FontSize.MD, fontWeight: FontWeight.bold, color: Colors.primary },
+  duration: { fontSize: FontSize.SM, color: Colors.textMuted },
+  routeRow: { flexDirection: 'row', marginBottom: 2 },
+  routeLabel: { fontSize: FontSize.SM, color: Colors.textSecondary, marginRight: Spacing.SM, fontWeight: FontWeight.semibold },
+  routeValue: { fontSize: FontSize.SM, color: Colors.text, flex: 1 },
+  time: { fontSize: FontSize.XS, color: Colors.textMuted, marginTop: Spacing.XXS },
 });

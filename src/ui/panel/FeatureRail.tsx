@@ -1,32 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Colors } from '../theme/colors';
-import { RAIL_WIDTH } from '../theme/layout';
-
-// ─── Label Model ──────────────────────────────────────
+import { FontSize, FontWeight, Radius, Spacing, RAIL_WIDTH } from '../theme/layout';
 
 const SHORT_LABEL_MAP: Record<string, string> = {
-  network: 'network',
-  console: 'console',
-  native: 'native',
-  navigation: 'nav',
-  zustand: 'zustand',
-  track: 'track',
-  clipboard: 'clip',
-  environment: 'env',
-  devConnect: 'dev',
-  sessionHistory: 'session',
-  thirdPartyLibs: 'libs',
+  network: 'Net',
+  console: 'Log',
+  native: 'Native',
+  navigation: 'Nav',
+  zustand: 'State',
+  track: 'Track',
+  clipboard: 'Clip',
+  environment: 'Env',
+  devConnect: 'Dev',
+  sessionHistory: 'Session',
+  thirdPartyLibs: 'Libs',
 };
 
 export function shortLabelForFeature(label: string, id: string): string {
   const mapped = SHORT_LABEL_MAP[id];
   if (mapped) return mapped;
   const trimmed = label.trim();
-  return trimmed.toLowerCase().slice(0, 7);
+  return trimmed.toLowerCase().slice(0, 5);
 }
-
-// ─── Rail Component ───────────────────────────────────
 
 export interface RailItem {
   id: string;
@@ -91,21 +87,21 @@ const styles = StyleSheet.create({
   rail: {
     width: RAIL_WIDTH,
     backgroundColor: Colors.railBackground,
-    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: 1,
     borderRightColor: Colors.panelDivider,
   },
   scrollContent: {
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    gap: 3,
+    paddingVertical: Spacing.XS,
+    paddingHorizontal: Spacing.XS,
+    gap: 2,
   },
   item: {
-    minHeight: 56,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: Radius.SM,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: Spacing.SM,
+    paddingHorizontal: Spacing.XXS,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -115,45 +111,44 @@ const styles = StyleSheet.create({
   activeBar: {
     position: 'absolute',
     left: 0,
-    top: 10,
-    bottom: 10,
-    width: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.primaryLight,
+    top: 8,
+    bottom: 8,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.railActiveBar,
   },
   itemName: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
     color: Colors.railInactiveText,
-    letterSpacing: 0.2,
   },
   activeItemName: {
     color: Colors.railActiveText,
-    fontWeight: '800',
+    fontWeight: FontWeight.bold,
   },
   itemMeta: {
-    marginTop: 4,
+    marginTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   countPill: {
-    minWidth: 18,
-    height: 14,
-    borderRadius: 7,
+    minWidth: 16,
+    height: 13,
+    borderRadius: Radius.Pill,
     backgroundColor: Colors.primary,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   countText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: FontSize.XXS,
+    fontWeight: FontWeight.bold,
+    color: Colors.textInverse,
   },
 });

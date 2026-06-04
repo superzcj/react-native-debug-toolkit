@@ -1,14 +1,15 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Colors } from '../../ui/theme/colors';
+import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
-import { Colors } from '../../ui/theme/colors';
 import { fmt } from '../../utils/copyToComputer';
 import type { DebugFeatureRenderProps, NativeLogEntry } from '../../types';
 
 const LEVEL_COLORS: Record<string, string> = {
-  trace: '#8E8E93', debug: '#8E8E93', info: '#007AFF',
-  warn: '#FF9500', error: '#FF3B30', fatal: '#AF52DE', unknown: '#8E8E93',
+  trace: Colors.textMuted, debug: Colors.textMuted, info: Colors.primary,
+  warn: Colors.warning, error: Colors.error, fatal: Colors.error, unknown: Colors.textMuted,
 };
 
 export const NativeLogTab: React.FC<DebugFeatureRenderProps<NativeLogEntry[]>> = React.memo(({ snapshot }) => (
@@ -49,18 +50,25 @@ export const NativeLogTab: React.FC<DebugFeatureRenderProps<NativeLogEntry[]>> =
 ));
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', padding: 14, alignItems: 'flex-start' },
-  level: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  levelText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
+  row: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
+  level: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.MD,
+  },
+  levelText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
   content: { flex: 1 },
-  message: { fontSize: 14, color: Colors.text, lineHeight: 20 },
-  meta: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  badgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  detailTime: { flex: 1, fontSize: 13, color: Colors.textSecondary, textAlign: 'right' },
+  message: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 20 },
+  meta: { fontSize: FontSize.XS, color: Colors.textSecondary, marginTop: Spacing.XXS },
+  badge: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },
+  badgeText: { color: Colors.textInverse, fontSize: FontSize.SM, fontWeight: FontWeight.bold },
+  detailTime: { flex: 1, fontSize: FontSize.SM, color: Colors.textSecondary, textAlign: 'right' },
   detailBody: { flex: 1 },
-  detailContent: { padding: 12, gap: 12 },
+  detailContent: { padding: Spacing.MD, gap: Spacing.MD },
   copyRow: { alignItems: 'flex-end' },
-  messageBlock: { fontFamily: 'Courier', fontSize: 13, color: Colors.text, lineHeight: 20 },
-  rawBlock: { fontFamily: 'Courier', fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+  messageBlock: { fontFamily: 'Courier', fontSize: FontSize.SM, color: Colors.text, lineHeight: 20 },
+  rawBlock: { fontFamily: 'Courier', fontSize: FontSize.XS, color: Colors.textSecondary, lineHeight: 18 },
 });
