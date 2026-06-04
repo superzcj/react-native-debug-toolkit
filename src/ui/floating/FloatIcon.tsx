@@ -18,9 +18,10 @@ interface FloatIconProps {
   visible: boolean;
   onPress: () => void;
   badge: { label: string; color: string } | null;
+  streaming?: boolean;
 }
 
-export function FloatIcon({ visible, onPress, badge }: FloatIconProps) {
+export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const defaultX = screenWidth - ICON_SIZE - EDGE_MARGIN;
   const defaultY = screenHeight / 2 - ICON_SIZE / 2;
@@ -29,6 +30,31 @@ export function FloatIcon({ visible, onPress, badge }: FloatIconProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const lastPosition = useRef({ x: defaultX, y: defaultY });
   const positionLoaded = useRef(false);
+  const pulseScale = useRef(new Animated.Value(1)).current;
+
+  // Streaming pulse animation
+  useEffect(() => {
+    if (!streaming) {
+      pulseScale.setValue(1);
+      return;
+    }
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseScale, {
+          toValue: 1.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseScale, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [streaming, pulseScale]);
 
   // Restore saved position
   useEffect(() => {
@@ -127,22 +153,24 @@ export function FloatIcon({ visible, onPress, badge }: FloatIconProps) {
       {...panResponder.panHandlers}
     >
       <Pressable onPress={onPress} style={styles.inner}>
-        <View style={styles.iconGrid}>
-          <View style={styles.iconRow}>
-            <View style={[styles.iconCell, { backgroundColor: Colors.primary }]} />
-            <View style={[styles.iconCell, { backgroundColor: Colors.success }]} />
-          </View>
-          <View style={styles.iconRow}>
-            <View style={[styles.iconCell, { backgroundColor: Colors.warning }]} />
-            <View style={[styles.iconCell, { backgroundColor: Colors.purple }]} />
-          </View>
-        </View>
-        {badge && (
-          <View style={[styles.badge, { backgroundColor: badge.color }]}>
-            <Text style={styles.badgeText}>{badge.label}</Text>
-          </View>
-        )}
+        <Text style={styles.iconSymbol}>{"⚡"}</Text>
       </Pressable>
+
+      {badge && (
+        <View style={[styles.badge, { backgroundColor: badge.color }]}>
+          <Text style={styles.badgeText}>{badge.label}</Text>
+        </View>
+      )}
+
+      <Animated.View
+        style={[
+          styles.streamingDot,
+          {
+            backgroundColor: streaming ? Colors.success : Colors.textSecondary,
+            transform: [{ scale: pulseScale }],
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
@@ -153,12 +181,14 @@ const styles = StyleSheet.create({
     width: ICON_SIZE,
     height: ICON_SIZE,
     borderRadius: ICON_SIZE / 2,
-    backgroundColor: '#FFFFFF',
-    elevation: 6,
+    backgroundColor: Colors.railBackground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
   },
   inner: {
     width: '100%',
@@ -166,19 +196,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconGrid: {
-    width: 24,
-    height: 24,
-    justifyContent: 'space-between',
-  },
-  iconRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  iconCell: {
-    width: 9,
-    height: 9,
-    borderRadius: 3,
+  iconSymbol: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   badge: {
     position: 'absolute',
@@ -190,13 +213,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#FFF',
+    borderWidth: 2,
+    borderColor: Colors.railBackground,
     elevation: 4,
   },
   badgeText: {
     color: '#FFF',
     fontSize: 9,
     fontWeight: '700',
+  },
+  streamingDot: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.railBackground,
   },
 });

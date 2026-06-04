@@ -1,4 +1,4 @@
-export const ICON_SIZE = 52;
+export const ICON_SIZE = 56;
 
 // Spacing tokens
 export const Spacing = {

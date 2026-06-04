@@ -175,6 +175,16 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
 
+  // DevConnect streaming status
+  const devConnect = features.find((f) => f.name === 'devConnect');
+  const isStreaming = (() => {
+    if (!devConnect) return false;
+    try {
+      const snap = (devConnect.getSnapshot() ?? {}) as DevConnectSnapshot;
+      return snap.streaming ?? false;
+    } catch { return false; }
+  })();
+
   // Rail items with counts
   const railItems: RailItem[] = features.map((f) => {
     const b = f.badge?.();
@@ -221,7 +231,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   return (
     <DebugErrorBoundary onError={onClosePanel}>
       <View style={styles.container} pointerEvents="box-none">
-        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} />
+        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={isStreaming} />
         {panelOpen && (
           <DebugPanel
             onClose={onClosePanel}
