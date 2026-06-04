@@ -103,7 +103,11 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerMark}>
-                <Text style={styles.headerMarkText}>DT</Text>
+                <View style={styles.headerMarkDot} />
+                <View style={styles.headerMarkLines}>
+                  <View style={styles.headerMarkLineLong} />
+                  <View style={styles.headerMarkLineShort} />
+                </View>
               </View>
               <View style={styles.headerTextBlock}>
                 <Text style={styles.headerTitle}>Debug Toolkit</Text>
@@ -166,8 +170,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '90%',
     backgroundColor: Colors.background,
-    borderTopLeftRadius: Radius.XXL,
-    borderTopRightRadius: Radius.XXL,
+    borderTopLeftRadius: Radius.XL,
+    borderTopRightRadius: Radius.XL,
     overflow: 'hidden',
     elevation: 24,
     shadowColor: '#000',
@@ -177,10 +181,10 @@ const styles = StyleSheet.create({
   },
   dragHandle: {
     width: '100%',
-    height: 22,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.chrome,
   },
   dragIndicator: {
     width: 32,
@@ -194,9 +198,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.LG,
-    paddingTop: Spacing.XS,
-    paddingBottom: Spacing.MD,
-    backgroundColor: Colors.surface,
+    paddingTop: Spacing.SM,
+    paddingBottom: Spacing.SM,
+    backgroundColor: Colors.chrome,
     borderBottomWidth: 1,
     borderBottomColor: Colors.panelDivider,
   },
@@ -208,19 +212,37 @@ const styles = StyleSheet.create({
     gap: Spacing.SM,
   },
   headerMark: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.LG,
-    backgroundColor: Colors.primaryGhost,
+    width: 32,
+    height: 32,
+    borderRadius: Radius.SM,
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.primaryDim,
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: Spacing.XS,
   },
-  headerMarkText: {
-    fontSize: FontSize.SM,
-    fontWeight: FontWeight.bold,
-    color: Colors.primaryLight,
+  headerMarkDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+  },
+  headerMarkLines: {
+    gap: 3,
+  },
+  headerMarkLineLong: {
+    width: 10,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.textSecondary,
+  },
+  headerMarkLineShort: {
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.textMuted,
   },
   headerTextBlock: {
     flex: 1,
@@ -235,7 +257,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.XS,
-    marginTop: Spacing.XXS,
+    marginTop: Spacing.XS,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    minHeight: 18,
+    borderRadius: Radius.SM,
+    paddingRight: Spacing.SM,
   },
   syncDot: {
     width: 6,

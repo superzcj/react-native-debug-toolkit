@@ -56,7 +56,6 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
 
         return (
           <View style={s.cardRow}>
-            <View style={[s.statusIndicator, { backgroundColor: statusColor }]} />
             <View style={s.cardBody}>
               <View style={s.primaryRow}>
                 <View style={[s.methodChip, { backgroundColor: getMethodColor(item.request.method) }]}>
@@ -177,7 +176,6 @@ function formatUrlParts(url: string): { host: string; path: string } {
 
 const s = StyleSheet.create({
   cardRow: { flexDirection: 'row', padding: Spacing.MD, paddingRight: Spacing.LG },
-  statusIndicator: { width: 3, borderRadius: 1.5, marginRight: Spacing.SM },
   cardBody: { flex: 1, gap: Spacing.XS },
   primaryRow: {
     flexDirection: 'row',

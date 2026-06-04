@@ -1,5 +1,6 @@
 import { buildFeatureSummary } from '../../ui/panel/buildFeatureSummary';
 import { filterFeatureSnapshot } from '../../ui/panel/filterFeatureSnapshot';
+import { Colors } from '../../ui/theme/colors';
 import type { AnyDebugFeature } from '../../types';
 
 function mockFeature(name: string): AnyDebugFeature {
@@ -114,7 +115,7 @@ describe('buildFeatureSummary', () => {
     const snap = { streaming: true, computerHost: '192.168.1.5', daemonPort: '3000' };
     const s = buildFeatureSummary(f, snap);
     expect(s.statusLabel).toBe('live 192.168.1.5:3000');
-    expect(s.statusColor).toBe('#34C759');
+    expect(s.statusColor).toBe(Colors.success);
   });
 
   it('devConnect: not streaming shows host', () => {

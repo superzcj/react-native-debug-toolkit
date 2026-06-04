@@ -49,11 +49,11 @@ export const CollapsibleSection: React.FC<Props> = ({
 const styles = StyleSheet.create({
   section: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.LG,
+    borderRadius: Radius.MD,
     marginBottom: Spacing.XS,
     overflow: 'hidden',
-    borderLeftWidth: 2,
-    borderLeftColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   header: {
     flexDirection: 'row',

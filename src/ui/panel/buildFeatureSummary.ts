@@ -1,4 +1,5 @@
 import type { AnyDebugFeature } from '../../types';
+import { Colors } from '../theme/colors';
 
 export interface FeatureSummary {
   capabilityText: string;
@@ -207,7 +208,7 @@ function buildDevConnectSummary(snapshot: unknown): FeatureSummary {
   return {
     capabilityText: 'Desktop sync with daemon connection',
     statusLabel: host ? `${s.streaming ? 'live' : 'offline'} ${host}` : s.streaming ? 'live' : undefined,
-    statusColor: s.streaming ? '#34C759' : undefined,
+    statusColor: s.streaming ? Colors.success : undefined,
     supportsBadFilter: false,
   };
 }

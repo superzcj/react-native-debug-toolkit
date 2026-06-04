@@ -13,10 +13,7 @@ import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
 
 const EDGE_MARGIN = 16;
-const LAUNCHER_WIDTH = 74;
-const LAUNCHER_HEIGHT = 44;
-const RING_WIDTH = LAUNCHER_WIDTH + 10;
-const RING_HEIGHT = LAUNCHER_HEIGHT + 10;
+const LAUNCHER_SIZE = 48;
 
 interface FloatIconProps {
   visible: boolean;
@@ -27,41 +24,18 @@ interface FloatIconProps {
 
 export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const maxX = screenWidth - LAUNCHER_WIDTH;
-  const maxY = screenHeight - LAUNCHER_HEIGHT;
-  const defaultX = screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
-  const defaultY = screenHeight / 2 - LAUNCHER_HEIGHT / 2;
+  const minX = EDGE_MARGIN;
+  const minY = EDGE_MARGIN;
+  const maxX = Math.max(minX, screenWidth - LAUNCHER_SIZE - EDGE_MARGIN);
+  const maxY = Math.max(minY, screenHeight - LAUNCHER_SIZE - EDGE_MARGIN);
+  const defaultX = maxX;
+  const defaultY = Math.max(minY, Math.min(screenHeight * 0.62, maxY));
+  const clampX = (value: number) => Math.max(minX, Math.min(value, maxX));
+  const clampY = (value: number) => Math.max(minY, Math.min(value, maxY));
 
   const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
   const scale = useRef(new Animated.Value(1)).current;
   const lastPosition = useRef({ x: defaultX, y: defaultY });
-  const positionLoaded = useRef(false);
-  const ringOpacity = useRef(new Animated.Value(0)).current;
-
-  // Streaming ring pulse animation
-  useEffect(() => {
-    if (!streaming) {
-      ringOpacity.setValue(0);
-      return;
-    }
-    ringOpacity.setValue(0.6);
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(ringOpacity, {
-          toValue: 0.15,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(ringOpacity, {
-          toValue: 0.6,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [streaming, ringOpacity]);
 
   useEffect(() => {
     let mounted = true;
@@ -69,11 +43,10 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       if (!mounted || !saved) return;
       try {
         const pos = JSON.parse(saved) as { x: number; y: number };
-        const x = Math.max(0, Math.min(pos.x, maxX));
-        const y = Math.max(0, Math.min(pos.y, maxY));
+        const x = clampX(pos.x);
+        const y = clampY(pos.y);
         lastPosition.current = { x, y };
         pan.setValue({ x, y });
-        positionLoaded.current = true;
       } catch {
         // ignore bad data
       }
@@ -87,38 +60,28 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         Animated.spring(scale, {
-          toValue: 0.9,
+          toValue: 0.94,
           friction: 5,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderMove: (_: unknown, gs: { dx: number; dy: number }) => {
-        const x = Math.max(
-          0,
-          Math.min(lastPosition.current.x + gs.dx, maxX),
-        );
-        const y = Math.max(
-          0,
-          Math.min(lastPosition.current.y + gs.dy, maxY),
-        );
-        pan.setValue({ x, y });
+        pan.setValue({
+          x: clampX(lastPosition.current.x + gs.dx),
+          y: clampY(lastPosition.current.y + gs.dy),
+        });
       },
       onPanResponderRelease: (_: unknown, gs: { dx: number; dy: number }) => {
+        Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+
         if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) {
-          Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
           onPress();
           return;
         }
-        Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
 
         const rawX = lastPosition.current.x + gs.dx;
-        const midX = screenWidth / 2 - LAUNCHER_WIDTH / 2;
-        const snappedX = rawX < midX ? EDGE_MARGIN : screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
-
-        const finalY = Math.max(
-          0,
-          Math.min(lastPosition.current.y + gs.dy, maxY),
-        );
+        const snappedX = rawX < screenWidth / 2 - LAUNCHER_SIZE / 2 ? minX : maxX;
+        const finalY = clampY(lastPosition.current.y + gs.dy);
 
         lastPosition.current = { x: snappedX, y: finalY };
         Animated.spring(pan, {
@@ -131,14 +94,9 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         setPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
-        const snappedX =
-          lastPosition.current.x + gs.dx < screenWidth / 2 - LAUNCHER_WIDTH / 2
-            ? EDGE_MARGIN
-            : screenWidth - LAUNCHER_WIDTH - EDGE_MARGIN;
-        const finalY = Math.max(
-          0,
-          Math.min(lastPosition.current.y + gs.dy, maxY),
-        );
+        const rawX = lastPosition.current.x + gs.dx;
+        const snappedX = rawX < screenWidth / 2 - LAUNCHER_SIZE / 2 ? minX : maxX;
+        const finalY = clampY(lastPosition.current.y + gs.dy);
         lastPosition.current = { x: snappedX, y: finalY };
       },
     }),
@@ -156,23 +114,17 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       ]}
       {...panResponder.panHandlers}
     >
-      <Animated.View
-        style={[
-          styles.streamingRing,
-          { opacity: ringOpacity },
-        ]}
-        pointerEvents="none"
-      />
-
-      <Pressable onPress={onPress} style={styles.inner}>
-        <View style={styles.mark}>
-          <View style={styles.markDot} />
-          <View style={styles.markLine} />
+      <Pressable onPress={onPress} style={styles.button}>
+        <View pointerEvents="none" style={styles.buttonHighlight} />
+        <View style={styles.launcherGlyph}>
+          <View style={styles.glyphDot} />
+          <View style={styles.glyphLines}>
+            <View style={styles.glyphLineLong} />
+            <View style={styles.glyphLineShort} />
+          </View>
         </View>
-        <Text style={styles.label}>DT</Text>
         <View style={[styles.statusDot, streaming && styles.statusDotLive]} />
       </Pressable>
-
       {badge && (
         <View style={[styles.badge, { backgroundColor: badge.color }]}>
           <Text style={styles.badgeText} numberOfLines={1}>{badge.label}</Text>
@@ -185,69 +137,76 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    width: LAUNCHER_WIDTH,
-    height: LAUNCHER_HEIGHT,
-    borderRadius: LAUNCHER_HEIGHT / 2,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    width: LAUNCHER_SIZE,
+    height: LAUNCHER_SIZE,
+    borderRadius: LAUNCHER_SIZE / 2,
     elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.26,
-    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
   },
-  streamingRing: {
-    position: 'absolute',
-    top: -(RING_HEIGHT - LAUNCHER_HEIGHT) / 2,
-    left: -(RING_WIDTH - LAUNCHER_WIDTH) / 2,
-    width: RING_WIDTH,
-    height: RING_HEIGHT,
-    borderRadius: RING_HEIGHT / 2,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  inner: {
+  button: {
     width: '100%',
     height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: Spacing.XS,
-    paddingHorizontal: Spacing.SM,
-  },
-  mark: {
-    width: 22,
-    height: 22,
-    borderRadius: Radius.MD,
+    borderRadius: LAUNCHER_SIZE / 2,
     borderWidth: 1,
-    borderColor: Colors.primaryDim,
-    backgroundColor: Colors.primaryGhost,
+    borderColor: Colors.border,
+    backgroundColor: Colors.fabBackground,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    overflow: 'hidden',
   },
-  markDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
+  buttonHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 22,
+    backgroundColor: Colors.fabHighlight,
   },
-  markLine: {
-    width: 10,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: Colors.primary,
+  launcherGlyph: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.SM,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surfaceElevated,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.XS,
   },
-  label: {
-    color: Colors.text,
-    fontSize: FontSize.SM,
-    fontWeight: FontWeight.bold,
-  },
-  statusDot: {
+  glyphDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
+    backgroundColor: Colors.primary,
+  },
+  glyphLines: {
+    gap: 3,
+  },
+  glyphLineLong: {
+    width: 10,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.textSecondary,
+  },
+  glyphLineShort: {
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.textMuted,
+  },
+  statusDot: {
+    position: 'absolute',
+    right: 5,
+    bottom: 5,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    borderWidth: 1.5,
+    borderColor: Colors.fabBackground,
     backgroundColor: Colors.textMuted,
   },
   statusDotLive: {
@@ -255,23 +214,22 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: -7,
+    top: -6,
     right: -8,
-    minWidth: 24,
-    maxWidth: 54,
+    minWidth: 22,
+    maxWidth: 48,
     height: 18,
-    borderRadius: 9,
+    borderRadius: Radius.Pill,
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.surface,
-    elevation: 4,
+    borderColor: Colors.background,
   },
   badgeText: {
     color: Colors.textInverse,
-    fontSize: 9,
+    fontSize: FontSize.XXS,
     fontWeight: FontWeight.bold,
-    maxWidth: 44,
+    maxWidth: 38,
   },
 });

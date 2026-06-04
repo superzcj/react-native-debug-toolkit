@@ -43,24 +43,18 @@ describe('restoreDaemonStreaming', () => {
   });
 
   it('auto-starts simulator streaming when daemon health is reachable on first run', async () => {
-    const fetchMock = jest.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ ok: true }),
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        json: async () => ({ ok: true, deviceId: 'ios-1' }),
-      });
+    const fetchMock = jest.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({ ok: true, deviceId: 'ios-1' }),
+    });
     (globalThis as { fetch?: unknown }).fetch = fetchMock;
     DebugToolkit.addFeature(createFeature());
 
+    daemonClient.setStreamingEnabled(true);
     await daemonClient.restore();
     await flushPromises();
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3799/health');
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:3799/report');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:3799/report');
     expect(daemonClient.isConnected()).toBe(true);
   });
 

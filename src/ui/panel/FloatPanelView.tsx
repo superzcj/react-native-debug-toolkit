@@ -240,7 +240,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
             syncLabel={panelConnectionStatus.label}
             syncColor={panelConnectionStatus.color}
           >
-            <View style={styles.bodyRow}>
+            <View style={styles.body}>
               <FeatureRail items={railItems} activeIndex={activeTab} onSelectTab={switchTab} />
               <View style={styles.contentColumn}>
                 {activeFeature && activeSummary && (
@@ -281,14 +281,19 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 999,
   },
-  bodyRow: {
+  body: {
     flex: 1,
     flexDirection: 'row',
+    backgroundColor: Colors.background,
   },
   contentColumn: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
-  contentContainer: { flex: 1 },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   emptyText: {
     padding: Spacing.XL,
     textAlign: 'center',

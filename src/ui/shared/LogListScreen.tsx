@@ -113,7 +113,9 @@ const styles = StyleSheet.create({
   empty: { textAlign: 'center', color: Colors.textMuted, fontSize: FontSize.SM },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.LG,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
     marginBottom: Spacing.SM,
     overflow: 'hidden',
   },
@@ -133,7 +135,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.SM,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: Colors.panelDivider,
     gap: Spacing.SM,
   },
   backBtn: {
