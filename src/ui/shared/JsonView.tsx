@@ -1,16 +1,32 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, Spacing, Radius } from '../theme/layout';
 import { safeStringify } from '../../utils/safeStringify';
 
-const MAX_DEPTH = 3;
-const MAX_CHILDREN = 50;
+const MAX_DEPTH = 8;
+const MAX_CHILDREN = 100;
 
 export const JsonView: React.FC<{ data: unknown; maxHeight?: number }> = React.memo(({
   data,
   maxHeight,
 }) => {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const prevDataRef = useRef(data);
+  if (prevDataRef.current !== data) {
+    prevDataRef.current = data;
+    setCollapsed(new Set());
+  }
+
+  const toggle = useCallback((path: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
   return (
     <ScrollView
       style={[s.scroll, maxHeight != null && { maxHeight }]}
@@ -19,7 +35,7 @@ export const JsonView: React.FC<{ data: unknown; maxHeight?: number }> = React.m
       showsVerticalScrollIndicator
     >
       <View style={s.block}>
-        <Node value={data} depth={0} isLast />
+        <Node value={data} depth={0} isLast path="" collapsed={collapsed} toggle={toggle} />
       </View>
     </ScrollView>
   );
@@ -29,7 +45,10 @@ const Node: React.FC<{
   value: unknown;
   depth: number;
   isLast: boolean;
-}> = ({ value, depth, isLast }) => {
+  path: string;
+  collapsed: Set<string>;
+  toggle: (path: string) => void;
+}> = ({ value, depth, isLast, path, collapsed, toggle }) => {
   const comma = isLast ? '' : ',';
 
   if (value === null) return <C color={Colors.codeNull}>{`null${comma}`}</C>;
@@ -42,8 +61,7 @@ const Node: React.FC<{
   }
 
   if (depth >= MAX_DEPTH) {
-    const collapsed = truncate(safeStringify(value), 200);
-    return <C color={Colors.codeComment}>{`${collapsed}${comma}`}</C>;
+    return <C color={Colors.codeComment}>{`${isArray ? '[...]' : '{...}'}${comma}`}</C>;
   }
 
   const entries = Object.entries(value as Record<string, unknown>);
@@ -53,21 +71,49 @@ const Node: React.FC<{
 
   if (entries.length === 0) return <C color={Colors.codeComment}>{`${open}${close}${comma}`}</C>;
 
+  const isCollapsed = collapsed.has(path);
+  const count = entries.length;
+
+  // Collapsed: show summary
+  if (isCollapsed) {
+    const summary = isArray
+      ? `${open}..${count}..${close}${comma}`
+      : `${open} ${count} keys ${close}${comma}`;
+    return (
+      <Pressable onPress={() => toggle(path)} style={s.collapsedRow}>
+        <C color={Colors.codeComment}>{'▸ '}</C>
+        <C color={Colors.codeComment}>{summary}</C>
+      </Pressable>
+    );
+  }
+
   const limited = entries.slice(0, MAX_CHILDREN);
 
   return (
     <View style={depth > 0 ? s.indent : undefined}>
-      <C color={Colors.codeComment}>{open}</C>
+      <Pressable onPress={() => toggle(path)} style={s.toggleRow}>
+        <C color={Colors.codeComment}>{'▾ '}</C>
+        <C color={Colors.codeComment}>{open}</C>
+        {!isArray && count > 3 && (
+          <C color={Colors.codeComment}>{` // ${count} keys`}</C>
+        )}
+        {isArray && count > 3 && (
+          <C color={Colors.codeComment}>{` // ${count} items`}</C>
+        )}
+      </Pressable>
       {limited.map(([key, val], i) => (
         <View key={key} style={s.line}>
           <Text style={s.row}>
-            {!isArray && <Text style={s.key}>"{key}"</Text>}
-            {!isArray && <Text style={s.colon}>{': '}</Text>}
+            {!isArray && <C color={Colors.codeKey}>{`  "${key}"`}</C>}
+            {!isArray && <C color={Colors.codeText}>{': '}</C>}
           </Text>
           <Node
             value={val}
             depth={depth + 1}
             isLast={i === limited.length - 1}
+            path={`${path}/${key}`}
+            collapsed={collapsed}
+            toggle={toggle}
           />
         </View>
       ))}
@@ -117,14 +163,14 @@ const s = StyleSheet.create({
     flexWrap: 'wrap',
   },
   row: {},
-  key: {
-    fontFamily: 'Courier',
-    fontSize: FontSize.SM,
-    color: Colors.codeKey,
+  toggleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   },
-  colon: {
-    fontFamily: 'Courier',
-    fontSize: FontSize.SM,
-    color: Colors.codeText,
+  collapsedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   },
 });

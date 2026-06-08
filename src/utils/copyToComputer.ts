@@ -20,6 +20,10 @@ function getClipboardModule(): ClipboardModule | null {
   return clipboardModule;
 }
 
+export function hasClipboard(): boolean {
+  return getClipboardModule() !== null;
+}
+
 export type CopyMethod = 'clipboard' | 'console' | 'none';
 
 export interface CopyResult {

@@ -2,13 +2,15 @@ import React, { useCallback, useState } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
-import { copyToComputer } from '../../utils/copyToComputer';
+import { copyToComputer, hasClipboard } from '../../utils/copyToComputer';
 
 interface CopyButtonProps {
   text: string;
   label?: string;
   compact?: boolean;
 }
+
+const defaultLabel = hasClipboard() ? 'Copy' : 'Send';
 
 export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) => {
   const [feedback, setFeedback] = useState<'copied' | 'logged' | null>(null);
@@ -27,7 +29,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) 
 
   const feedbackLabel =
     feedback === 'copied' ? 'Copied' :
-    feedback === 'logged' ? 'Logged' :
+    feedback === 'logged' ? 'Sent' :
     null;
 
   return (
@@ -37,7 +39,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) 
       activeOpacity={0.7}
     >
       <Text style={[s.copyBtnText, feedback && s.copyBtnTextFeedback]}>
-        {feedbackLabel ?? 'Copy'}
+        {feedbackLabel ?? defaultLabel}
       </Text>
     </TouchableOpacity>
   );

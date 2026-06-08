@@ -95,7 +95,7 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
         return (
           <ScrollView style={s.detailBody} contentContainerStyle={s.detailBodyContent}>
             <View style={s.urlCard}>
-              <Text style={s.urlText} selectable numberOfLines={3}>{log.request.url}</Text>
+              <Text style={s.urlText} selectable numberOfLines={8}>{log.request.url}</Text>
               <CopyButton text={log.request.url} label="URL" />
             </View>
 
@@ -110,17 +110,6 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
               )}
             </CollapsibleSection>
 
-            <CollapsibleSection title="Request Headers">
-              {log.request.headers ? (
-                <View style={s.sectionWithCopy}>
-                  <CopyButton text={fmt(log.request.headers)} label="Request Headers" />
-                  <JsonView data={log.request.headers} maxHeight={200} />
-                </View>
-              ) : (
-                <Text style={s.emptySection}>No headers</Text>
-              )}
-            </CollapsibleSection>
-
             <CollapsibleSection title={`Response ${formatSize(log.response?.data)}`} initiallyExpanded>
               {log.error && (
                 <View style={s.errorBox}>
@@ -131,10 +120,21 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
               {log.response?.data != null ? (
                 <View style={s.sectionWithCopy}>
                   <CopyButton text={fmt(log.response.data)} label="Response Body" />
-                  <JsonView data={log.response.data} maxHeight={300} />
+                  <JsonView data={log.response.data} maxHeight={600} />
                 </View>
               ) : (
                 <Text style={s.emptySection}>No response body</Text>
+              )}
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Request Headers">
+              {log.request.headers ? (
+                <View style={s.sectionWithCopy}>
+                  <CopyButton text={fmt(log.request.headers)} label="Request Headers" />
+                  <JsonView data={log.request.headers} maxHeight={200} />
+                </View>
+              ) : (
+                <Text style={s.emptySection}>No headers</Text>
               )}
             </CollapsibleSection>
 
