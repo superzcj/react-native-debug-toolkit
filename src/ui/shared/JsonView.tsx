@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, Spacing, Radius } from '../theme/layout';
-import { safeStringify } from '../../utils/safeStringify';
 
 const MAX_DEPTH = 8;
 const MAX_CHILDREN = 100;
@@ -60,14 +59,14 @@ const Node: React.FC<{
     return <C color={Colors.codeString} selectable>{`"${display}"${comma}`}</C>;
   }
 
-  if (depth >= MAX_DEPTH) {
-    return <C color={Colors.codeComment}>{`${isArray ? '[...]' : '{...}'}${comma}`}</C>;
-  }
-
   const entries = Object.entries(value as Record<string, unknown>);
   const isArray = Array.isArray(value);
   const open = isArray ? '[' : '{';
   const close = isArray ? ']' : '}';
+
+  if (depth >= MAX_DEPTH) {
+    return <C color={Colors.codeComment}>{`${open}...${close}${comma}`}</C>;
+  }
 
   if (entries.length === 0) return <C color={Colors.codeComment}>{`${open}${close}${comma}`}</C>;
 
@@ -134,10 +133,6 @@ const C: React.FC<{ color: string; children: string; selectable?: boolean }> = (
     {children}
   </Text>
 );
-
-function truncate(str: string, len: number): string {
-  return str.length > len ? str.slice(0, len) + '...' : str;
-}
 
 const s = StyleSheet.create({
   scroll: {
