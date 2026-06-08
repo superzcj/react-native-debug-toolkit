@@ -25,15 +25,17 @@ export const Colors = {
   tabActiveBackground: '#242B34',
 
   // Glass / motion layers
-  glassPanel: 'rgba(15,17,20,0.92)',
-  glassChrome: 'rgba(23,26,31,0.78)',
-  glassChromeStrong: 'rgba(32,36,43,0.78)',
-  glassStroke: 'rgba(255,255,255,0.10)',
-  glassHighlight: 'rgba(255,255,255,0.08)',
-  glassGlow: 'rgba(77,163,255,0.18)',
-  glassScrim: 'rgba(4,8,12,0.54)',
+  glassPanel: 'rgba(15,17,20,0.82)',
+  glassChrome: 'rgba(23,26,31,0.72)',
+  glassChromeStrong: 'rgba(32,36,43,0.72)',
+  glassStroke: 'rgba(255,255,255,0.12)',
+  glassHighlight: 'rgba(255,255,255,0.13)',
+  glassGlow: 'rgba(77,163,255,0.32)',
+  glassScrim: 'rgba(4,8,12,0.72)',
   glassRail: 'rgba(23,26,31,0.86)',
-  fabGlow: 'rgba(77,163,255,0.28)',
+  fabGlow: 'rgba(77,163,255,0.38)',
+  glassInnerGlow: 'rgba(77,163,255,0.06)',
+  glassEdgeLight: 'rgba(255,255,255,0.05)',
 
   // Border
   border: '#303741',

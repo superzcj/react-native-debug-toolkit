@@ -165,7 +165,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
 
   const haloOpacity = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [streaming ? 0.34 : 0.14, streaming ? 0.08 : 0.03],
+    outputRange: [streaming ? 0.50 : 0.25, streaming ? 0.12 : 0.06],
   });
   const haloScale = pulse.interpolate({
     inputRange: [0, 1],
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
   },
   halo: {
     position: 'absolute',
-    top: -5,
-    left: -5,
-    right: -5,
-    bottom: -5,
-    borderRadius: (LAUNCHER_SIZE + 10) / 2,
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    borderRadius: (LAUNCHER_SIZE + 20) / 2,
     backgroundColor: Colors.fabGlow,
   },
   button: {
@@ -258,8 +258,8 @@ const styles = StyleSheet.create({
     top: -8,
     bottom: -8,
     left: 2,
-    width: 14,
-    backgroundColor: Colors.fabHighlight,
+    width: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   launcherGlyph: {
     width: 24,

@@ -23,7 +23,7 @@ interface DebugPanelProps {
 export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
-  const panelScale = useRef(new Animated.Value(0.985)).current;
+  const panelScale = useRef(new Animated.Value(0.96)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const glassGlowOpacity = useRef(new Animated.Value(0)).current;
 
@@ -66,7 +66,7 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         useNativeDriver: true,
       }),
       Animated.timing(panelScale, {
-        toValue: 0.985,
+        toValue: 0.96,
         duration: 180,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
@@ -140,6 +140,7 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
       >
         <View pointerEvents="none" style={styles.panelGlass} />
         <View pointerEvents="none" style={styles.panelTopLight} />
+        <View pointerEvents="none" style={styles.panelBottomFade} />
         <View {...panelResponder.panHandlers}>
           <View style={styles.dragHandle}>
             <View style={styles.dragIndicator} />
@@ -211,21 +212,21 @@ const styles = StyleSheet.create({
   },
   backdropGlowTop: {
     position: 'absolute',
-    top: -120,
-    right: -80,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
+    top: -140,
+    right: -100,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
     backgroundColor: Colors.glassGlow,
   },
   backdropGlowBottom: {
     position: 'absolute',
-    bottom: 110,
-    left: -90,
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: 'rgba(53,199,89,0.10)',
+    bottom: 80,
+    left: -100,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(53,199,89,0.14)',
   },
   backdropPressable: {
     ...StyleSheet.absoluteFillObject,
@@ -247,15 +248,23 @@ const styles = StyleSheet.create({
   },
   panelGlass: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.glassPanel,
+    backgroundColor: Colors.glassInnerGlow,
   },
   panelTopLight: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 96,
+    height: 120,
     backgroundColor: Colors.glassHighlight,
+  },
+  panelBottomFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: Colors.glassEdgeLight,
   },
   dragHandle: {
     width: '100%',

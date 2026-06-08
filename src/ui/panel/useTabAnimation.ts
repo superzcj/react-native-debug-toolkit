@@ -49,7 +49,7 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
           useNativeDriver: true,
         }),
         Animated.timing(contentScale, {
-          toValue: 0.985,
+          toValue: 0.97,
           duration: 80,
           useNativeDriver: true,
         }),

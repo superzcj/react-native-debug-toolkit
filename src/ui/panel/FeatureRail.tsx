@@ -87,12 +87,12 @@ const styles = StyleSheet.create({
   },
   topGlow: {
     position: 'absolute',
-    top: -36,
-    left: -20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(77,163,255,0.06)',
+    top: -48,
+    left: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(77,163,255,0.12)',
   },
   bottomShade: {
     position: 'absolute',
