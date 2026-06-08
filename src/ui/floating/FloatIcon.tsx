@@ -66,6 +66,16 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
   }, [clampX, clampY, pan]);
 
   useEffect(() => {
+    const { x, y } = lastPosition.current;
+    const clampedX = clampX(x);
+    const clampedY = clampY(y);
+    if (clampedX !== x || clampedY !== y) {
+      lastPosition.current = { x: clampedX, y: clampedY };
+      pan.setValue({ x: clampedX, y: clampedY });
+    }
+  }, [screenWidth, screenHeight]);
+
+  useEffect(() => {
     if (!visible) {
       pulse.setValue(0);
       sheen.setValue(0);
@@ -173,7 +183,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
   });
   const sheenTranslateX = sheen.interpolate({
     inputRange: [0, 1],
-    outputRange: [-34, 34],
+    outputRange: [-60, 60],
   });
 
   return (

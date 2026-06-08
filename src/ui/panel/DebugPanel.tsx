@@ -65,10 +65,10 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         tension: 65,
         useNativeDriver: true,
       }),
-      Animated.timing(panelScale, {
+      Animated.spring(panelScale, {
         toValue: 0.96,
-        duration: 180,
-        easing: Easing.out(Easing.cubic),
+        friction: 10,
+        tension: 40,
         useNativeDriver: true,
       }),
       Animated.timing(backdropOpacity, {
@@ -101,12 +101,6 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
           Animated.parallel([
             Animated.spring(panelTranslateY, {
               toValue: 0,
-              friction: 8,
-              tension: 50,
-              useNativeDriver: true,
-            }),
-            Animated.spring(panelScale, {
-              toValue: 1,
               friction: 8,
               tension: 50,
               useNativeDriver: true,
