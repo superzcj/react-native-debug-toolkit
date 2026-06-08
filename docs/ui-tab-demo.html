@@ -32,17 +32,20 @@
       --purple: #7447c8;
       --purple-soft: #efe7ff;
       --tool-bg: #111416;
-      --tool-surface: #171b1e;
-      --tool-surface-2: #1c2226;
-      --tool-surface-3: #22282c;
+      --tool-surface: rgba(23, 26, 31, 0.78);
+      --tool-surface-2: rgba(28, 34, 38, 0.74);
+      --tool-surface-3: rgba(34, 40, 44, 0.76);
       --tool-line: #30383d;
       --tool-line-soft: rgba(183, 192, 199, 0.12);
       --tool-text: #f4f7f8;
       --tool-muted: #b7c0c7;
       --tool-faint: #7b8790;
-      --tool-primary: #2dd4bf;
-      --tool-primary-soft: rgba(45, 212, 191, 0.12);
-      --tool-primary-dim: #134e4a;
+      --tool-primary: #4da3ff;
+      --tool-primary-soft: rgba(77, 163, 255, 0.12);
+      --tool-primary-dim: #173b5f;
+      --tool-glass: rgba(15, 17, 20, 0.72);
+      --tool-glass-strong: rgba(23, 26, 31, 0.82);
+      --tool-glow: rgba(77, 163, 255, 0.18);
       --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
       --sans: "Instrument Sans", Avenir, "Avenir Next", Helvetica, sans-serif;
     }
@@ -78,6 +81,48 @@
 
     button {
       cursor: pointer;
+    }
+
+    @keyframes launcher-breathe {
+      0%, 100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 16px 30px rgba(7, 16, 15, 0.34), 0 0 0 0 rgba(77, 163, 255, 0.20);
+      }
+      50% {
+        transform: translateY(-2px) scale(1.025);
+        box-shadow: 0 22px 38px rgba(7, 16, 15, 0.38), 0 0 0 8px rgba(77, 163, 255, 0.05);
+      }
+    }
+
+    @keyframes launcher-sheen {
+      0%, 45% {
+        transform: translateX(-130%) skewX(-24deg);
+      }
+      78%, 100% {
+        transform: translateX(150%) skewX(-24deg);
+      }
+    }
+
+    @keyframes sheet-rise {
+      from {
+        opacity: 0;
+        transform: translateY(34px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes row-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .layout {
@@ -280,7 +325,7 @@
       height: 44px;
       border: 1px solid var(--tool-line);
       border-radius: 999px;
-      background: var(--tool-surface);
+      background: var(--tool-glass-strong);
       color: var(--tool-text);
       display: inline-flex;
       align-items: center;
@@ -289,6 +334,24 @@
       padding: 0 8px;
       font: 800 11px var(--mono);
       box-shadow: 0 16px 30px rgba(7, 16, 15, 0.34);
+      backdrop-filter: blur(16px) saturate(150%);
+      animation: launcher-breathe 2800ms ease-in-out infinite;
+    }
+
+    .launcher::before {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+      animation: launcher-sheen 2800ms ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .launcher > span {
+      position: relative;
+      z-index: 1;
     }
 
     .launcher-mark {
@@ -348,13 +411,33 @@
       position: absolute;
       inset: auto 0 0;
       height: 92%;
-      background: var(--tool-bg);
+      background: var(--tool-glass);
       color: var(--tool-text);
       border-radius: 26px 26px 0 0;
+      border: 1px solid rgba(255,255,255,0.10);
       box-shadow: 0 -22px 44px rgba(7, 16, 15, 0.34);
       overflow: hidden;
       display: grid;
       grid-template-rows: auto auto 1fr;
+      backdrop-filter: blur(22px) saturate(150%);
+      animation: sheet-rise 360ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .sheet::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 110px;
+      background:
+        radial-gradient(circle at 78% 0%, var(--tool-glow), transparent 58%),
+        linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .sheet > * {
+      position: relative;
+      z-index: 1;
     }
 
     .grab {
@@ -362,6 +445,7 @@
       display: grid;
       place-items: center;
       background: var(--tool-surface);
+      backdrop-filter: blur(18px) saturate(150%);
     }
 
     .grab::before {
@@ -376,6 +460,7 @@
       padding: 8px 14px 10px;
       background: var(--tool-surface);
       border-bottom: 1px solid var(--tool-line-soft);
+      backdrop-filter: blur(18px) saturate(150%);
     }
 
     .topline {
@@ -447,6 +532,7 @@
       border: 1px solid var(--tool-line);
       border-radius: 8px;
       background: var(--tool-surface-2);
+      backdrop-filter: blur(12px) saturate(140%);
       color: var(--tool-muted);
       padding: 0 9px;
       font-weight: 900;
@@ -466,6 +552,7 @@
       border: 1px solid var(--tool-line);
       border-radius: 8px;
       background: var(--tool-surface-2);
+      backdrop-filter: blur(12px) saturate(140%);
     }
 
     .signal strong {
@@ -513,10 +600,11 @@
     .rail {
       min-height: 0;
       padding: 8px 7px;
-      background: #0e1113;
+      background: rgba(23, 26, 31, 0.86);
       border-right: 1px solid var(--tool-line-soft);
       overflow: auto;
       scrollbar-width: none;
+      backdrop-filter: blur(16px) saturate(145%);
     }
 
     .rail::-webkit-scrollbar {
@@ -603,8 +691,9 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
       padding: 9px;
-      background: var(--tool-bg);
+      background: rgba(15, 17, 20, 0.62);
       border-bottom: 1px solid var(--tool-line-soft);
+      backdrop-filter: blur(14px) saturate(145%);
     }
 
     .search {
@@ -613,6 +702,7 @@
       border: 1px solid var(--tool-line);
       border-radius: 8px;
       background: var(--tool-surface);
+      backdrop-filter: blur(12px) saturate(140%);
       color: var(--tool-text);
       outline: 0;
       padding: 0 10px;
@@ -633,6 +723,7 @@
       border: 1px solid var(--tool-line);
       border-radius: 8px;
       background: var(--tool-surface);
+      backdrop-filter: blur(12px) saturate(140%);
     }
 
     .filter button {
@@ -675,6 +766,8 @@
       display: grid;
       gap: 8px;
       transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+      backdrop-filter: blur(12px) saturate(140%);
+      animation: row-in 260ms ease-out both;
     }
 
     .row:hover {
@@ -682,6 +775,11 @@
       transform: translateY(-1px);
       box-shadow: 0 8px 16px rgba(7, 16, 15, 0.22);
     }
+
+    .row:nth-child(2) { animation-delay: 28ms; }
+    .row:nth-child(3) { animation-delay: 56ms; }
+    .row:nth-child(4) { animation-delay: 84ms; }
+    .row:nth-child(5) { animation-delay: 112ms; }
 
     .row-top {
       display: flex;

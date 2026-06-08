@@ -10,6 +10,7 @@ interface UseTabAnimationOptions {
 export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnimationOptions) {
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateX = useRef(new Animated.Value(0)).current;
+  const contentScale = useRef(new Animated.Value(1)).current;
   const isSwitchingTab = useRef(false);
 
   const activeTabRef = useRef(activeTab);
@@ -47,6 +48,11 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
           duration: 80,
           useNativeDriver: true,
         }),
+        Animated.timing(contentScale, {
+          toValue: 0.985,
+          duration: 80,
+          useNativeDriver: true,
+        }),
       ]).start(() => {
         onTabChange(index);
         contentTranslateX.setValue(direction * 40);
@@ -58,18 +64,25 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
+          Animated.spring(contentScale, {
+            toValue: 1,
+            friction: 8,
+            tension: 70,
+            useNativeDriver: true,
+          }),
         ]).start(() => {
           isSwitchingTab.current = false;
         });
       });
     },
-    [contentOpacity, contentTranslateX, onTabChange],
+    [contentOpacity, contentScale, contentTranslateX, onTabChange],
   );
 
   switchTabRef.current = switchTab;
 
   return {
     contentOpacity,
+    contentScale,
     contentTranslateX,
     panHandlers: swipeResponder.panHandlers,
     switchTab,

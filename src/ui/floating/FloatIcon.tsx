@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
+  Easing,
   PanResponder,
   Pressable,
   useWindowDimensions,
@@ -30,11 +31,21 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
   const maxY = Math.max(minY, screenHeight - LAUNCHER_SIZE - EDGE_MARGIN);
   const defaultX = maxX;
   const defaultY = Math.max(minY, Math.min(screenHeight * 0.62, maxY));
-  const clampX = (value: number) => Math.max(minX, Math.min(value, maxX));
-  const clampY = (value: number) => Math.max(minY, Math.min(value, maxY));
+  const boundsRef = useRef({ minX, minY, maxX, maxY, screenWidth });
+  boundsRef.current = { minX, minY, maxX, maxY, screenWidth };
+  const clampX = useCallback((value: number) => {
+    const { minX: currentMinX, maxX: currentMaxX } = boundsRef.current;
+    return Math.max(currentMinX, Math.min(value, currentMaxX));
+  }, []);
+  const clampY = useCallback((value: number) => {
+    const { minY: currentMinY, maxY: currentMaxY } = boundsRef.current;
+    return Math.max(currentMinY, Math.min(value, currentMaxY));
+  }, []);
 
   const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const sheen = useRef(new Animated.Value(0)).current;
   const lastPosition = useRef({ x: defaultX, y: defaultY });
 
   useEffect(() => {
@@ -52,7 +63,55 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       }
     });
     return () => { mounted = false; };
-  }, [maxX, maxY, pan]);
+  }, [clampX, clampY, pan]);
+
+  useEffect(() => {
+    if (!visible) {
+      pulse.setValue(0);
+      sheen.setValue(0);
+      return;
+    }
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1300,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1300,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const sheenLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sheen, {
+          toValue: 1,
+          duration: 1700,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.delay(1200),
+        Animated.timing(sheen, {
+          toValue: 0,
+          duration: 1,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    pulseLoop.start();
+    sheenLoop.start();
+    return () => {
+      pulseLoop.stop();
+      sheenLoop.stop();
+    };
+  }, [pulse, sheen, visible]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -79,8 +138,9 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
           return;
         }
 
+        const { minX: currentMinX, maxX: currentMaxX, screenWidth: currentScreenWidth } = boundsRef.current;
         const rawX = lastPosition.current.x + gs.dx;
-        const snappedX = rawX < screenWidth / 2 - LAUNCHER_SIZE / 2 ? minX : maxX;
+        const snappedX = rawX < currentScreenWidth / 2 - LAUNCHER_SIZE / 2 ? currentMinX : currentMaxX;
         const finalY = clampY(lastPosition.current.y + gs.dy);
 
         lastPosition.current = { x: snappedX, y: finalY };
@@ -94,13 +154,27 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         setPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
+        const { minX: currentMinX, maxX: currentMaxX, screenWidth: currentScreenWidth } = boundsRef.current;
         const rawX = lastPosition.current.x + gs.dx;
-        const snappedX = rawX < screenWidth / 2 - LAUNCHER_SIZE / 2 ? minX : maxX;
+        const snappedX = rawX < currentScreenWidth / 2 - LAUNCHER_SIZE / 2 ? currentMinX : currentMaxX;
         const finalY = clampY(lastPosition.current.y + gs.dy);
         lastPosition.current = { x: snappedX, y: finalY };
       },
     }),
   ).current;
+
+  const haloOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [streaming ? 0.34 : 0.14, streaming ? 0.08 : 0.03],
+  });
+  const haloScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.96, 1.28],
+  });
+  const sheenTranslateX = sheen.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-34, 34],
+  });
 
   return (
     <Animated.View
@@ -114,8 +188,21 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       ]}
       {...panResponder.panHandlers}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.halo,
+          { opacity: haloOpacity, transform: [{ scale: haloScale }] },
+        ]}
+      />
       <Pressable onPress={onPress} style={styles.button}>
-        <View pointerEvents="none" style={styles.buttonHighlight} />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.buttonHighlight,
+            { transform: [{ translateX: sheenTranslateX }, { rotate: '-24deg' }] },
+          ]}
+        />
         <View style={styles.launcherGlyph}>
           <View style={styles.glyphDot} />
           <View style={styles.glyphLines}>
@@ -146,6 +233,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.24,
     shadowRadius: 12,
   },
+  halo: {
+    position: 'absolute',
+    top: -5,
+    left: -5,
+    right: -5,
+    bottom: -5,
+    borderRadius: (LAUNCHER_SIZE + 10) / 2,
+    backgroundColor: Colors.fabGlow,
+  },
   button: {
     width: '100%',
     height: '100%',
@@ -159,10 +255,10 @@ const styles = StyleSheet.create({
   },
   buttonHighlight: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 22,
+    top: -8,
+    bottom: -8,
+    left: 2,
+    width: 14,
     backgroundColor: Colors.fabHighlight,
   },
   launcherGlyph: {

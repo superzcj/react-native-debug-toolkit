@@ -80,9 +80,9 @@ export function FeatureRail({ items, activeIndex, onSelectTab }: FeatureRailProp
 const styles = StyleSheet.create({
   rail: {
     width: RAIL_WIDTH,
-    backgroundColor: Colors.railBackground,
+    backgroundColor: Colors.glassRail,
     borderRightWidth: 1,
-    borderRightColor: Colors.panelDivider,
+    borderRightColor: Colors.glassStroke,
     overflow: 'hidden',
   },
   topGlow: {
@@ -110,6 +110,8 @@ const styles = StyleSheet.create({
   item: {
     minHeight: 52,
     borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: 'transparent',
     paddingHorizontal: Spacing.XXS,
     paddingVertical: Spacing.SM,
     alignItems: 'center',
@@ -118,6 +120,8 @@ const styles = StyleSheet.create({
   },
   activeItem: {
     backgroundColor: Colors.railActiveBg,
+    borderWidth: 1,
+    borderColor: Colors.glassStroke,
   },
   activeBar: {
     position: 'absolute',

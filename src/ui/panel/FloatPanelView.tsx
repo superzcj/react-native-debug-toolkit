@@ -127,7 +127,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     return () => { mounted = false; };
   }, [features]);
 
-  const { contentOpacity, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
+  const { contentOpacity, contentScale, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
     activeTab,
     tabCount: features.length,
     onTabChange: useCallback((index: number) => {
@@ -257,7 +257,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                 <Animated.View
                   style={[
                     styles.contentContainer,
-                    { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }] },
+                    { opacity: contentOpacity, transform: [{ translateX: contentTranslateX }, { scale: contentScale }] },
                   ]}
                   {...panHandlers}
                 >

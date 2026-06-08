@@ -24,6 +24,17 @@ export const Colors = {
   fabHighlight: 'rgba(255,255,255,0.07)',
   tabActiveBackground: '#242B34',
 
+  // Glass / motion layers
+  glassPanel: 'rgba(15,17,20,0.92)',
+  glassChrome: 'rgba(23,26,31,0.78)',
+  glassChromeStrong: 'rgba(32,36,43,0.78)',
+  glassStroke: 'rgba(255,255,255,0.10)',
+  glassHighlight: 'rgba(255,255,255,0.08)',
+  glassGlow: 'rgba(77,163,255,0.18)',
+  glassScrim: 'rgba(4,8,12,0.54)',
+  glassRail: 'rgba(23,26,31,0.86)',
+  fabGlow: 'rgba(77,163,255,0.28)',
+
   // Border
   border: '#303741',
   borderLight: '#242A31',

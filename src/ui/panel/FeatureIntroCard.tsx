@@ -101,8 +101,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.MD,
     paddingBottom: Spacing.SM,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.panelDivider,
-    backgroundColor: Colors.surface,
+    borderBottomColor: Colors.glassStroke,
+    backgroundColor: Colors.glassChrome,
   },
   titleRow: {
     flexDirection: 'row',
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.SM,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceInset,
+    backgroundColor: Colors.glassChromeStrong,
   },
   chipActive: {
     backgroundColor: Colors.primary,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     borderRadius: Radius.MD,
-    backgroundColor: Colors.surfaceInset,
+    backgroundColor: Colors.glassChromeStrong,
     paddingHorizontal: Spacing.MD,
     fontSize: FontSize.MD,
     color: Colors.text,

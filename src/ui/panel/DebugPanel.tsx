@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  Easing,
   PanResponder,
   Pressable,
   useWindowDimensions,
@@ -22,7 +23,9 @@ interface DebugPanelProps {
 export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
+  const panelScale = useRef(new Animated.Value(0.985)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const glassGlowOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -33,14 +36,26 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
           tension: 65,
           useNativeDriver: true,
         }),
+        Animated.timing(panelScale, {
+          toValue: 1,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
         Animated.timing(backdropOpacity, {
           toValue: 1,
           duration: 250,
           useNativeDriver: true,
         }),
+        Animated.timing(glassGlowOpacity, {
+          toValue: 1,
+          duration: 320,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
       ]).start();
     });
-  }, [panelTranslateY, backdropOpacity]);
+  }, [panelTranslateY, panelScale, backdropOpacity, glassGlowOpacity]);
 
   const closePanel = useCallback(() => {
     Animated.parallel([
@@ -50,13 +65,24 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         tension: 65,
         useNativeDriver: true,
       }),
+      Animated.timing(panelScale, {
+        toValue: 0.985,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
       Animated.timing(backdropOpacity, {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }),
+      Animated.timing(glassGlowOpacity, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
     ]).start(() => onClose());
-  }, [panelTranslateY, backdropOpacity, onClose, screenHeight]);
+  }, [panelTranslateY, panelScale, backdropOpacity, glassGlowOpacity, onClose, screenHeight]);
 
   const panelResponder = useRef(
     PanResponder.create({
@@ -72,17 +98,25 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         if (gs.dy > 100) {
           closePanel();
         } else {
-          Animated.spring(panelTranslateY, {
-            toValue: 0,
-            friction: 8,
-            tension: 50,
-            useNativeDriver: true,
-          }).start();
-          Animated.timing(backdropOpacity, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }).start();
+          Animated.parallel([
+            Animated.spring(panelTranslateY, {
+              toValue: 0,
+              friction: 8,
+              tension: 50,
+              useNativeDriver: true,
+            }),
+            Animated.spring(panelScale, {
+              toValue: 1,
+              friction: 8,
+              tension: 50,
+              useNativeDriver: true,
+            }),
+            Animated.timing(backdropOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
         }
       },
     }),
@@ -91,11 +125,21 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.backdropGlowTop, { opacity: glassGlowOpacity }]}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.backdropGlowBottom, { opacity: glassGlowOpacity }]}
+        />
         <Pressable style={styles.backdropPressable} onPress={closePanel} />
       </Animated.View>
       <Animated.View
-        style={[styles.panel, { transform: [{ translateY: panelTranslateY }] }]}
+        style={[styles.panel, { transform: [{ translateY: panelTranslateY }, { scale: panelScale }] }]}
       >
+        <View pointerEvents="none" style={styles.panelGlass} />
+        <View pointerEvents="none" style={styles.panelTopLight} />
         <View {...panelResponder.panHandlers}>
           <View style={styles.dragHandle}>
             <View style={styles.dragIndicator} />
@@ -163,15 +207,37 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Colors.glassScrim,
   },
-  backdropPressable: { flex: 1 },
+  backdropGlowTop: {
+    position: 'absolute',
+    top: -120,
+    right: -80,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: Colors.glassGlow,
+  },
+  backdropGlowBottom: {
+    position: 'absolute',
+    bottom: 110,
+    left: -90,
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(53,199,89,0.10)',
+  },
+  backdropPressable: {
+    ...StyleSheet.absoluteFillObject,
+  },
   panel: {
     width: '100%',
     height: '90%',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.glassPanel,
     borderTopLeftRadius: Radius.XL,
     borderTopRightRadius: Radius.XL,
+    borderWidth: 1,
+    borderColor: Colors.glassStroke,
     overflow: 'hidden',
     elevation: 24,
     shadowColor: '#000',
@@ -179,12 +245,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
   },
+  panelGlass: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.glassPanel,
+  },
+  panelTopLight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 96,
+    backgroundColor: Colors.glassHighlight,
+  },
   dragHandle: {
     width: '100%',
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.chrome,
+    backgroundColor: Colors.glassChrome,
   },
   dragIndicator: {
     width: 32,
@@ -200,9 +278,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.LG,
     paddingTop: Spacing.SM,
     paddingBottom: Spacing.SM,
-    backgroundColor: Colors.chrome,
+    backgroundColor: Colors.glassChrome,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.panelDivider,
+    borderBottomColor: Colors.glassStroke,
   },
   headerLeft: {
     flex: 1,
@@ -215,9 +293,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.SM,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: Colors.glassChromeStrong,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.glassStroke,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -286,7 +364,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.MD,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceHover,
+    backgroundColor: Colors.glassChromeStrong,
     paddingHorizontal: Spacing.MD,
     alignItems: 'center',
     justifyContent: 'center',
@@ -302,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.MD,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceHover,
+    backgroundColor: Colors.glassChromeStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
