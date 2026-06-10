@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,20 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { useSlideDetailAnimation } from './useSlideDetailAnimation';
+import { useStaggerAnimation } from '../panel/useStaggerAnimation';
+import { getFilterConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface LogListItem {
   id: string;
@@ -36,6 +46,31 @@ export function LogListScreen<T extends LogListItem>({
 }: LogListScreenProps<T>) {
   const [selected, setSelected] = useState<T | null>(null);
   const { detailTranslateX, listTranslateX, listOpacity } = useSlideDetailAnimation(selected);
+  const { getAnim, staggerIn } = useStaggerAnimation();
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const reducedMotion = useReduceMotion();
+  const filterConfig = getFilterConfig(reducedMotion);
+  const prevDataLength = useRef(data.length);
+
+  // Smooth layout transition when items are filtered
+  useEffect(() => {
+    if (prevDataLength.current !== data.length) {
+      LayoutAnimation.configureNext({
+        duration: filterConfig.fadeOutDuration,
+        create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+        delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+        update: { type: LayoutAnimation.Types.easeInEaseOut },
+      });
+      prevDataLength.current = data.length;
+    }
+  }, [data.length, filterConfig.fadeOutDuration]);
+
+  const onViewableItemsChanged = useRef(({ changed }: { changed: Array<{ index: number | null; isViewable: boolean }> }) => {
+    const visible = changed
+      .filter((v) => v.isViewable && v.index !== null)
+      .map((v) => v.index!);
+    if (visible.length > 0) staggerIn(visible);
+  }).current;
 
   const displayData = useMemo(
     () => (reversed ? [...data].reverse() : data),
@@ -61,21 +96,28 @@ export function LogListScreen<T extends LogListItem>({
         ) : (
           <FlatList
             data={displayData}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.card}
-                onPress={() => setSelected(item)}
-                activeOpacity={0.6}
-              >
-                {renderRow(item)}
-              </TouchableOpacity>
-            )}
+            renderItem={({ item, index }) => {
+              const itemOpacity = getAnim(index);
+              return (
+                <Animated.View style={{ opacity: itemOpacity }}>
+                  <TouchableOpacity
+                    style={styles.card}
+                    onPress={() => setSelected(item)}
+                    activeOpacity={0.6}
+                  >
+                    {renderRow(item)}
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            }}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             initialNumToRender={20}
             maxToRenderPerBatch={10}
             windowSize={5}
             removeClippedSubviews={true}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
           />
         )}
       </Animated.View>

@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, TextInput, StyleSheet, Animated, Easing } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import type { FeatureSummary } from './buildFeatureSummary';
+import { getSearchConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
 function hexWithAlpha(hex: string, alpha: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex + alpha;
@@ -29,11 +31,50 @@ export function FeatureIntroCard({
   showSearch,
 }: FeatureIntroCardProps) {
   const { statusLabel, statusColor, supportsBadFilter } = summary;
+  const reducedMotion = useReduceMotion();
+  const searchConfig = getSearchConfig(reducedMotion);
+  const searchTranslateY = useRef(new Animated.Value(-40)).current;
+  const searchOpacity = useRef(new Animated.Value(0)).current;
+  const prevShowSearch = useRef(false);
+
   const metrics = [
     summary.count != null ? `${summary.count} captured` : null,
     summary.badCount != null ? `${summary.badCount} bad` : null,
     summary.latestLabel ? `latest ${summary.latestLabel}` : null,
   ].filter((item): item is string => Boolean(item));
+
+  useEffect(() => {
+    if (showSearch && !prevShowSearch.current) {
+      Animated.parallel([
+        Animated.timing(searchTranslateY, {
+          toValue: 0,
+          duration: searchConfig.slideDuration,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchOpacity, {
+          toValue: 1,
+          duration: searchConfig.slideDuration,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (!showSearch && prevShowSearch.current) {
+      Animated.parallel([
+        Animated.timing(searchTranslateY, {
+          toValue: -40,
+          duration: searchConfig.slideDuration,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchOpacity, {
+          toValue: 0,
+          duration: searchConfig.slideDuration,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    prevShowSearch.current = !!showSearch;
+  }, [showSearch, searchTranslateY, searchOpacity, searchConfig]);
 
   return (
     <View style={styles.bar}>
@@ -82,14 +123,22 @@ export function FeatureIntroCard({
         </View>
       </View>
       {showSearch && (
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search"
-          placeholderTextColor={Colors.textMuted}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          returnKeyType="search"
-        />
+        <Animated.View
+          style={{
+            transform: [{ translateY: searchTranslateY }],
+            opacity: searchOpacity,
+            overflow: 'hidden',
+          }}
+        >
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search"
+            placeholderTextColor={Colors.textMuted}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            returnKeyType="search"
+          />
+        </Animated.View>
       )}
     </View>
   );
@@ -103,6 +152,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.panelDivider,
     backgroundColor: Colors.surface,
+    overflow: 'hidden',
   },
   titleRow: {
     flexDirection: 'row',

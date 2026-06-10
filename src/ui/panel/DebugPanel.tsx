@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
+import { getPanelConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
 interface DebugPanelProps {
   onClose: () => void;
@@ -21,42 +23,65 @@ interface DebugPanelProps {
 
 export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
+  const reducedMotion = useReduceMotion();
+  const panelConfig = getPanelConfig(reducedMotion);
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      Animated.parallel([
-        Animated.spring(panelTranslateY, {
+  const animateIn = useCallback(() => {
+    const panelAnim = panelConfig.useSpring
+      ? Animated.spring(panelTranslateY, {
           toValue: 0,
-          friction: 8,
-          tension: 65,
+          friction: panelConfig.springFriction,
+          tension: panelConfig.springTension,
           useNativeDriver: true,
-        }),
-        Animated.timing(backdropOpacity, {
-          toValue: 1,
-          duration: 250,
+        })
+      : Animated.timing(panelTranslateY, {
+          toValue: 0,
+          duration: panelConfig.backdropDuration,
           useNativeDriver: true,
-        }),
-      ]).start();
-    });
-  }, [panelTranslateY, backdropOpacity]);
+        });
+
+    Animated.parallel([
+      panelAnim,
+      Animated.timing(backdropOpacity, {
+        toValue: 1,
+        duration: panelConfig.backdropDuration,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [panelTranslateY, backdropOpacity, panelConfig]);
+
+  useEffect(() => {
+    requestAnimationFrame(animateIn);
+  }, [animateIn]);
 
   const closePanel = useCallback(() => {
+    const panelAnim = panelConfig.useSpring
+      ? Animated.spring(panelTranslateY, {
+          toValue: screenHeight,
+          friction: panelConfig.springFriction,
+          tension: panelConfig.springTension,
+          useNativeDriver: true,
+        })
+      : Animated.timing(panelTranslateY, {
+          toValue: screenHeight,
+          duration: panelConfig.backdropDuration,
+          useNativeDriver: true,
+        });
+
     Animated.parallel([
-      Animated.spring(panelTranslateY, {
-        toValue: screenHeight,
-        friction: 8,
-        tension: 65,
-        useNativeDriver: true,
-      }),
+      panelAnim,
       Animated.timing(backdropOpacity, {
         toValue: 0,
-        duration: 200,
+        duration: panelConfig.backdropDuration,
         useNativeDriver: true,
       }),
-    ]).start(() => onClose());
-  }, [panelTranslateY, backdropOpacity, onClose, screenHeight]);
+    ]).start(({ finished }) => { if (finished) onClose(); });
+  }, [panelTranslateY, backdropOpacity, onClose, screenHeight, panelConfig]);
+
+  const closePanelRef = useRef(closePanel);
+  closePanelRef.current = closePanel;
 
   const panelResponder = useRef(
     PanResponder.create({
@@ -70,17 +95,24 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
       },
       onPanResponderRelease: (_, gs) => {
         if (gs.dy > 100) {
-          closePanel();
+          closePanelRef.current();
         } else {
-          Animated.spring(panelTranslateY, {
-            toValue: 0,
-            friction: 8,
-            tension: 50,
-            useNativeDriver: true,
-          }).start();
+          const snapAnim = panelConfig.useSpring
+            ? Animated.spring(panelTranslateY, {
+                toValue: 0,
+                friction: 9,
+                tension: 70,
+                useNativeDriver: true,
+              })
+            : Animated.timing(panelTranslateY, {
+                toValue: 0,
+                duration: panelConfig.backdropDuration,
+                useNativeDriver: true,
+              });
+          snapAnim.start();
           Animated.timing(backdropOpacity, {
             toValue: 1,
-            duration: 200,
+            duration: panelConfig.backdropDuration,
             useNativeDriver: true,
           }).start();
         }

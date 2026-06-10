@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Text, Pressable, StyleSheet, Animated, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
+import { getLogItemConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Props {
   title: string;
@@ -15,7 +21,55 @@ export const CollapsibleSection: React.FC<Props> = ({
   children,
 }) => {
   const [expanded, setExpanded] = useState(initiallyExpanded);
+  const [showContent, setShowContent] = useState(initiallyExpanded);
   const [rotationAnim] = useState(() => new Animated.Value(initiallyExpanded ? 1 : 0));
+  const tapScale = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(initiallyExpanded ? 1 : 0)).current;
+  const reducedMotion = useReduceMotion();
+  const logItemConfig = getLogItemConfig(reducedMotion);
+
+  const handlePress = useCallback(() => {
+    // Scale pulse feedback
+    if (!reducedMotion) {
+      Animated.sequence([
+        Animated.timing(tapScale, {
+          toValue: logItemConfig.tapScale,
+          duration: logItemConfig.tapDuration / 2,
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapScale, {
+          toValue: 1,
+          duration: logItemConfig.tapDuration / 2,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+
+    if (expanded) {
+      // Collapse: fade content out first, then collapse height
+      Animated.timing(contentOpacity, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowContent(false);
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setExpanded(false);
+      });
+    } else {
+      // Expand: animate height first, then fade content in
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setExpanded(true);
+      setShowContent(true);
+      setTimeout(() => {
+        Animated.timing(contentOpacity, {
+          toValue: 1,
+          duration: reducedMotion ? 100 : 150,
+          useNativeDriver: true,
+        }).start();
+      }, logItemConfig.detailFadeDelay);
+    }
+  }, [expanded, tapScale, contentOpacity, logItemConfig, reducedMotion]);
 
   useEffect(() => {
     Animated.timing(rotationAnim, {
@@ -31,18 +85,22 @@ export const CollapsibleSection: React.FC<Props> = ({
   });
 
   return (
-    <View style={styles.section}>
+    <Animated.View style={[styles.section, { transform: [{ scale: tapScale }] }]}>
       <Pressable
         style={styles.header}
-        onPress={() => setExpanded(!expanded)}
+        onPress={handlePress}
       >
         <Text style={styles.title}>{title}</Text>
         <Animated.Text style={[styles.chevron, { transform: [{ rotate: chevronRotation }] }]}>
           ›
         </Animated.Text>
       </Pressable>
-      {expanded && <View style={styles.body}>{children}</View>}
-    </View>
+      {expanded && (
+        <Animated.View style={[styles.body, { opacity: contentOpacity }]}>
+          {showContent && children}
+        </Animated.View>
+      )}
+    </Animated.View>
   );
 };
 

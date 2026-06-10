@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
+import { getLogItemConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
-/**
- * Shared slide-in/out animation for tab detail views.
- * Returns animated styles for the detail overlay and the list behind it.
- */
 export function useSlideDetailAnimation<T>(
   selected: T | null,
 ): {
@@ -14,19 +12,44 @@ export function useSlideDetailAnimation<T>(
 } {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const listSlideAnim = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReduceMotion();
+  const logItemConfig = getLogItemConfig(reducedMotion);
 
   useEffect(() => {
     if (selected) {
       listSlideAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 1, friction: 9, tension: 60, useNativeDriver: true }),
-        Animated.spring(listSlideAnim, { toValue: 1, friction: 9, tension: 60, useNativeDriver: true }),
-      ]).start();
+      const slideToDetail = logItemConfig.useSpring
+        ? Animated.spring(slideAnim, {
+            toValue: 1,
+            friction: logItemConfig.expandFriction,
+            tension: logItemConfig.expandTension,
+            useNativeDriver: true,
+          })
+        : Animated.timing(slideAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          });
+
+      const slideList = logItemConfig.useSpring
+        ? Animated.spring(listSlideAnim, {
+            toValue: 1,
+            friction: logItemConfig.expandFriction,
+            tension: logItemConfig.expandTension,
+            useNativeDriver: true,
+          })
+        : Animated.timing(listSlideAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          });
+
+      Animated.parallel([slideToDetail, slideList]).start();
     } else {
       slideAnim.setValue(0);
       listSlideAnim.setValue(0);
     }
-  }, [selected, slideAnim, listSlideAnim]);
+  }, [selected, slideAnim, listSlideAnim, logItemConfig]);
 
   const detailTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],

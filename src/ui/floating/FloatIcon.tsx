@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  Easing,
   PanResponder,
   Pressable,
   useWindowDimensions,
@@ -11,6 +12,8 @@ import {
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
+import { getFabConfig, getBadgeConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
 const EDGE_MARGIN = 16;
 const LAUNCHER_SIZE = 48;
@@ -24,6 +27,9 @@ interface FloatIconProps {
 
 export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const reducedMotion = useReduceMotion();
+  const fabConfig = getFabConfig(reducedMotion);
+  const badgeConfig = getBadgeConfig();
   const minX = EDGE_MARGIN;
   const minY = EDGE_MARGIN;
   const maxX = Math.max(minX, screenWidth - LAUNCHER_SIZE - EDGE_MARGIN);
@@ -35,7 +41,103 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
 
   const pan = useRef(new Animated.ValueXY({ x: defaultX, y: defaultY })).current;
   const scale = useRef(new Animated.Value(1)).current;
+  const breathScale = useRef(new Animated.Value(1)).current;
+  const badgeScale = useRef(new Animated.Value(1)).current;
   const lastPosition = useRef({ x: defaultX, y: defaultY });
+  const prevVisible = useRef(visible);
+  const prevBadgeLabel = useRef(badge?.label ?? null);
+  const breathingRef = useRef<Animated.CompositeAnimation | null>(null);
+  const isTouching = useRef(false);
+
+  // Scale-down micro-interaction when panel opens
+  useEffect(() => {
+    if (prevVisible.current && !visible) {
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 0.85,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (!prevVisible.current && visible) {
+      scale.setValue(0);
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 60,
+        useNativeDriver: true,
+      }).start();
+    }
+    prevVisible.current = visible;
+  }, [visible, scale]);
+
+  // T011: Breathing pulse animation when idle and visible
+  useEffect(() => {
+    if (!visible || !fabConfig.useBreathing || reducedMotion) {
+      if (breathingRef.current) {
+        breathingRef.current.stop();
+        breathingRef.current = null;
+      }
+      breathScale.setValue(1);
+      return;
+    }
+
+    if (isTouching.current) return;
+
+    const breathAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathScale, {
+          toValue: fabConfig.breathScaleMin,
+          duration: fabConfig.breathDuration,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(breathScale, {
+          toValue: 1,
+          duration: fabConfig.breathDuration,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    breathingRef.current = breathAnim;
+    breathAnim.start();
+
+    return () => {
+      if (breathingRef.current) {
+        breathingRef.current.stop();
+        breathingRef.current = null;
+      }
+    };
+  }, [visible, fabConfig, breathScale, reducedMotion]);
+
+  // T012: Badge count bounce on change
+  useEffect(() => {
+    const currentLabel = badge?.label ?? null;
+    if (prevBadgeLabel.current !== null && currentLabel !== null && currentLabel !== prevBadgeLabel.current) {
+      Animated.sequence([
+        Animated.spring(badgeScale, {
+          toValue: badgeConfig.bounceScale,
+          tension: badgeConfig.tension,
+          friction: badgeConfig.friction,
+          useNativeDriver: true,
+        }),
+        Animated.spring(badgeScale, {
+          toValue: 1,
+          tension: 200,
+          friction: 4,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+    prevBadgeLabel.current = currentLabel;
+  }, [badge?.label, badgeScale, badgeConfig]);
 
   useEffect(() => {
     let mounted = true;
@@ -59,8 +161,14 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
+        isTouching.current = true;
+        if (breathingRef.current) {
+          breathingRef.current.stop();
+          breathingRef.current = null;
+        }
+        breathScale.setValue(1);
         Animated.spring(scale, {
-          toValue: 0.94,
+          toValue: fabConfig.pressScale,
           friction: 5,
           useNativeDriver: true,
         }).start();
@@ -72,6 +180,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         });
       },
       onPanResponderRelease: (_: unknown, gs: { dx: number; dy: number }) => {
+        isTouching.current = false;
         Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
 
         if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) {
@@ -86,14 +195,15 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         lastPosition.current = { x: snappedX, y: finalY };
         Animated.spring(pan, {
           toValue: { x: snappedX, y: finalY },
-          friction: 7,
-          tension: 40,
+          friction: fabConfig.edgeSnapFriction,
+          tension: fabConfig.edgeSnapTension,
           useNativeDriver: true,
         }).start();
 
         setPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
+        isTouching.current = false;
         const rawX = lastPosition.current.x + gs.dx;
         const snappedX = rawX < screenWidth / 2 - LAUNCHER_SIZE / 2 ? minX : maxX;
         const finalY = clampY(lastPosition.current.y + gs.dy);
@@ -102,13 +212,16 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
     }),
   ).current;
 
+  // Combined scale: breathScale * scale (multiply for simultaneous animations)
+  const combinedScale = Animated.multiply(scale, breathScale);
+
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
       style={[
         styles.root,
         {
-          transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }],
+          transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: combinedScale }],
           opacity: visible ? 1 : 0,
         },
       ]}
@@ -126,9 +239,9 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
         <View style={[styles.statusDot, streaming && styles.statusDotLive]} />
       </Pressable>
       {badge && (
-        <View style={[styles.badge, { backgroundColor: badge.color }]}>
+        <Animated.View style={[styles.badge, { backgroundColor: badge.color, transform: [{ scale: badgeScale }] }]}>
           <Text style={styles.badgeText} numberOfLines={1}>{badge.label}</Text>
-        </View>
+        </Animated.View>
       )}
     </Animated.View>
   );

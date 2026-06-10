@@ -1,5 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { Animated, PanResponder, Easing } from 'react-native';
+import { getTabConfig } from '../../constants/animationConfig';
+import { useReduceMotion } from '../../hooks/useReduceMotion';
 
 interface UseTabAnimationOptions {
   activeTab: number;
@@ -11,6 +13,10 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateX = useRef(new Animated.Value(0)).current;
   const isSwitchingTab = useRef(false);
+  const activeAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const reducedMotion = useReduceMotion();
+  const tabConfig = getTabConfig(reducedMotion);
 
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
@@ -34,36 +40,67 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
     }),
   ).current;
 
+  const cancelActiveAnimation = useCallback(() => {
+    if (activeAnimationRef.current) {
+      activeAnimationRef.current.stop();
+      activeAnimationRef.current = null;
+    }
+  }, []);
+
   const switchTab = useCallback(
     (index: number) => {
       if (isSwitchingTab.current || index === activeTabRef.current) return;
       isSwitchingTab.current = true;
+      cancelActiveAnimation();
+
       const direction = index > activeTabRef.current ? 1 : -1;
 
-      Animated.parallel([
-        Animated.timing(contentOpacity, { toValue: 0, duration: 80, useNativeDriver: true }),
-        Animated.timing(contentTranslateX, {
-          toValue: -direction * 40,
-          duration: 80,
+      const fadeOut = Animated.parallel([
+        Animated.timing(contentOpacity, {
+          toValue: 0,
+          duration: tabConfig.fadeOutDuration,
           useNativeDriver: true,
         }),
-      ]).start(() => {
+        Animated.timing(contentTranslateX, {
+          toValue: -direction * 40,
+          duration: tabConfig.fadeOutDuration,
+          useNativeDriver: true,
+        }),
+      ]);
+
+      const anim = fadeOut;
+      activeAnimationRef.current = anim;
+
+      anim.start(({ finished }) => {
+        if (!finished) {
+          isSwitchingTab.current = false;
+          return;
+        }
         onTabChange(index);
         contentTranslateX.setValue(direction * 40);
-        Animated.parallel([
-          Animated.timing(contentOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+
+        const fadeIn = Animated.parallel([
+          Animated.timing(contentOpacity, {
+            toValue: 1,
+            duration: tabConfig.fadeInDuration,
+            useNativeDriver: true,
+          }),
           Animated.timing(contentTranslateX, {
             toValue: 0,
-            duration: 200,
+            duration: tabConfig.slideDuration,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-        ]).start(() => {
+        ]);
+
+        activeAnimationRef.current = fadeIn;
+        fadeIn.start(({ finished: done }) => {
+          if (done) activeAnimationRef.current = null;
           isSwitchingTab.current = false;
         });
       });
     },
-    [contentOpacity, contentTranslateX, onTabChange],
+    [contentOpacity, contentTranslateX, onTabChange, tabConfig, cancelActiveAnimation],
   );
 
   switchTabRef.current = switchTab;
