@@ -54,13 +54,13 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
     if (prevVisible.current && !visible) {
       Animated.sequence([
         Animated.timing(scale, {
-          toValue: 0.85,
-          duration: 100,
+          toValue: 0.7,
+          duration: 120,
           useNativeDriver: true,
         }),
         Animated.timing(scale, {
           toValue: 0,
-          duration: 150,
+          duration: 180,
           useNativeDriver: true,
         }),
       ]).start();
@@ -68,8 +68,8 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       scale.setValue(0);
       Animated.spring(scale, {
         toValue: 1,
-        friction: 5,
-        tension: 60,
+        friction: 4,
+        tension: 80,
         useNativeDriver: true,
       }).start();
     }

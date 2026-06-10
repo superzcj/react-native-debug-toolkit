@@ -62,7 +62,7 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
           useNativeDriver: true,
         }),
         Animated.timing(contentTranslateX, {
-          toValue: -direction * 40,
+          toValue: -direction * 80,
           duration: tabConfig.fadeOutDuration,
           useNativeDriver: true,
         }),
@@ -77,7 +77,7 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
           return;
         }
         onTabChange(index);
-        contentTranslateX.setValue(direction * 40);
+        contentTranslateX.setValue(direction * 80);
 
         const fadeIn = Animated.parallel([
           Animated.timing(contentOpacity, {
