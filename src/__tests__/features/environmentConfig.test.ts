@@ -78,7 +78,7 @@ describe('environment config normalization', () => {
     expect(normalized.defaultId).toBe('prod');
   });
 
-  it('uses persisted managed id only when it exists', () => {
+  it('uses persisted managed id only when it exists and otherwise stays unselected', () => {
     const normalized = normalizeEnvironmentInput({
       defaultId: 'prod',
       items: [
@@ -88,8 +88,8 @@ describe('environment config normalization', () => {
     });
 
     expect(getInitialEnvironmentId(normalized, 'qa')).toBe('qa');
-    expect(getInitialEnvironmentId(normalized, 'deleted')).toBe('prod');
-    expect(getInitialEnvironmentId(normalized, null)).toBe('prod');
+    expect(getInitialEnvironmentId(normalized, 'deleted')).toBeNull();
+    expect(getInitialEnvironmentId(normalized, null)).toBeNull();
   });
 
   it('uses persisted legacy id only when it exists', () => {

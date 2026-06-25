@@ -70,11 +70,45 @@ export function isDefaultEnvironment(state: EnvironmentState, envId: string): bo
   return state.mode === 'managed' && state.defaultEnvironmentId === envId;
 }
 
-function showRestartPrompt() {
+export function getDisplayEnvironment(state: EnvironmentState): EnvironmentListItem | null {
+  const active = state.environments.find((env) => env.id === state.currentEnvironmentId);
+  if (active) return active;
+
+  if (state.mode !== 'managed' || !state.defaultEnvironmentId) {
+    return null;
+  }
+
+  return state.environments.find((env) => env.id === state.defaultEnvironmentId) ?? null;
+}
+
+function showRestartPrompt(action: 'switch' | 'restore') {
   Alert.alert(
-    'Environment changed',
-    'Kill and reopen the app for the new environment to fully take effect.',
-    [{ text: 'Got it' }],
+    action === 'switch' ? 'Environment saved' : 'Environment reset',
+    'Kill the app and reopen it now. Environment changes are not fully applied until the app restarts.',
+    [{ text: 'Kill app now' }],
+    { cancelable: false },
+  );
+}
+
+function confirmEnvironmentSwitch(env: EnvironmentListItem, onConfirm: () => void) {
+  Alert.alert(
+    'Switch environment?',
+    `Save "${env.label}" as the active environment? You must kill and reopen the app after saving.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Save', style: 'destructive', onPress: onConfirm },
+    ],
+  );
+}
+
+function confirmRestoreDefault(onConfirm: () => void) {
+  Alert.alert(
+    'Restore default URLs?',
+    'This removes the saved environment switch and returns requests to the app default URLs. You must kill and reopen the app after saving.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Restore', style: 'destructive', onPress: onConfirm },
+    ],
   );
 }
 
@@ -102,7 +136,13 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
   const { environments, currentEnvironmentId } = state;
   const envFeature = feature as unknown as EnvironmentFeatureAPI;
 
-  const handleSelect = (envId: string) => {
+  const applyManagedEnvironment = (envId: string) => {
+    envFeature.switchEnvironment?.(envId);
+    showRestartPrompt('switch');
+  };
+
+  const handleSelect = (env: EnvironmentListItem) => {
+    const envId = env.id;
     const nextId = state.mode === 'managed'
       ? envId
       : currentEnvironmentId === envId ? null : envId;
@@ -111,21 +151,44 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       return;
     }
 
-    envFeature.switchEnvironment?.(nextId);
     if (state.mode === 'managed') {
-      showRestartPrompt();
+      confirmEnvironmentSwitch(env, () => applyManagedEnvironment(envId));
+      return;
     }
+
+    envFeature.switchEnvironment?.(nextId);
   };
 
-  const activeEnv = environments.find((e) => e.id === currentEnvironmentId);
+  const handleRestoreDefault = () => {
+    if (state.mode !== 'managed' || currentEnvironmentId == null) {
+      return;
+    }
+
+    confirmRestoreDefault(() => {
+      envFeature.clear?.();
+      showRestartPrompt('restore');
+    });
+  };
+
+  const displayEnv = getDisplayEnvironment(state);
+  const hasManagedSelection = state.mode === 'managed' && currentEnvironmentId != null;
+  const showRestartWarning = state.mode === 'managed' && state.restartRequired;
 
   return (
     <View style={styles.container}>
       <View style={styles.headerSection}>
         <Text style={styles.sectionTitle}>Switch Environment</Text>
         <Text style={styles.sectionDesc}>
-          Rewrite API URLs in outgoing requests. Kill and reopen the app after switching.
+          Save a debug environment only when you are ready to restart the app.
         </Text>
+        {showRestartWarning ? (
+          <View style={styles.restartWarning}>
+            <Text style={styles.restartWarningTitle}>Restart required</Text>
+            <Text style={styles.restartWarningText}>
+              Kill and reopen the app after changing or restoring environment settings.
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
@@ -144,7 +207,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
                   index < environments.length - 1 && styles.envItemSeparator,
                   isActive && styles.envItemActive,
                 ]}
-                onPress={() => handleSelect(env.id)}
+                onPress={() => handleSelect(env)}
                 activeOpacity={0.7}
               >
                 <View style={styles.envItemContent}>
@@ -183,16 +246,18 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
         </View>
       </ScrollView>
 
-      {activeEnv ? (
+      {displayEnv ? (
         <View style={styles.footer}>
           <View style={styles.footerInfo}>
             <View style={styles.footerActiveIndicator}>
-              <View style={[styles.footerDot, { backgroundColor: getEnvironmentColor(activeEnv) }]} />
-              <Text style={styles.footerLabel}>Active</Text>
+              <View style={[styles.footerDot, { backgroundColor: getEnvironmentColor(displayEnv) }]} />
+              <Text style={styles.footerLabel}>
+                {currentEnvironmentId ? 'Active' : 'Not switched'}
+              </Text>
             </View>
-            <Text style={styles.footerValue}>{activeEnv.label}</Text>
+            <Text style={styles.footerValue}>{displayEnv.label}</Text>
             <View style={styles.footerUrlList}>
-              {getEnvironmentUrlRows(activeEnv).map((row) => (
+              {getEnvironmentUrlRows(displayEnv).map((row) => (
                 <View key={`footer-${row.label}`} style={styles.footerUrlRow}>
                   <Text style={styles.footerUrlKey} numberOfLines={1}>
                     {row.label}
@@ -204,7 +269,15 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
               ))}
             </View>
           </View>
-          {canResetEnvironment(state) ? (
+          {hasManagedSelection ? (
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={handleRestoreDefault}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resetButtonText}>Restore</Text>
+            </TouchableOpacity>
+          ) : canResetEnvironment(state) ? (
             <TouchableOpacity
               style={styles.resetButton}
               onPress={() => envFeature.switchEnvironment?.(null)}
@@ -270,6 +343,27 @@ const styles = StyleSheet.create({
     fontSize: FontSize.MD,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  restartWarning: {
+    marginTop: Spacing.MD,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.SM,
+    borderRadius: Radius.MD,
+    backgroundColor: Colors.warningDim,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+  },
+  restartWarningTitle: {
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.bold,
+    color: Colors.warning,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.XXS,
+  },
+  restartWarningText: {
+    fontSize: FontSize.SM,
+    color: Colors.textSecondary,
+    lineHeight: 17,
   },
 
   list: {

@@ -61,7 +61,8 @@ export const createEnvironmentFeature = (
   const listeners = new Set<DebugFeatureListener>();
   let config: NormalizedEnvironmentConfig = normalizeEnvironmentInput(initialEnvironments);
   let initialized = false;
-  let activeEnvironmentId: string | null = config.mode === 'managed' ? config.defaultId : null;
+  let activeEnvironmentId: string | null = null;
+  let restartRequired = false;
   let loadToken = 0;
 
   const getCurrentState = (): EnvironmentState => ({
@@ -69,6 +70,7 @@ export const createEnvironmentFeature = (
     currentEnvironmentId: activeEnvironmentId,
     mode: config.mode,
     defaultEnvironmentId: config.defaultId,
+    restartRequired,
   });
 
   const notify = () => {
@@ -173,7 +175,8 @@ export const createEnvironmentFeature = (
     clear: () => {
       ++loadToken;
       if (config.mode === 'managed') {
-        applyEnvironment(config.defaultId, false);
+        restartRequired = activeEnvironmentId != null || restartRequired;
+        applyEnvironment(null, false);
         removePreference(KEYS.environmentId).catch((err) => {
           if (__DEV__) {
             console.warn('[DebugToolkit] Failed to clear environment selection:', err);
@@ -187,7 +190,8 @@ export const createEnvironmentFeature = (
       if (!initialized) return;
       ++loadToken;
       setUrlRewriter(null);
-      activeEnvironmentId = config.mode === 'managed' ? config.defaultId : null;
+      activeEnvironmentId = null;
+      restartRequired = false;
       notify();
       initialized = false;
     },
@@ -204,6 +208,9 @@ export const createEnvironmentFeature = (
     },
     switchEnvironment: (envId: string | null) => {
       ++loadToken;
+      if (config.mode === 'managed' && envId !== activeEnvironmentId) {
+        restartRequired = true;
+      }
       applyEnvironment(envId, true);
     },
     getCurrentEnvironmentId: () => activeEnvironmentId,

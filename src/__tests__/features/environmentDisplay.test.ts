@@ -1,4 +1,5 @@
 import {
+  getDisplayEnvironment,
   getEnvironmentUrlRows,
   isDefaultEnvironment,
 } from '../../features/environment/EnvironmentTab';
@@ -39,15 +40,66 @@ describe('environment display helpers', () => {
     ]);
   });
 
-  it('marks managed default environment even before user switches', () => {
+  it('marks managed default environment without selecting it', () => {
     const state: EnvironmentState = {
       mode: 'managed',
       defaultEnvironmentId: 'prod',
-      currentEnvironmentId: 'prod',
+      currentEnvironmentId: null,
+      restartRequired: false,
       environments: [],
     };
 
     expect(isDefaultEnvironment(state, 'prod')).toBe(true);
     expect(isDefaultEnvironment(state, 'qa')).toBe(false);
+  });
+
+  it('uses default environment for display when managed state has no selection', () => {
+    const state: EnvironmentState = {
+      mode: 'managed',
+      defaultEnvironmentId: 'prod',
+      currentEnvironmentId: null,
+      restartRequired: false,
+      environments: [
+        {
+          mode: 'managed',
+          id: 'prod',
+          label: 'Production',
+          urls: { app: 'https://api.example.com' },
+        },
+        {
+          mode: 'managed',
+          id: 'qa',
+          label: 'QA',
+          urls: { app: 'https://qa-api.example.com' },
+        },
+      ],
+    };
+
+    expect(getDisplayEnvironment(state)?.id).toBe('prod');
+  });
+
+  it('uses active environment for display when managed state is selected', () => {
+    const state: EnvironmentState = {
+      mode: 'managed',
+      defaultEnvironmentId: 'prod',
+      currentEnvironmentId: 'qa',
+      restartRequired: true,
+      environments: [
+        {
+          mode: 'managed',
+          id: 'prod',
+          label: 'Production',
+          urls: { app: 'https://api.example.com' },
+        },
+        {
+          mode: 'managed',
+          id: 'qa',
+          label: 'QA',
+          urls: { app: 'https://qa-api.example.com' },
+        },
+      ],
+    };
+
+    expect(getDisplayEnvironment(state)?.id).toBe('qa');
   });
 });

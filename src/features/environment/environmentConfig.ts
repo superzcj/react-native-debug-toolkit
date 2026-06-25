@@ -86,10 +86,6 @@ export function getInitialEnvironmentId(
     return persistedId;
   }
 
-  if (config.mode === 'managed') {
-    return config.defaultId;
-  }
-
   return null;
 }
 

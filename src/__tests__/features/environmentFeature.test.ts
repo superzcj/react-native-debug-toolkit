@@ -21,7 +21,7 @@ describe('Environment feature', () => {
     setUrlRewriter(null);
   });
 
-  it('managed config starts from default environment and calls onChange', async () => {
+  it('managed config starts unselected without a persisted choice', async () => {
     const onChange = jest.fn();
     const feature = createEnvironmentFeature({
       defaultId: 'prod',
@@ -36,17 +36,13 @@ describe('Environment feature', () => {
     await flushAsync();
 
     expect(feature.getSnapshot()).toMatchObject({
-      currentEnvironmentId: 'prod',
+      currentEnvironmentId: null,
       mode: 'managed',
       defaultEnvironmentId: 'prod',
+      restartRequired: false,
     });
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith({
-      id: 'prod',
-      label: 'Production',
-      color: undefined,
-      urls: { app: 'https://api.example.com' },
-    });
+    expect(getUrlRewriter()).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('managed config restores persisted id and installs prefix rewriter', async () => {
@@ -77,6 +73,7 @@ describe('Environment feature', () => {
     await flushAsync();
 
     expect(feature.getCurrentEnvironmentId()).toBe('qa');
+    expect(feature.getSnapshot()).toMatchObject({ restartRequired: false });
     expect(getUrlRewriter()?.('https://api.example.com/shop/products')).toBe(
       'https://qa-api.example.com/shop/products',
     );
@@ -100,6 +97,7 @@ describe('Environment feature', () => {
     await flushAsync();
 
     expect(feature.getCurrentEnvironmentId()).toBe('qa');
+    expect(feature.getSnapshot()).toMatchObject({ restartRequired: true });
     expect(onChange).toHaveBeenCalledWith({
       id: 'qa',
       label: 'QA',
@@ -108,7 +106,7 @@ describe('Environment feature', () => {
     });
   });
 
-  it('managed clear returns to default environment', async () => {
+  it('managed clear removes the active environment', async () => {
     const feature = createEnvironmentFeature({
       defaultId: 'prod',
       items: [
@@ -124,7 +122,8 @@ describe('Environment feature', () => {
     feature.clear?.();
     await flushAsync();
 
-    expect(feature.getCurrentEnvironmentId()).toBe('prod');
+    expect(feature.getCurrentEnvironmentId()).toBeNull();
+    expect(feature.getSnapshot()).toMatchObject({ restartRequired: true });
     expect(getUrlRewriter()).toBeNull();
   });
 
@@ -169,7 +168,7 @@ describe('Environment feature', () => {
     expect(feature.getCurrentEnvironmentId()).toBe('prod');
   });
 
-  it('managed clear forgets the persisted choice instead of pinning the default', async () => {
+  it('managed clear forgets the persisted choice and returns to no selection', async () => {
     await setPreference(KEYS.environmentId, 'qa');
     const feature = createEnvironmentFeature({
       defaultId: 'prod',
@@ -186,7 +185,7 @@ describe('Environment feature', () => {
     feature.clear?.();
     await flushAsync();
 
-    expect(feature.getCurrentEnvironmentId()).toBe('prod');
+    expect(feature.getCurrentEnvironmentId()).toBeNull();
     expect(await getPreference(KEYS.environmentId)).toBeNull();
   });
 });

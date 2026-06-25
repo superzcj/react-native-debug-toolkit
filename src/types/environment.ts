@@ -33,4 +33,5 @@ export interface EnvironmentState {
   currentEnvironmentId: string | null;
   mode: EnvironmentMode;
   defaultEnvironmentId: string | null;
+  restartRequired: boolean;
 }
