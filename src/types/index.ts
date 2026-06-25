@@ -19,7 +19,12 @@ export type {
 } from './logs';
 
 export type {
+  DebugEnvironment,
+  DebugEnvironmentConfig,
+  DebugEnvironmentInput,
   EnvironmentConfig,
+  EnvironmentListItem,
+  EnvironmentMode,
   EnvironmentState,
 } from './environment';
 

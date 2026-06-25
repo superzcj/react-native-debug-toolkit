@@ -79,6 +79,9 @@ export type {
   TrackLogEntry,
   EnvironmentConfig,
   EnvironmentState,
+  DebugEnvironment,
+  DebugEnvironmentConfig,
+  DebugEnvironmentInput,
 } from './types';
 
 // Default export for convenience

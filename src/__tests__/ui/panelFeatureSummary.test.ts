@@ -110,6 +110,23 @@ describe('buildFeatureSummary', () => {
     expect(s.supportsBadFilter).toBe(false);
   });
 
+  it('environment: handles managed (object-form) snapshots', () => {
+    const f = mockFeature('environment');
+    const snap = {
+      environments: [
+        { id: 'dev', label: 'Development', mode: 'managed', urls: { api: 'dev.api' } },
+        { id: 'qa', label: 'QA', mode: 'managed', urls: { api: 'qa.api' } },
+      ],
+      currentEnvironmentId: 'qa',
+      mode: 'managed',
+      defaultEnvironmentId: 'dev',
+    };
+    const s = buildFeatureSummary(f, snap);
+    expect(s.count).toBe(2);
+    expect(s.latestLabel).toBe('QA');
+    expect(s.statusLabel).toBe('QA');
+  });
+
   it('devConnect: streaming state', () => {
     const f = mockFeature('devConnect');
     const snap = { streaming: true, computerHost: '192.168.1.5', daemonPort: '3000' };

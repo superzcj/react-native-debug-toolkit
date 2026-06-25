@@ -1,38 +1,22 @@
 import { EnvironmentTab } from './EnvironmentTab';
+import {
+  findManagedEnvironment,
+  getInitialEnvironmentId,
+  normalizeEnvironmentInput,
+  type NormalizedEnvironmentConfig,
+} from './environmentConfig';
+import { buildManagedUrlRewriter } from './urlPrefixRewrite';
 import type {
+  DebugEnvironmentInput,
   DebugFeature,
   DebugFeatureListener,
   EnvironmentConfig,
   EnvironmentState,
 } from '../../types';
+import { KEYS, getPreference, setPreference, removePreference } from '../../utils/debugPreferences';
 import { setUrlRewriter } from '../../utils/urlRewriter';
 
-// Lazy AsyncStorage loader
-type AsyncStorageModule = {
-  getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<void>;
-};
-
-let asyncStorageModule: AsyncStorageModule | null = null;
-let asyncStorageChecked = false;
-
-function getAsyncStorage(): AsyncStorageModule | null {
-  if (asyncStorageChecked) {
-    return asyncStorageModule;
-  }
-  asyncStorageChecked = true;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    asyncStorageModule = require('@react-native-async-storage/async-storage').default;
-  } catch {
-    asyncStorageModule = null;
-  }
-  return asyncStorageModule;
-}
-
-const STORAGE_KEY = 'debug_toolkit_env_id';
-
-function buildHostsMap(
+function buildLegacyHostsMap(
   environments: EnvironmentConfig[],
   targetId: string | null,
 ): Map<string, string> | null {
@@ -49,42 +33,42 @@ function buildHostsMap(
   return map;
 }
 
+function createLegacyUrlRewriter(hostsMap: Map<string, string> | null): ((url: string) => string) | null {
+  if (!hostsMap) return null;
+  return (url: string): string => {
+    try {
+      const parsed = new URL(url);
+      const targetHost = hostsMap.get(parsed.host);
+      if (targetHost) {
+        return url.replace(parsed.host, targetHost);
+      }
+    } catch {
+      return url;
+    }
+    return url;
+  };
+}
+
 export interface EnvironmentFeatureAPI extends DebugFeature<EnvironmentState> {
-  registerEnvironments: (environments: EnvironmentConfig[]) => void;
+  registerEnvironments: (environments: DebugEnvironmentInput) => void;
   switchEnvironment: (environmentId: string | null) => void;
   getCurrentEnvironmentId: () => string | null;
 }
 
 export const createEnvironmentFeature = (
-  initialEnvironments?: EnvironmentConfig[],
+  initialEnvironments?: DebugEnvironmentInput,
 ): EnvironmentFeatureAPI => {
   const listeners = new Set<DebugFeatureListener>();
-  let environments: EnvironmentConfig[] = initialEnvironments ?? [];
+  let config: NormalizedEnvironmentConfig = normalizeEnvironmentInput(initialEnvironments);
   let initialized = false;
-  let currentHostsMap: Map<string, string> | null = null;
-  let activeEnvironmentId: string | null = null;
-
-  const createUrlRewriter = (): ((url: string) => string) => {
-    return (url: string): string => {
-      if (!currentHostsMap) return url;
-
-      try {
-        const parsed = new URL(url);
-        const targetHost = currentHostsMap.get(parsed.host);
-        if (targetHost) {
-          return url.replace(parsed.host, targetHost);
-        }
-      } catch {
-        // Not a valid URL or relative URL — return unchanged
-      }
-
-      return url;
-    };
-  };
+  let activeEnvironmentId: string | null = config.mode === 'managed' ? config.defaultId : null;
+  let loadToken = 0;
 
   const getCurrentState = (): EnvironmentState => ({
-    environments,
+    environments: config.items,
     currentEnvironmentId: activeEnvironmentId,
+    mode: config.mode,
+    defaultEnvironmentId: config.defaultId,
   });
 
   const notify = () => {
@@ -93,45 +77,85 @@ export const createEnvironmentFeature = (
     });
   };
 
-  const applyEnvironment = (envId: string | null) => {
-    activeEnvironmentId = envId;
-    currentHostsMap = buildHostsMap(environments, envId);
+  const getLegacyItems = (): EnvironmentConfig[] =>
+    config.items
+      .filter((item): item is EnvironmentConfig & { mode: 'legacy' } => item.mode === 'legacy')
+      .map(({ mode, ...item }) => item);
 
-    if (initialized) {
-      try {
-        if (envId && environments.length > 0) {
-          setUrlRewriter(createUrlRewriter());
-        } else {
-          setUrlRewriter(null);
-        }
-      } catch (err) {
-        if (__DEV__) console.warn('[DebugToolkit] Failed to set URL rewriter:', err);
-      }
+  const installRewriter = () => {
+    if (!initialized) return;
+
+    if (config.mode === 'managed') {
+      const defaultEnv = findManagedEnvironment(config, config.defaultId);
+      const activeEnv = findManagedEnvironment(config, activeEnvironmentId);
+      setUrlRewriter(buildManagedUrlRewriter(defaultEnv, activeEnv));
+      return;
     }
 
-    notify();
+    setUrlRewriter(
+      createLegacyUrlRewriter(buildLegacyHostsMap(getLegacyItems(), activeEnvironmentId)),
+    );
+  };
+
+  const callManagedChange = () => {
+    if (config.mode !== 'managed' || !config.onChange) {
+      return;
+    }
+
+    const env = findManagedEnvironment(config, activeEnvironmentId);
+    if (!env) {
+      return;
+    }
+
+    Promise.resolve(config.onChange(env)).catch((err) => {
+      if (__DEV__) {
+        console.warn('[DebugToolkit] Environment onChange failed:', err);
+      }
+    });
   };
 
   const persistSelection = async (envId: string | null) => {
-    const storage = getAsyncStorage();
-    if (!storage) return;
-    try {
-      await storage.setItem(STORAGE_KEY, envId ?? '');
-    } catch (err) {
-      if (__DEV__) console.warn('[DebugToolkit] Failed to persist environment selection:', err);
+    if (envId) {
+      await setPreference(KEYS.environmentId, envId);
+    } else {
+      await removePreference(KEYS.environmentId);
+    }
+  };
+
+  const applyEnvironment = (envId: string | null, persist: boolean) => {
+    const nextId =
+      config.mode === 'managed'
+        ? getInitialEnvironmentId(config, envId)
+        : envId && config.items.some((item) => item.id === envId)
+          ? envId
+          : null;
+
+    activeEnvironmentId = nextId;
+    installRewriter();
+    notify();
+    callManagedChange();
+
+    if (persist) {
+      persistSelection(activeEnvironmentId).catch((err) => {
+        if (__DEV__) {
+          console.warn('[DebugToolkit] Failed to persist environment selection:', err);
+        }
+      });
     }
   };
 
   const loadPersistedSelection = async () => {
-    const storage = getAsyncStorage();
-    if (!storage) return;
+    const token = ++loadToken;
     try {
-      const stored = await storage.getItem(STORAGE_KEY);
-      if (stored && stored !== '' && environments.some((e) => e.id === stored)) {
-        applyEnvironment(stored);
-      }
+      const stored = await getPreference(KEYS.environmentId);
+      if (token !== loadToken) return;
+      applyEnvironment(getInitialEnvironmentId(config, stored), false);
     } catch (err) {
-      if (__DEV__) console.warn('[DebugToolkit] Failed to load persisted environment:', err);
+      if (token !== loadToken) return;
+      if (__DEV__) {
+        console.warn('[DebugToolkit] Failed to load persisted environment:', err);
+      }
+      applyEnvironment(getInitialEnvironmentId(config, null), false);
     }
   };
 
@@ -142,27 +166,28 @@ export const createEnvironmentFeature = (
     setup: () => {
       if (initialized) return;
 
-      notify();
       initialized = true;
-
-      // Install rewriter if an environment is already selected
-      if (activeEnvironmentId && environments.length > 0) {
-        setUrlRewriter(createUrlRewriter());
-      }
-
-      // Async persistence load (will override if a preference exists)
       loadPersistedSelection();
     },
     getSnapshot: getCurrentState,
     clear: () => {
-      applyEnvironment(null);
-      persistSelection(null);
+      ++loadToken;
+      if (config.mode === 'managed') {
+        applyEnvironment(config.defaultId, false);
+        removePreference(KEYS.environmentId).catch((err) => {
+          if (__DEV__) {
+            console.warn('[DebugToolkit] Failed to clear environment selection:', err);
+          }
+        });
+      } else {
+        applyEnvironment(null, true);
+      }
     },
     cleanup: () => {
       if (!initialized) return;
+      ++loadToken;
       setUrlRewriter(null);
-      activeEnvironmentId = null;
-      currentHostsMap = null;
+      activeEnvironmentId = config.mode === 'managed' ? config.defaultId : null;
       notify();
       initialized = false;
     },
@@ -172,18 +197,19 @@ export const createEnvironmentFeature = (
         listeners.delete(listener);
       };
     },
-    registerEnvironments: (envs: EnvironmentConfig[]) => {
-      environments = envs;
-      applyEnvironment(activeEnvironmentId);
+    registerEnvironments: (envs: DebugEnvironmentInput) => {
+      ++loadToken;
+      config = normalizeEnvironmentInput(envs);
+      applyEnvironment(getInitialEnvironmentId(config, activeEnvironmentId), true);
     },
     switchEnvironment: (envId: string | null) => {
-      applyEnvironment(envId);
-      persistSelection(envId);
+      ++loadToken;
+      applyEnvironment(envId, true);
     },
     getCurrentEnvironmentId: () => activeEnvironmentId,
     badge: () => {
       if (!activeEnvironmentId) return null;
-      const env = environments.find((e) => e.id === activeEnvironmentId);
+      const env = config.items.find((e) => e.id === activeEnvironmentId);
       if (!env) return null;
       return {
         label: env.label.substring(0, 3).toUpperCase(),

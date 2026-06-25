@@ -20,6 +20,22 @@ const DEFAULT_COLORS: Record<string, string> = {
   prod: '#EF4444',
 };
 
+function getEnvironmentColor(env: { id: string; color?: string }) {
+  return env.color || DEFAULT_COLORS[env.id.toLowerCase()] || Colors.primary;
+}
+
+function getEnvironmentSubtitle(env: { host?: string; urls?: Record<string, string> }) {
+  if (env.urls) {
+    const keys = Object.keys(env.urls);
+    return keys.length > 0 ? keys.join(', ') : 'No URLs configured';
+  }
+  return env.host ?? '';
+}
+
+function canResetEnvironment(state: EnvironmentState) {
+  return state.mode === 'legacy';
+}
+
 export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>> = React.memo(({
   snapshot,
   feature,
@@ -64,7 +80,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
         <View style={styles.groupedCard}>
           {environments.map((env, index) => {
             const isActive = currentEnvironmentId === env.id;
-            const color = env.color || DEFAULT_COLORS[env.id.toLowerCase()] || Colors.primary;
+            const color = getEnvironmentColor(env);
 
             return (
               <TouchableOpacity
@@ -82,7 +98,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
                   <View style={styles.envInfo}>
                     <Text style={styles.envLabel}>{env.label}</Text>
                     <Text style={styles.envHost} numberOfLines={1}>
-                      {env.host}
+                      {getEnvironmentSubtitle(env)}
                     </Text>
                   </View>
                   {isActive && (
@@ -99,18 +115,20 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
         <View style={styles.footer}>
           <View style={styles.footerInfo}>
             <View style={styles.footerActiveIndicator}>
-              <View style={[styles.footerDot, { backgroundColor: activeEnv.color || DEFAULT_COLORS[activeEnv.id.toLowerCase()] || Colors.primary }]} />
+              <View style={[styles.footerDot, { backgroundColor: getEnvironmentColor(activeEnv) }]} />
               <Text style={styles.footerLabel}>Active</Text>
             </View>
             <Text style={styles.footerValue}>{activeEnv.label}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={() => envFeature.switchEnvironment?.(null)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.resetButtonText}>Reset</Text>
-          </TouchableOpacity>
+          {canResetEnvironment(state) ? (
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={() => envFeature.switchEnvironment?.(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>

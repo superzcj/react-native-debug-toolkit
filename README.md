@@ -177,6 +177,54 @@ Native logs may contain user data, tokens, URLs, or device state. Do not enable 
 
 ## App Options
 
+### Environment switching
+
+Use object-form `environments` when an app needs in-app runtime environment switching.
+
+```tsx
+import { DebugView, type DebugEnvironment } from 'react-native-debug-toolkit';
+
+async function applyEnvironment(env: DebugEnvironment) {
+  configureApiClients(env.urls);
+  queryClient.clear();
+  await authStorage.clearTokens();
+  signOut();
+}
+
+<DebugView
+  environments={{
+    defaultId: 'prod',
+    items: [
+      {
+        id: 'prod',
+        label: 'Production',
+        urls: {
+          auth: 'https://api.auth.example.com',
+          app: 'https://api.app.example.com',
+          shop: 'https://api.app.example.com/shop',
+        },
+      },
+      {
+        id: 'qa',
+        label: 'QA',
+        urls: {
+          auth: 'https://qa-auth.example.com',
+          app: 'https://qa-app.example.com',
+          shop: 'https://qa-app.example.com/shop',
+        },
+      },
+    ],
+    onChange: applyEnvironment,
+  }}
+>
+  <AppContent />
+</DebugView>
+```
+
+The toolkit persists the selected environment, shows it in the `Environment` tab and launcher badge, and rewrites outgoing network URLs from the default environment URL prefixes to the selected environment URL prefixes.
+
+Host apps with cached API clients, query caches, auth tokens, or router state should reset those resources in `onChange`. Treat environment switching as a session boundary.
+
 ### Disable features
 
 ```tsx

@@ -121,4 +121,5 @@ export const KEYS = {
   lastTab: '@react_native_debug_toolkit/last_tab',
   computerHost: '@react_native_debug_toolkit/computer_host',
   daemonPort: '@react_native_debug_toolkit/daemon_port',
+  environmentId: '@react_native_debug_toolkit/environment_id',
 } as const;

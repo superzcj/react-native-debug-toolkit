@@ -177,6 +177,54 @@ Release 包默认关闭。内部 release、TestFlight、QA 或灰度构建需要
 
 ## App 配置
 
+### 环境切换
+
+App 需要运行时切换环境时，使用对象形式的 `environments`。
+
+```tsx
+import { DebugView, type DebugEnvironment } from 'react-native-debug-toolkit';
+
+async function applyEnvironment(env: DebugEnvironment) {
+  configureApiClients(env.urls);
+  queryClient.clear();
+  await authStorage.clearTokens();
+  signOut();
+}
+
+<DebugView
+  environments={{
+    defaultId: 'prod',
+    items: [
+      {
+        id: 'prod',
+        label: '生产',
+        urls: {
+          auth: 'https://api.auth.example.com',
+          app: 'https://api.app.example.com',
+          shop: 'https://api.app.example.com/shop',
+        },
+      },
+      {
+        id: 'qa',
+        label: '测试',
+        urls: {
+          auth: 'https://qa-auth.example.com',
+          app: 'https://qa-app.example.com',
+          shop: 'https://qa-app.example.com/shop',
+        },
+      },
+    ],
+    onChange: applyEnvironment,
+  }}
+>
+  <AppContent />
+</DebugView>
+```
+
+Toolkit 会持久化当前环境，在 `Environment` Tab 和悬浮按钮 badge 中显示，并把默认环境 URL 前缀自动 rewrite 到当前环境 URL 前缀。
+
+如果宿主 App 有缓存的 API client、query cache、auth token 或路由状态，需要在 `onChange` 里自行重置。环境切换应当视为一次会话边界。
+
 ### 禁用功能
 
 ```tsx

@@ -41,4 +41,4 @@ export const Radius = {
 } as const;
 
 // Rail
-export const RAIL_WIDTH = 82;
+export const RAIL_WIDTH = 72;

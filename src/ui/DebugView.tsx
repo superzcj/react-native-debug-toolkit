@@ -3,7 +3,7 @@ import { DebugToolkitProvider } from '../core/DebugToolkitProvider';
 import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
 import { useNavigationLogger } from '../features/navigation/useNavigationLogger';
-import type { AnyDebugFeature, EnvironmentConfig, NavigationContainerRef } from '../types';
+import type { AnyDebugFeature, DebugEnvironmentInput, NavigationContainerRef } from '../types';
 
 // --- Types ---
 
@@ -19,7 +19,7 @@ export interface DebugViewProps {
   /** Navigation container ref for route tracking. */
   navigationRef?: React.RefObject<NavigationContainerRef | null>;
   /** Environment configs for runtime host switching. */
-  environments?: EnvironmentConfig[];
+  environments?: DebugEnvironmentInput;
   /** Force enable/disable (default: `__DEV__`). */
   enabled?: boolean;
 }

@@ -184,4 +184,27 @@ describe('initializeDebugToolkit', () => {
 
     expect(DebugToolkit.features.map((feature) => feature.name)).toEqual(['track']);
   });
+
+  it('accepts object-form environment config', async () => {
+    await initializeDebugToolkit({
+      enabled: true,
+      features: {
+        environment: {
+          defaultId: 'prod',
+          items: [
+            { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
+            { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
+          ],
+        },
+      },
+    });
+
+    const environmentFeature = DebugToolkit.features.find((feature) => feature.name === 'environment');
+
+    expect(environmentFeature).toBeDefined();
+    expect(environmentFeature?.getSnapshot()).toMatchObject({
+      mode: 'managed',
+      defaultEnvironmentId: 'prod',
+    });
+  });
 });
