@@ -51,6 +51,19 @@ export interface InitializeOptions {
 type EnvironmentFeatureConfig = Parameters<typeof createEnvironmentFeature>[0];
 type BuiltInFeatureCreator = (config?: unknown, runtime?: LogRuntimeContext) => AnyDebugFeature;
 
+const BUILT_IN_FEATURE_ORDER: BuiltInFeatureName[] = [
+  'network',
+  'environment',
+  'console',
+  'native',
+  'zustand',
+  'navigation',
+  'track',
+  'clipboard',
+  'devConnect',
+  'sessionHistory',
+];
+
 /** Registry mapping feature names to creator functions */
 const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   network: (config, runtime) => createNetworkFeature(config as NetworkFeatureConfig | undefined, runtime),
@@ -65,23 +78,21 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
 };
 
-const DEFAULT_FEATURES: BuiltInFeatureName[] = [
-  'network',
-  'console',
-  'native',
-  'navigation',
-  'zustand',
-  'track',
-  'clipboard',
-  'devConnect',
-  'sessionHistory',
-];
+const DEFAULT_FEATURES: BuiltInFeatureName[] = BUILT_IN_FEATURE_ORDER.filter(
+  (name) => name !== 'environment',
+);
 
 function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeContext): AnyDebugFeature[] {
   const features: AnyDebugFeature[] = [];
-  const entries = Object.entries(configs) as [BuiltInFeatureName, unknown][];
+  const seen = new Set<string>();
 
-  for (const [name, config] of entries) {
+  for (const name of BUILT_IN_FEATURE_ORDER) {
+    if (!Object.prototype.hasOwnProperty.call(configs, name)) {
+      continue;
+    }
+
+    seen.add(name);
+    const config = configs[name];
     if (config === false) {
       continue;
     }
@@ -97,6 +108,13 @@ function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeConte
     } else if (typeof config === 'object') {
       features.push(creator(config as Record<string, unknown>, runtime));
     }
+  }
+
+  for (const name of Object.keys(configs)) {
+    if (seen.has(name)) {
+      continue;
+    }
+    console.warn(`[DebugToolkit] Unknown feature: "${name}"`);
   }
 
   return features;

@@ -207,4 +207,28 @@ describe('initializeDebugToolkit', () => {
       defaultEnvironmentId: 'prod',
     });
   });
+
+  it('orders environment second when configured', async () => {
+    await initializeDebugToolkit({
+      enabled: true,
+      features: {
+        console: true,
+        native: true,
+        environment: {
+          defaultId: 'prod',
+          items: [
+            { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
+          ],
+        },
+        network: true,
+      },
+    });
+
+    expect(DebugToolkit.features.map((feature) => feature.name)).toEqual([
+      'network',
+      'environment',
+      'console',
+      'native',
+    ]);
+  });
 });

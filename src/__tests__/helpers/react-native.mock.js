@@ -8,6 +8,9 @@ module.exports = {
   AppState: {
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
   },
+  Alert: {
+    alert: jest.fn(),
+  },
   Dimensions: {
     get: () => ({ width: 390, height: 844 }),
   },

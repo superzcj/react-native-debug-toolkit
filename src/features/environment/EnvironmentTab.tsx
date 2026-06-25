@@ -5,10 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
-import type { DebugFeatureRenderProps, EnvironmentState } from '../../types';
+import type { DebugFeatureRenderProps, EnvironmentListItem, EnvironmentState } from '../../types';
 import type { EnvironmentFeatureAPI } from './index';
 
 const DEFAULT_COLORS: Record<string, string> = {
@@ -20,20 +21,61 @@ const DEFAULT_COLORS: Record<string, string> = {
   prod: '#EF4444',
 };
 
+const URL_LABELS: Record<string, string> = {
+  app: 'App',
+  auth: 'Auth',
+  crmeb: 'Crmeb',
+  h5: 'H5',
+  iot: 'IoT',
+  shop: 'Shop',
+};
+
+export interface EnvironmentUrlRow {
+  label: string;
+  value: string;
+}
+
 function getEnvironmentColor(env: { id: string; color?: string }) {
   return env.color || DEFAULT_COLORS[env.id.toLowerCase()] || Colors.primary;
 }
 
-function getEnvironmentSubtitle(env: { host?: string; urls?: Record<string, string> }) {
-  if (env.urls) {
-    const keys = Object.keys(env.urls);
-    return keys.length > 0 ? keys.join(', ') : 'No URLs configured';
+function formatUrlLabel(key: string): string {
+  const mapped = URL_LABELS[key.toLowerCase()];
+  if (mapped) return mapped;
+
+  return key
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function getEnvironmentUrlRows(env: EnvironmentListItem): EnvironmentUrlRow[] {
+  if (env.mode === 'managed') {
+    const rows = Object.entries(env.urls).map(([key, value]) => ({
+      label: formatUrlLabel(key),
+      value,
+    }));
+    return rows.length > 0 ? rows : [{ label: 'URLs', value: 'No URLs configured' }];
   }
-  return env.host ?? '';
+
+  return [{ label: 'Host', value: env.host }];
 }
 
 function canResetEnvironment(state: EnvironmentState) {
   return state.mode === 'legacy';
+}
+
+export function isDefaultEnvironment(state: EnvironmentState, envId: string): boolean {
+  return state.mode === 'managed' && state.defaultEnvironmentId === envId;
+}
+
+function showRestartPrompt() {
+  Alert.alert(
+    'Environment changed',
+    'Kill and reopen the app for the new environment to fully take effect.',
+    [{ text: 'Got it' }],
+  );
 }
 
 export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>> = React.memo(({
@@ -61,8 +103,18 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
   const envFeature = feature as unknown as EnvironmentFeatureAPI;
 
   const handleSelect = (envId: string) => {
-    const nextId = currentEnvironmentId === envId ? null : envId;
+    const nextId = state.mode === 'managed'
+      ? envId
+      : currentEnvironmentId === envId ? null : envId;
+
+    if (nextId === currentEnvironmentId) {
+      return;
+    }
+
     envFeature.switchEnvironment?.(nextId);
+    if (state.mode === 'managed') {
+      showRestartPrompt();
+    }
   };
 
   const activeEnv = environments.find((e) => e.id === currentEnvironmentId);
@@ -72,7 +124,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       <View style={styles.headerSection}>
         <Text style={styles.sectionTitle}>Switch Environment</Text>
         <Text style={styles.sectionDesc}>
-          Rewrite API host in outgoing requests. Only registered hosts are affected.
+          Rewrite API URLs in outgoing requests. Kill and reopen the app after switching.
         </Text>
       </View>
 
@@ -81,29 +133,49 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
           {environments.map((env, index) => {
             const isActive = currentEnvironmentId === env.id;
             const color = getEnvironmentColor(env);
+            const urlRows = getEnvironmentUrlRows(env);
+            const isDefault = isDefaultEnvironment(state, env.id);
 
             return (
               <TouchableOpacity
                 key={env.id}
                 style={[
                   styles.envItem,
-                  isActive && styles.envItemActive,
                   index < environments.length - 1 && styles.envItemSeparator,
+                  isActive && styles.envItemActive,
                 ]}
                 onPress={() => handleSelect(env.id)}
-                activeOpacity={0.5}
+                activeOpacity={0.7}
               >
-                <View style={styles.envRow}>
-                  <View style={[styles.colorDot, { backgroundColor: color }]} />
-                  <View style={styles.envInfo}>
-                    <Text style={styles.envLabel}>{env.label}</Text>
-                    <Text style={styles.envHost} numberOfLines={1}>
-                      {getEnvironmentSubtitle(env)}
+                <View style={styles.envItemContent}>
+                  <View style={styles.envHeaderRow}>
+                    <View style={[styles.colorDot, { backgroundColor: color }]} />
+                    <Text style={styles.envLabel} numberOfLines={1}>
+                      {env.label}
                     </Text>
+                    {isDefault ? (
+                      <View style={styles.defaultPill}>
+                        <Text style={styles.defaultPillText}>Default</Text>
+                      </View>
+                    ) : null}
+                    {isActive ? (
+                      <View style={styles.activePill}>
+                        <Text style={styles.activePillText}>Active</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  {isActive && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
+                  <View style={styles.urlList}>
+                    {urlRows.map((row) => (
+                      <View key={`${env.id}-${row.label}`} style={styles.urlRow}>
+                        <Text style={styles.urlKey} numberOfLines={1}>
+                          {row.label}
+                        </Text>
+                        <Text style={styles.urlValue} numberOfLines={1} ellipsizeMode="middle">
+                          {row.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -119,6 +191,18 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
               <Text style={styles.footerLabel}>Active</Text>
             </View>
             <Text style={styles.footerValue}>{activeEnv.label}</Text>
+            <View style={styles.footerUrlList}>
+              {getEnvironmentUrlRows(activeEnv).map((row) => (
+                <View key={`footer-${row.label}`} style={styles.footerUrlRow}>
+                  <Text style={styles.footerUrlKey} numberOfLines={1}>
+                    {row.label}
+                  </Text>
+                  <Text style={styles.footerUrlValue} numberOfLines={1} ellipsizeMode="middle">
+                    {row.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
           {canResetEnvironment(state) ? (
             <TouchableOpacity
@@ -197,11 +281,13 @@ const styles = StyleSheet.create({
   },
   groupedCard: {
     backgroundColor: Colors.surface,
-    borderRadius: Radius.LG,
+    borderRadius: Radius.MD,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   envItem: {
-    paddingHorizontal: Spacing.LG,
+    paddingHorizontal: Spacing.MD,
     paddingVertical: Spacing.MD,
   },
   envItemActive: {
@@ -210,36 +296,73 @@ const styles = StyleSheet.create({
   envItemSeparator: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginLeft: 44,
   },
-  envRow: {
+  envItemContent: {
+    gap: Spacing.SM,
+  },
+  envHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 24,
   },
   colorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginRight: Spacing.MD,
-  },
-  envInfo: {
-    flex: 1,
+    marginRight: Spacing.SM,
   },
   envLabel: {
+    flex: 1,
     fontSize: FontSize.LG,
     fontWeight: FontWeight.medium,
     color: Colors.text,
   },
-  envHost: {
+  defaultPill: {
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: 3,
+    borderRadius: Radius.Pill,
+    backgroundColor: Colors.surfaceElevated,
+    marginLeft: Spacing.SM,
+  },
+  defaultPillText: {
+    fontSize: FontSize.XXS,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  activePill: {
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: 3,
+    borderRadius: Radius.Pill,
+    backgroundColor: Colors.primary,
+    marginLeft: Spacing.SM,
+  },
+  activePillText: {
+    fontSize: FontSize.XXS,
+    fontWeight: FontWeight.bold,
+    color: Colors.textInverse,
+    textTransform: 'uppercase',
+  },
+  urlList: {
+    gap: Spacing.XS,
+    paddingLeft: 18,
+  },
+  urlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 18,
+  },
+  urlKey: {
+    width: 48,
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textMuted,
+  },
+  urlValue: {
+    flex: 1,
+    minWidth: 0,
     fontSize: FontSize.SM,
     color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  checkmark: {
-    fontSize: FontSize.LG,
-    fontWeight: FontWeight.semibold,
-    color: Colors.primary,
-    marginLeft: Spacing.SM,
   },
 
   footer: {
@@ -276,6 +399,26 @@ const styles = StyleSheet.create({
     fontSize: FontSize.LG,
     fontWeight: FontWeight.semibold,
     color: Colors.text,
+  },
+  footerUrlList: {
+    marginTop: Spacing.SM,
+    gap: Spacing.XS,
+  },
+  footerUrlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerUrlKey: {
+    width: 48,
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textMuted,
+  },
+  footerUrlValue: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: FontSize.SM,
+    color: Colors.textSecondary,
   },
   resetButton: {
     backgroundColor: Colors.errorDim,
