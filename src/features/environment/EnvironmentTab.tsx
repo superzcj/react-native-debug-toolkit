@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  Modal,
 } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
@@ -66,14 +67,25 @@ function canResetEnvironment(state: EnvironmentState) {
   return state.mode === 'legacy';
 }
 
+export type EnvironmentFooterAction = 'restore' | 'reset';
+
+export function getEnvironmentFooterAction(state: EnvironmentState): EnvironmentFooterAction | null {
+  if (state.mode === 'managed' && state.currentEnvironmentId != null) {
+    return 'restore';
+  }
+
+  if (canResetEnvironment(state) && state.currentEnvironmentId != null) {
+    return 'reset';
+  }
+
+  return null;
+}
+
 export function isDefaultEnvironment(state: EnvironmentState, envId: string): boolean {
   return state.mode === 'managed' && state.defaultEnvironmentId === envId;
 }
 
-export function getDisplayEnvironment(state: EnvironmentState): EnvironmentListItem | null {
-  const active = state.environments.find((env) => env.id === state.currentEnvironmentId);
-  if (active) return active;
-
+export function getDefaultEnvironment(state: EnvironmentState): EnvironmentListItem | null {
   if (state.mode !== 'managed' || !state.defaultEnvironmentId) {
     return null;
   }
@@ -81,13 +93,15 @@ export function getDisplayEnvironment(state: EnvironmentState): EnvironmentListI
   return state.environments.find((env) => env.id === state.defaultEnvironmentId) ?? null;
 }
 
-function showRestartPrompt(action: 'switch' | 'restore') {
-  Alert.alert(
-    action === 'switch' ? 'Environment saved' : 'Environment reset',
-    'Kill the app and reopen it now. Environment changes are not fully applied until the app restarts.',
-    [{ text: 'Kill app now' }],
-    { cancelable: false },
-  );
+export function getDisplayEnvironment(state: EnvironmentState): EnvironmentListItem | null {
+  const active = state.environments.find((env) => env.id === state.currentEnvironmentId);
+  if (active) return active;
+
+  return getDefaultEnvironment(state);
+}
+
+export function shouldShowRestartBlocker(state: EnvironmentState): boolean {
+  return state.mode === 'managed' && state.restartRequired;
 }
 
 function confirmEnvironmentSwitch(env: EnvironmentListItem, onConfirm: () => void) {
@@ -135,10 +149,10 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
 
   const { environments, currentEnvironmentId } = state;
   const envFeature = feature as unknown as EnvironmentFeatureAPI;
+  const footerAction = getEnvironmentFooterAction(state);
 
-  const applyManagedEnvironment = (envId: string) => {
-    envFeature.switchEnvironment?.(envId);
-    showRestartPrompt('switch');
+  const applyManagedEnvironment = async (envId: string) => {
+    await envFeature.switchEnvironment?.(envId);
   };
 
   const handleSelect = (env: EnvironmentListItem) => {
@@ -152,7 +166,9 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
     }
 
     if (state.mode === 'managed') {
-      confirmEnvironmentSwitch(env, () => applyManagedEnvironment(envId));
+      confirmEnvironmentSwitch(env, () => {
+        void applyManagedEnvironment(envId);
+      });
       return;
     }
 
@@ -165,14 +181,14 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
     }
 
     confirmRestoreDefault(() => {
-      envFeature.clear?.();
-      showRestartPrompt('restore');
+      void (async () => {
+        await envFeature.restoreDefaultEnvironment?.();
+      })();
     });
   };
 
-  const displayEnv = getDisplayEnvironment(state);
-  const hasManagedSelection = state.mode === 'managed' && currentEnvironmentId != null;
-  const showRestartWarning = state.mode === 'managed' && state.restartRequired;
+  const defaultEnv = getDefaultEnvironment(state);
+  const showRestartWarning = shouldShowRestartBlocker(state);
 
   return (
     <View style={styles.container}>
@@ -192,6 +208,41 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        {defaultEnv ? (
+          <View style={styles.defaultSection}>
+            <Text style={styles.listSectionTitle}>Built-in URLs</Text>
+            <View style={styles.builtInCard}>
+              <View style={styles.builtInHeaderRow}>
+                <View style={[styles.colorDot, { backgroundColor: getEnvironmentColor(defaultEnv) }]} />
+                <View style={styles.builtInTitleGroup}>
+                  <Text style={styles.builtInKicker}>Current app default</Text>
+                  <Text style={styles.builtInLabel} numberOfLines={1}>
+                    {defaultEnv.label}
+                  </Text>
+                </View>
+                <View style={styles.defaultPill}>
+                  <Text style={styles.defaultPillText}>Default</Text>
+                </View>
+              </View>
+              <View style={styles.builtInUrlList}>
+                {getEnvironmentUrlRows(defaultEnv).map((row) => (
+                  <View key={`default-${row.label}`} style={styles.urlRow}>
+                    <Text style={styles.urlKey} numberOfLines={1}>
+                      {row.label}
+                    </Text>
+                    <Text style={styles.urlValue} numberOfLines={1} ellipsizeMode="middle">
+                      {row.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {state.mode === 'managed' ? (
+          <Text style={styles.listSectionTitle}>Switch To</Text>
+        ) : null}
         <View style={styles.groupedCard}>
           {environments.map((env, index) => {
             const isActive = currentEnvironmentId === env.id;
@@ -246,48 +297,45 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
         </View>
       </ScrollView>
 
-      {displayEnv ? (
+      {footerAction ? (
         <View style={styles.footer}>
-          <View style={styles.footerInfo}>
-            <View style={styles.footerActiveIndicator}>
-              <View style={[styles.footerDot, { backgroundColor: getEnvironmentColor(displayEnv) }]} />
-              <Text style={styles.footerLabel}>
-                {currentEnvironmentId ? 'Active' : 'Not switched'}
-              </Text>
-            </View>
-            <Text style={styles.footerValue}>{displayEnv.label}</Text>
-            <View style={styles.footerUrlList}>
-              {getEnvironmentUrlRows(displayEnv).map((row) => (
-                <View key={`footer-${row.label}`} style={styles.footerUrlRow}>
-                  <Text style={styles.footerUrlKey} numberOfLines={1}>
-                    {row.label}
-                  </Text>
-                  <Text style={styles.footerUrlValue} numberOfLines={1} ellipsizeMode="middle">
-                    {row.value}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          {hasManagedSelection ? (
+          {footerAction === 'restore' ? (
             <TouchableOpacity
               style={styles.resetButton}
               onPress={handleRestoreDefault}
               activeOpacity={0.7}
             >
-              <Text style={styles.resetButtonText}>Restore</Text>
+              <Text style={styles.resetButtonText}>Restore default</Text>
             </TouchableOpacity>
-          ) : canResetEnvironment(state) ? (
+          ) : (
             <TouchableOpacity
               style={styles.resetButton}
-              onPress={() => envFeature.switchEnvironment?.(null)}
+              onPress={() => {
+                void envFeature.switchEnvironment?.(null);
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.resetButtonText}>Reset</Text>
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
       ) : null}
+      <Modal
+        visible={showRestartWarning}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.blockerBackdrop}>
+          <View style={styles.blockerCard}>
+            <Text style={styles.blockerTitle}>Kill app now</Text>
+            <Text style={styles.blockerText}>
+              Environment settings were saved. Kill this app and reopen it before using any other debug tools.
+            </Text>
+            <Text style={styles.blockerHint}>No in-app dismiss. Restart required.</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 });
@@ -372,6 +420,50 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.LG,
     paddingBottom: Spacing.LG,
+  },
+  defaultSection: {
+    marginBottom: Spacing.LG,
+  },
+  listSectionTitle: {
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.SM,
+  },
+  builtInCard: {
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    paddingHorizontal: Spacing.MD,
+    paddingVertical: Spacing.MD,
+  },
+  builtInHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 30,
+  },
+  builtInTitleGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+  builtInKicker: {
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    marginBottom: 1,
+  },
+  builtInLabel: {
+    fontSize: FontSize.LG,
+    fontWeight: FontWeight.semibold,
+    color: Colors.text,
+  },
+  builtInUrlList: {
+    gap: Spacing.XS,
+    paddingLeft: 18,
+    marginTop: Spacing.SM,
   },
   groupedCard: {
     backgroundColor: Colors.surface,
@@ -462,57 +554,12 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: Spacing.LG,
     paddingVertical: Spacing.MD,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
-  },
-  footerInfo: {
-    flex: 1,
-  },
-  footerActiveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.XS,
-    marginBottom: 1,
-  },
-  footerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  footerLabel: {
-    fontSize: FontSize.XS,
-    color: Colors.textSecondary,
-    fontWeight: FontWeight.semibold,
-    textTransform: 'uppercase',
-  },
-  footerValue: {
-    fontSize: FontSize.LG,
-    fontWeight: FontWeight.semibold,
-    color: Colors.text,
-  },
-  footerUrlList: {
-    marginTop: Spacing.SM,
-    gap: Spacing.XS,
-  },
-  footerUrlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerUrlKey: {
-    width: 48,
-    fontSize: FontSize.XS,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textMuted,
-  },
-  footerUrlValue: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: FontSize.SM,
-    color: Colors.textSecondary,
   },
   resetButton: {
     backgroundColor: Colors.errorDim,
@@ -524,5 +571,41 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: FontSize.MD,
     fontWeight: FontWeight.semibold,
+  },
+  blockerBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.XL,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+  },
+  blockerCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: Radius.XL,
+    borderWidth: 1,
+    borderColor: Colors.error,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.XL,
+    paddingVertical: Spacing.XL,
+  },
+  blockerTitle: {
+    fontSize: FontSize.XL,
+    fontWeight: FontWeight.bold,
+    color: Colors.error,
+    textTransform: 'uppercase',
+    marginBottom: Spacing.MD,
+  },
+  blockerText: {
+    fontSize: FontSize.MD,
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  blockerHint: {
+    marginTop: Spacing.MD,
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
   },
 });

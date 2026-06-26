@@ -51,7 +51,8 @@ function createLegacyUrlRewriter(hostsMap: Map<string, string> | null): ((url: s
 
 export interface EnvironmentFeatureAPI extends DebugFeature<EnvironmentState> {
   registerEnvironments: (environments: DebugEnvironmentInput) => void;
-  switchEnvironment: (environmentId: string | null) => void;
+  switchEnvironment: (environmentId: string | null) => Promise<void>;
+  restoreDefaultEnvironment: () => Promise<void>;
   getCurrentEnvironmentId: () => string | null;
 }
 
@@ -124,7 +125,7 @@ export const createEnvironmentFeature = (
     }
   };
 
-  const applyEnvironment = (envId: string | null, persist: boolean) => {
+  const applyEnvironment = async (envId: string | null, persist: boolean) => {
     const nextId =
       config.mode === 'managed'
         ? getInitialEnvironmentId(config, envId)
@@ -138,11 +139,13 @@ export const createEnvironmentFeature = (
     callManagedChange();
 
     if (persist) {
-      persistSelection(activeEnvironmentId).catch((err) => {
+      try {
+        await persistSelection(activeEnvironmentId);
+      } catch (err) {
         if (__DEV__) {
           console.warn('[DebugToolkit] Failed to persist environment selection:', err);
         }
-      });
+      }
     }
   };
 
@@ -151,14 +154,34 @@ export const createEnvironmentFeature = (
     try {
       const stored = await getPreference(KEYS.environmentId);
       if (token !== loadToken) return;
-      applyEnvironment(getInitialEnvironmentId(config, stored), false);
+      await applyEnvironment(getInitialEnvironmentId(config, stored), false);
     } catch (err) {
       if (token !== loadToken) return;
       if (__DEV__) {
         console.warn('[DebugToolkit] Failed to load persisted environment:', err);
       }
-      applyEnvironment(getInitialEnvironmentId(config, null), false);
+      await applyEnvironment(getInitialEnvironmentId(config, null), false);
     }
+  };
+
+  const restoreDefaultEnvironment = async () => {
+    ++loadToken;
+    if (config.mode === 'managed') {
+      const shouldRequireRestart = activeEnvironmentId != null || restartRequired;
+      await applyEnvironment(null, false);
+      try {
+        await removePreference(KEYS.environmentId);
+      } catch (err) {
+        if (__DEV__) {
+          console.warn('[DebugToolkit] Failed to clear environment selection:', err);
+        }
+      }
+      restartRequired = shouldRequireRestart;
+      notify();
+      return;
+    }
+
+    await applyEnvironment(null, true);
   };
 
   return {
@@ -173,17 +196,8 @@ export const createEnvironmentFeature = (
     },
     getSnapshot: getCurrentState,
     clear: () => {
-      ++loadToken;
-      if (config.mode === 'managed') {
-        restartRequired = activeEnvironmentId != null || restartRequired;
-        applyEnvironment(null, false);
-        removePreference(KEYS.environmentId).catch((err) => {
-          if (__DEV__) {
-            console.warn('[DebugToolkit] Failed to clear environment selection:', err);
-          }
-        });
-      } else {
-        applyEnvironment(null, true);
+      if (config.mode !== 'managed') {
+        void restoreDefaultEnvironment();
       }
     },
     cleanup: () => {
@@ -204,15 +218,18 @@ export const createEnvironmentFeature = (
     registerEnvironments: (envs: DebugEnvironmentInput) => {
       ++loadToken;
       config = normalizeEnvironmentInput(envs);
-      applyEnvironment(getInitialEnvironmentId(config, activeEnvironmentId), true);
+      void applyEnvironment(getInitialEnvironmentId(config, activeEnvironmentId), true);
     },
-    switchEnvironment: (envId: string | null) => {
+    switchEnvironment: async (envId: string | null) => {
       ++loadToken;
-      if (config.mode === 'managed' && envId !== activeEnvironmentId) {
+      const shouldRequireRestart = config.mode === 'managed' && envId !== activeEnvironmentId;
+      await applyEnvironment(envId, true);
+      if (shouldRequireRestart) {
         restartRequired = true;
+        notify();
       }
-      applyEnvironment(envId, true);
     },
+    restoreDefaultEnvironment,
     getCurrentEnvironmentId: () => activeEnvironmentId,
     badge: () => {
       if (!activeEnvironmentId) return null;
