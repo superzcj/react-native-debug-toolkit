@@ -26,6 +26,20 @@ const formatSize = (data: unknown): string => {
   }
 };
 
+const statusLabel = (item: NetworkLogEntry): string => {
+  // XHR always emits response.status (0 on transport failure) — prefer error text.
+  if (item.error) {
+    if (item.error === 'Timeout') return 'Timeout';
+    if (item.error === 'Aborted') return 'Abort';
+    if (item.error === 'Network Error') return 'NetErr';
+    return 'ERR';
+  }
+  if (item.response?.status != null && item.response.status > 0) {
+    return String(item.response.status);
+  }
+  return 'ERR';
+};
+
 const buildCurl = (log: NetworkLogEntry): string => {
   const q = (s: string) => s.replace(/'/g, "'\\''");
   let c = `curl -X ${log.request.method} '${q(log.request.url)}'`;
@@ -53,23 +67,29 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
         const ok = !item.error && (!item.response || item.response.status < 400);
         const statusColor = ok ? Colors.success : Colors.error;
         const urlParts = formatUrlParts(item.request.url);
+        const slow = item.duration != null && item.duration >= 1000;
 
         return (
           <View style={s.cardRow}>
             <View style={s.cardBody}>
-              <View style={s.primaryRow}>
-                <View style={[s.methodChip, { backgroundColor: getMethodColor(item.request.method) }]}>
-                  <Text style={s.methodChipText}>{item.request.method}</Text>
-                </View>
-                <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={2}>
-                  {urlParts.path}
-                </Text>
-              </View>
+              <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={2}>
+                {urlParts.path}
+              </Text>
               <View style={s.metaRow}>
-                <View style={[s.statusChip, { backgroundColor: statusColor }]}>
-                  <Text style={s.statusChipText}>{item.response?.status ?? 'ERR'}</Text>
+                <View style={[s.metaChip, { backgroundColor: getMethodColor(item.request.method) }]}>
+                  <Text style={s.metaChipText}>{item.request.method}</Text>
                 </View>
-                {!!urlParts.host && <Text style={[s.metaText, s.hostText]} numberOfLines={1}>{urlParts.host}</Text>}
+                <View style={[s.metaChip, { backgroundColor: statusColor }]}>
+                  <Text style={s.metaChipText}>{statusLabel(item)}</Text>
+                </View>
+                {item.duration != null && (
+                  <Text style={[s.metaStat, slow && { color: Colors.warning }]}>
+                    {item.duration}ms
+                  </Text>
+                )}
+                {!!urlParts.host && (
+                  <Text style={[s.metaText, s.hostText]} numberOfLines={1}>{urlParts.host}</Text>
+                )}
                 <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
               </View>
             </View>
@@ -84,7 +104,7 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
               <Text style={s.methodBadgeText}>{log.request.method}</Text>
             </View>
             <View style={[s.statusPill, { backgroundColor: statusColor }]}>
-              <Text style={s.statusPillText}>{log.response?.status ?? 'ERR'}</Text>
+              <Text style={s.statusPillText}>{statusLabel(log)}</Text>
             </View>
             {log.duration != null && <Text style={s.durationText}>{log.duration}ms</Text>}
           </View>
@@ -177,39 +197,32 @@ function formatUrlParts(url: string): { host: string; path: string } {
 const s = StyleSheet.create({
   cardRow: { flexDirection: 'row', padding: Spacing.MD, paddingRight: Spacing.LG },
   cardBody: { flex: 1, gap: Spacing.XS },
-  primaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.XS,
-    minWidth: 0,
-  },
-  methodChip: {
-    paddingHorizontal: Spacing.SM,
-    paddingVertical: 2,
-    borderRadius: Radius.SM,
-  },
-  methodChipText: {
-    color: Colors.textInverse,
-    fontSize: FontSize.XS,
-    fontWeight: FontWeight.bold,
-  },
   pathText: {
-    flex: 1,
-    fontSize: FontSize.MD,
-    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.medium,
     color: Colors.text,
+    lineHeight: 16,
   },
-  statusChip: { paddingHorizontal: Spacing.SM, paddingVertical: 2, borderRadius: Radius.SM },
-  statusChipText: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
+  metaChip: {
+    paddingHorizontal: Spacing.XS,
+    paddingVertical: 1,
+    borderRadius: Radius.XS,
+  },
+  metaChipText: {
+    color: Colors.textInverse,
+    fontSize: FontSize.XXS,
+    fontWeight: FontWeight.semibold,
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.XS,
     minWidth: 0,
   },
-  metaText: { fontSize: FontSize.XS, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  hostText: { flex: 1 },
-  time: { fontSize: FontSize.XXS, color: Colors.textMuted },
+  metaText: { fontSize: FontSize.XXS, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  metaStat: { fontSize: FontSize.XXS, color: Colors.textMuted, fontWeight: FontWeight.semibold, flexShrink: 0 },
+  hostText: { flex: 1, minWidth: 0 },
+  time: { fontSize: FontSize.XXS, color: Colors.textMuted, flexShrink: 0, marginLeft: 'auto' },
   detailHeaderCenter: {
     flexDirection: 'row',
     alignItems: 'center',
