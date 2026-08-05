@@ -24,7 +24,7 @@ The shared row layout applies to:
 - Network
 - Track
 - Zustand
-- The Console, Network, and Track rows inside Session History details
+- The Console, Native, Network, and Track rows inside Session History details
 - Navigation
 
 Environment, Clipboard, DevConnect, Third Party Libraries, and the Session History timeline remain unchanged because they are control, form, status, or timeline interfaces rather than log-row lists.
@@ -119,7 +119,7 @@ The existing error color and slow-duration treatment remain.
 
 ### Session History Detail
 
-Console, Network, and Track history rows use the same shared component and the same content hierarchy as their live equivalents. Session-specific type conversion stays in `SessionHistoryTab`.
+Console, Native, Network, and Track history rows use the same shared component and the same content hierarchy as their live equivalents. Session-specific type conversion stays in `SessionHistoryTab`.
 
 ### Navigation
 
