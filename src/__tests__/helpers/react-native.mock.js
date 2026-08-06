@@ -1,5 +1,9 @@
 // Minimal React Native mock for testing pure JS/TS logic
 module.exports = {
+  View: 'View',
+  Text: 'Text',
+  Pressable: 'Pressable',
+  TextInput: 'TextInput',
   NativeModules: {},
   DevSettings: {
     reload: jest.fn(),
