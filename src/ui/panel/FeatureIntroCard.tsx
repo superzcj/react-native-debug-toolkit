@@ -14,9 +14,11 @@ interface FeatureIntroCardProps {
   summary: FeatureSummary;
   filterBad: boolean;
   onFilterBad: (bad: boolean) => void;
-  searchQuery?: string;
-  onSearchChange?: (text: string) => void;
-  showSearch?: boolean;
+  searchQuery: string;
+  onSearchChange: (text: string) => void;
+  showSearch: boolean;
+  searchExpanded: boolean;
+  onSearchExpandedChange: (expanded: boolean) => void;
 }
 
 export function FeatureIntroCard({
@@ -27,6 +29,8 @@ export function FeatureIntroCard({
   searchQuery,
   onSearchChange,
   showSearch,
+  searchExpanded,
+  onSearchExpandedChange,
 }: FeatureIntroCardProps) {
   const { statusLabel, statusColor, supportsBadFilter } = summary;
   const metrics = [
@@ -37,59 +41,79 @@ export function FeatureIntroCard({
 
   return (
     <View style={styles.bar}>
-      <View style={styles.titleRow}>
-        <View style={styles.titleBlock}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          {metrics.length > 0 && (
-            <View style={styles.metricRow}>
-              {metrics.map((metric, index) => (
-                <Text
-                  key={`${metric}-${index}`}
-                  style={[styles.metricText, index === metrics.length - 1 && styles.latestMetric]}
-                  numberOfLines={1}
-                >
-                  {metric}
+      {searchExpanded && showSearch ? (
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            accessibilityLabel="Search logs"
+            placeholder="Search"
+            placeholderTextColor={Colors.textMuted}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            returnKeyType="search"
+            autoFocus
+          />
+          <Pressable
+            style={styles.searchDone}
+            accessibilityRole="button"
+            accessibilityLabel="Close search"
+            onPress={() => onSearchExpandedChange(false)}
+          >
+            <Text style={styles.searchDoneText}>Done</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.titleRow}>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            {metrics.length > 0 && (
+              <View style={styles.metricRow}>
+                {metrics.map((metric, index) => (
+                  <Text
+                    key={`${metric}-${index}`}
+                    style={[styles.metricText, index === metrics.length - 1 && styles.latestMetric]}
+                    numberOfLines={1}
+                  >
+                    {metric}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+          <View style={styles.actionBlock}>
+            {statusLabel && (
+              <View style={[styles.statusChip, statusColor && { backgroundColor: hexWithAlpha(statusColor, '18') }]}>
+                <View style={[styles.statusDot, statusColor && { backgroundColor: statusColor }]} />
+                <Text style={[styles.statusText, statusColor && { color: statusColor }]} numberOfLines={1}>
+                  {statusLabel}
                 </Text>
-              ))}
+              </View>
+            )}
+            <View style={styles.actionRow}>
+              {supportsBadFilter && (
+                <View style={styles.filterRow}>
+                  <Pressable style={[styles.chip, !filterBad && styles.chipActive]} onPress={() => onFilterBad(false)}>
+                    <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>All</Text>
+                  </Pressable>
+                  <Pressable style={[styles.chip, filterBad && styles.chipBadActive]} onPress={() => onFilterBad(true)}>
+                    <Text style={[styles.chipText, filterBad && styles.chipTextBad]}>Bad</Text>
+                  </Pressable>
+                </View>
+              )}
+              {showSearch && (
+                <Pressable
+                  style={[styles.searchTrigger, !!searchQuery && styles.searchTriggerActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open search"
+                  accessibilityState={{ expanded: false, selected: !!searchQuery }}
+                  onPress={() => onSearchExpandedChange(true)}
+                >
+                  <Text style={[styles.searchTriggerText, !!searchQuery && styles.searchTriggerTextActive]}>⌕</Text>
+                </Pressable>
+              )}
             </View>
-          )}
+          </View>
         </View>
-        <View style={styles.actionBlock}>
-          {statusLabel && (
-            <View style={[styles.statusChip, statusColor && { backgroundColor: hexWithAlpha(statusColor, '18') }]}>
-              <View style={[styles.statusDot, statusColor && { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusText, statusColor && { color: statusColor }]} numberOfLines={1}>
-                {statusLabel}
-              </Text>
-            </View>
-          )}
-          {supportsBadFilter && (
-            <View style={styles.filterRow}>
-              <Pressable
-                style={[styles.chip, !filterBad && styles.chipActive]}
-                onPress={() => onFilterBad(false)}
-              >
-                <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>All</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.chip, filterBad && styles.chipBadActive]}
-                onPress={() => onFilterBad(true)}
-              >
-                <Text style={[styles.chipText, filterBad && styles.chipTextBad]}>Bad</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      </View>
-      {showSearch && (
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search"
-          placeholderTextColor={Colors.textMuted}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          returnKeyType="search"
-        />
       )}
     </View>
   );
@@ -105,6 +129,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   titleRow: {
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.SM,
@@ -162,6 +187,11 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: Colors.textSecondary,
   },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.XS,
+  },
   filterRow: {
     flexDirection: 'row',
     borderRadius: Radius.MD,
@@ -194,15 +224,48 @@ const styles = StyleSheet.create({
   chipTextBad: {
     color: Colors.textInverse,
   },
+  searchRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.SM,
+  },
   searchInput: {
-    height: 32,
+    flex: 1,
+    height: 36,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.borderFocus,
     borderRadius: Radius.MD,
     backgroundColor: Colors.surfaceInset,
     paddingHorizontal: Spacing.MD,
     fontSize: FontSize.MD,
     color: Colors.text,
-    marginTop: Spacing.SM,
+  },
+  searchTrigger: {
+    width: 30,
+    height: 24,
+    borderRadius: Radius.MD,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceInset,
+  },
+  searchTriggerActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryGhost,
+  },
+  searchTriggerText: { fontSize: FontSize.LG, color: Colors.textSecondary },
+  searchTriggerTextActive: { color: Colors.primary },
+  searchDone: {
+    height: 32,
+    paddingHorizontal: Spacing.SM,
+    justifyContent: 'center',
+    borderRadius: Radius.MD,
+  },
+  searchDoneText: {
+    color: Colors.primary,
+    fontSize: FontSize.SM,
+    fontWeight: FontWeight.semibold,
   },
 });

@@ -1,4 +1,4 @@
-import React, { Component, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import type { RailItem } from './FeatureRail';
 import { FeatureIntroCard } from './FeatureIntroCard';
 import { buildFeatureSummary } from './buildFeatureSummary';
 import { filterFeatureSnapshot } from './filterFeatureSnapshot';
+import { INITIAL_PANEL_FILTER_STATE, panelFilterReducer } from './panelFilterState';
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
 
@@ -106,8 +107,11 @@ interface FloatPanelViewProps {
 
 export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterBad, setFilterBad] = useState(false);
+  const [filters, dispatchFilters] = useReducer(
+    panelFilterReducer,
+    INITIAL_PANEL_FILTER_STATE,
+  );
+  const { searchQuery, filterBad, searchExpanded } = filters;
   const tabLoaded = useRef(false);
 
   // Restore last tab on mount
@@ -132,8 +136,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     tabCount: features.length,
     onTabChange: useCallback((index: number) => {
       tabLoaded.current = true;
-      setSearchQuery('');
-      setFilterBad(false);
+      dispatchFilters({ type: 'reset' });
       setActiveTab(index);
       const featureName = features[index]?.name;
       if (featureName) {
@@ -195,8 +198,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   const panelConnectionStatus = buildPanelConnectionStatus(features);
 
   const handleClearAll = useCallback(() => {
-    setSearchQuery('');
-    setFilterBad(false);
+    dispatchFilters({ type: 'reset' });
     onClearAll();
   }, [onClearAll]);
 
@@ -248,10 +250,14 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                     title={activeFeature.label}
                     summary={activeSummary}
                     filterBad={filterBad}
-                    onFilterBad={setFilterBad}
+                    onFilterBad={(bad) => dispatchFilters({ type: 'set-bad', bad })}
                     searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
+                    onSearchChange={(query) => dispatchFilters({ type: 'set-query', query })}
                     showSearch={showSearch}
+                    searchExpanded={searchExpanded}
+                    onSearchExpandedChange={(expanded) => (
+                      dispatchFilters({ type: 'set-search-expanded', expanded })
+                    )}
                   />
                 )}
                 <Animated.View
