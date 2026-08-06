@@ -31,3 +31,24 @@ export function panelFilterReducer(
       return INITIAL_PANEL_FILTER_STATE;
   }
 }
+
+type PanelFilterDispatch = (action: PanelFilterAction) => void;
+
+/** FloatPanelView tab-switch call site: reset filters (incl. searchExpanded) then change tab. */
+export function changeTabWithFilterReset(
+  dispatch: PanelFilterDispatch,
+  setActiveTab: (index: number) => void,
+  index: number,
+): void {
+  dispatch({ type: 'reset' });
+  setActiveTab(index);
+}
+
+/** FloatPanelView Clear All call site: reset filters (incl. searchExpanded) then clear features. */
+export function clearAllWithFilterReset(
+  dispatch: PanelFilterDispatch,
+  onClearAll: () => void,
+): void {
+  dispatch({ type: 'reset' });
+  onClearAll();
+}

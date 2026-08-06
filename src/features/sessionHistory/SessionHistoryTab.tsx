@@ -645,7 +645,7 @@ const s = StyleSheet.create({
   levelIcon: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   rowMsg: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 20 },
-  rowTime: { fontSize: FontSize.XS, color: Colors.textSecondary, marginTop: Spacing.XXS },
+  rowTime: { fontSize: FontSize.XS, color: Colors.textSecondary },
   rowSource: { fontSize: FontSize.XS, color: Colors.textSecondary },
   methodText: { fontSize: FontSize.SM, fontWeight: FontWeight.bold },
   miniPill: { paddingHorizontal: Spacing.SM, paddingVertical: Spacing.XXS, borderRadius: Radius.XS },

@@ -16,7 +16,12 @@ import type { RailItem } from './FeatureRail';
 import { FeatureIntroCard } from './FeatureIntroCard';
 import { buildFeatureSummary } from './buildFeatureSummary';
 import { filterFeatureSnapshot } from './filterFeatureSnapshot';
-import { INITIAL_PANEL_FILTER_STATE, panelFilterReducer } from './panelFilterState';
+import {
+  INITIAL_PANEL_FILTER_STATE,
+  changeTabWithFilterReset,
+  clearAllWithFilterReset,
+  panelFilterReducer,
+} from './panelFilterState';
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
 
@@ -136,8 +141,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     tabCount: features.length,
     onTabChange: useCallback((index: number) => {
       tabLoaded.current = true;
-      dispatchFilters({ type: 'reset' });
-      setActiveTab(index);
+      changeTabWithFilterReset(dispatchFilters, setActiveTab, index);
       const featureName = features[index]?.name;
       if (featureName) {
         setPreference(KEYS.lastTab, featureName);
@@ -198,8 +202,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   const panelConnectionStatus = buildPanelConnectionStatus(features);
 
   const handleClearAll = useCallback(() => {
-    dispatchFilters({ type: 'reset' });
-    onClearAll();
+    clearAllWithFilterReset(dispatchFilters, onClearAll);
   }, [onClearAll]);
 
   // Active feature + summary
