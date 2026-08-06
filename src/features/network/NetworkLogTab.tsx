@@ -12,6 +12,7 @@ import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { fmt } from '../../utils/copyToComputer';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
+import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, NetworkLogEntry } from '../../types';
 
 const formatSize = (data: unknown): string => {
@@ -53,6 +54,41 @@ const buildCurl = (log: NetworkLogEntry): string => {
   return c;
 };
 
+export function renderNetworkLogRow(item: NetworkLogEntry) {
+  const ok = !item.error && (!item.response || item.response.status < 400);
+  const statusColor = ok ? Colors.success : Colors.error;
+  const urlParts = formatUrlParts(item.request.url);
+  const slow = item.duration != null && item.duration >= 1000;
+
+  return (
+    <LogRow
+      content={urlParts.path}
+      contentStyle={[s.pathText, !ok && { color: Colors.error }]}
+      metadata={(
+        <>
+          <View style={[s.metaChip, { backgroundColor: getMethodColor(item.request.method) }]}>
+            <Text style={s.metaChipText}>{item.request.method}</Text>
+          </View>
+          <View style={[s.metaChip, { backgroundColor: statusColor }]}>
+            <Text style={s.metaChipText}>{statusLabel(item)}</Text>
+          </View>
+          {item.duration != null && (
+            <Text style={[s.metaStat, slow && { color: Colors.warning }]}>
+              {item.duration}ms
+            </Text>
+          )}
+          {!!urlParts.host && (
+            <LogRowMetaText style={s.hostText}>{urlParts.host}</LogRowMetaText>
+          )}
+        </>
+      )}
+      trailingMetadata={(
+        <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+      )}
+    />
+  );
+}
+
 export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>> = React.memo(({
   snapshot,
 }) => {
@@ -63,39 +99,7 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
       data={sorted}
       reversed={false}
       emptyText="No HTTP requests logged"
-      renderRow={(item) => {
-        const ok = !item.error && (!item.response || item.response.status < 400);
-        const statusColor = ok ? Colors.success : Colors.error;
-        const urlParts = formatUrlParts(item.request.url);
-        const slow = item.duration != null && item.duration >= 1000;
-
-        return (
-          <View style={s.cardRow}>
-            <View style={s.cardBody}>
-              <Text style={[s.pathText, !ok && { color: Colors.error }]} numberOfLines={2}>
-                {urlParts.path}
-              </Text>
-              <View style={s.metaRow}>
-                <View style={[s.metaChip, { backgroundColor: getMethodColor(item.request.method) }]}>
-                  <Text style={s.metaChipText}>{item.request.method}</Text>
-                </View>
-                <View style={[s.metaChip, { backgroundColor: statusColor }]}>
-                  <Text style={s.metaChipText}>{statusLabel(item)}</Text>
-                </View>
-                {item.duration != null && (
-                  <Text style={[s.metaStat, slow && { color: Colors.warning }]}>
-                    {item.duration}ms
-                  </Text>
-                )}
-                {!!urlParts.host && (
-                  <Text style={[s.metaText, s.hostText]} numberOfLines={1}>{urlParts.host}</Text>
-                )}
-                <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
-              </View>
-            </View>
-          </View>
-        );
-      }}
+      renderRow={renderNetworkLogRow}
       renderDetailHeader={(log) => {
         const statusColor = log.error || (log.response && log.response.status >= 400) ? Colors.error : Colors.success;
         return (
@@ -195,8 +199,6 @@ function formatUrlParts(url: string): { host: string; path: string } {
 }
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: Spacing.MD, paddingRight: Spacing.LG },
-  cardBody: { flex: 1, gap: Spacing.XS },
   pathText: {
     fontSize: FontSize.SM,
     fontWeight: FontWeight.medium,
@@ -213,16 +215,18 @@ const s = StyleSheet.create({
     fontSize: FontSize.XXS,
     fontWeight: FontWeight.semibold,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.XS,
-    minWidth: 0,
+  metaStat: {
+    fontSize: FontSize.XXS,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.semibold,
+    flexShrink: 0,
   },
-  metaText: { fontSize: FontSize.XXS, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  metaStat: { fontSize: FontSize.XXS, color: Colors.textMuted, fontWeight: FontWeight.semibold, flexShrink: 0 },
-  hostText: { flex: 1, minWidth: 0 },
-  time: { fontSize: FontSize.XXS, color: Colors.textMuted, flexShrink: 0, marginLeft: 'auto' },
+  hostText: {
+    fontSize: FontSize.XXS,
+    color: Colors.textSecondary,
+    fontWeight: FontWeight.semibold,
+  },
+  time: { fontSize: FontSize.XXS, color: Colors.textMuted },
   detailHeaderCenter: {
     flexDirection: 'row',
     alignItems: 'center',
