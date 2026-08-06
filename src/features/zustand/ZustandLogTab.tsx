@@ -7,6 +7,7 @@ import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
+import { LogRow } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, ZustandLogEntry } from '../../types';
 
 const getActionColor = (action: string): string => {
@@ -35,35 +36,44 @@ function findChanges(prev: unknown, next: unknown): string[] {
   return changed;
 }
 
+export function renderZustandLogRow(item: ZustandLogEntry) {
+  return (
+    <LogRow
+      content={item.action}
+      contentStyle={s.action}
+      metadata={(
+        <>
+          <View style={[s.actionIcon, { backgroundColor: getActionBgColor(item.action) }]}>
+            <View style={[s.actionDot, { backgroundColor: getActionColor(item.action) }]} />
+          </View>
+          {item.storeName && (
+            <View style={s.storeBadge}>
+              <Text style={s.storeBadgeText}>{item.storeName}</Text>
+            </View>
+          )}
+        </>
+      )}
+      trailingMetadata={(
+        <>
+          {item.actionCompleteTime != null && (
+            <View style={s.durationBadge}>
+              <Text style={s.durationText}>{item.actionCompleteTime}ms</Text>
+            </View>
+          )}
+          <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+        </>
+      )}
+    />
+  );
+}
+
 export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>> = React.memo(({
   snapshot,
 }) => (
   <LogListScreen
     data={snapshot}
     emptyText="No Zustand state changes"
-    renderRow={(item) => (
-      <View style={s.cardRow}>
-        <View style={[s.actionIcon, { backgroundColor: getActionBgColor(item.action) }]}>
-          <View style={[s.actionDot, { backgroundColor: getActionColor(item.action) }]} />
-        </View>
-        <View style={s.cardContent}>
-          <View style={s.cardMeta}>
-            <Text style={s.action}>{item.action}</Text>
-            {item.storeName && (
-              <View style={s.storeBadge}>
-                <Text style={s.storeBadgeText}>{item.storeName}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
-        </View>
-        {item.actionCompleteTime != null && (
-          <View style={s.durationBadge}>
-            <Text style={s.durationText}>{item.actionCompleteTime}ms</Text>
-          </View>
-        )}
-      </View>
-    )}
+    renderRow={renderZustandLogRow}
     renderDetailHeader={(item) => (
       <View style={s.detailHeaderCenter}>
         <Text style={[s.detailAction, { color: getActionColor(item.action) }]}>
@@ -127,18 +137,14 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
 ));
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'center' },
   actionIcon: {
     width: 26,
     height: 26,
     borderRadius: Radius.SM,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.MD,
   },
   actionDot: { width: 8, height: 8, borderRadius: 4 },
-  cardContent: { flex: 1 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.SM, marginBottom: 2 },
   action: { fontSize: FontSize.MD, fontWeight: FontWeight.semibold, color: Colors.text },
   storeBadge: {
     backgroundColor: Colors.primaryGhost,

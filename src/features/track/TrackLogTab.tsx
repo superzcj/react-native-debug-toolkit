@@ -7,35 +7,41 @@ import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
+import { LogRow } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, TrackLogEntry } from '../../types';
+
+export function renderTrackLogRow(item: TrackLogEntry) {
+  return (
+    <LogRow
+      content={item.eventName}
+      contentStyle={s.eventName}
+      metadata={(
+        <>
+          <View style={s.eventIcon}><Text style={s.eventIconText}>●</Text></View>
+          {Object.entries(item)
+            .filter(([key]) => key !== 'id' && key !== 'eventName' && key !== 'timestamp')
+            .slice(0, 2)
+            .map(([key, value]) => (
+              <View key={key} style={s.previewChip}>
+                <Text style={s.previewText} numberOfLines={1}>
+                  <Text style={s.previewKey}>{key}</Text> {String(value ?? '').slice(0, 25)}
+                </Text>
+              </View>
+            ))}
+        </>
+      )}
+      trailingMetadata={(
+        <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+      )}
+    />
+  );
+}
 
 export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = React.memo(({ snapshot }) => (
   <LogListScreen
     data={snapshot}
     emptyText="No track events"
-    renderRow={(item) => (
-      <View style={s.cardRow}>
-        <View style={s.eventIcon}><Text style={s.eventIconText}>●</Text></View>
-        <View style={s.cardContent}>
-          <View style={s.cardHeader}>
-            <Text style={s.eventName}>{item.eventName}</Text>
-            <Text style={s.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
-          </View>
-          <View style={s.previewRow}>
-            {Object.entries(item)
-              .filter(([k]) => k !== 'id' && k !== 'eventName' && k !== 'timestamp')
-              .slice(0, 2)
-              .map(([key, value]) => (
-                <View key={key} style={s.previewChip}>
-                  <Text style={s.previewText} numberOfLines={1}>
-                    <Text style={s.previewKey}>{key}</Text> {String(value ?? '').slice(0, 25)}
-                  </Text>
-                </View>
-              ))}
-          </View>
-        </View>
-      </View>
-    )}
+    renderRow={renderTrackLogRow}
     renderDetailHeader={(item) => (
       <View style={s.eventBadge}><Text style={s.eventBadgeText}>{item.eventName}</Text></View>
     )}
@@ -77,7 +83,6 @@ export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = R
 ));
 
 const s = StyleSheet.create({
-  cardRow: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
   eventIcon: {
     width: 24,
     height: 24,
@@ -85,15 +90,10 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primaryGhost,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.MD,
-    marginTop: 1,
   },
   eventIconText: { color: Colors.primary, fontSize: FontSize.XXS },
-  cardContent: { flex: 1 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.XXS },
   eventName: { fontSize: FontSize.MD, fontWeight: FontWeight.semibold, color: Colors.text },
   time: { fontSize: FontSize.XS, color: Colors.textSecondary },
-  previewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.XXS },
   previewChip: { backgroundColor: Colors.surfaceElevated, borderRadius: Radius.XS, paddingHorizontal: Spacing.SM, paddingVertical: 2 },
   previewText: { fontSize: FontSize.XS, color: Colors.textSecondary, lineHeight: 16 },
   previewKey: { fontWeight: FontWeight.semibold, color: Colors.text },
