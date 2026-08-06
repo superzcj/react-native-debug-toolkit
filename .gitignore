@@ -62,3 +62,6 @@ AGENTS.md
 # Misc
 *.log
 coverage/
+
+# Git worktrees
+.worktrees/
