@@ -13,6 +13,7 @@ import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
+import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import { safeStringify } from '../../utils/safeStringify';
 import { fmt } from '../../utils/copyToComputer';
 import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
@@ -263,7 +264,7 @@ const SessionDetail: React.FC<{
             })}
           </View>
         )}
-        renderRow={(item) => <LogRow entry={item} />}
+        renderRow={(item) => <SessionLogRow entry={item} />}
         renderDetailHeader={(item) => <LogDetailHeader entry={item} />}
         renderDetailBody={(item) => <LogDetailBody entry={item} />}
       />
@@ -293,7 +294,7 @@ const FilterChip: React.FC<{
 
 // ── Log List Row ───────────────────────────────────────────────────────
 
-const LogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) => {
+export function renderSessionLogRow(entry: FlatSessionLogEntry) {
   const e = toRecord(entry);
 
   if (entry.type === 'console_logs') {
@@ -302,15 +303,43 @@ const LogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) 
       ? e.data.map((d: any) => (typeof d === 'string' ? d : safeStringify(d))).join(' ')
       : safeStringify(e.data);
     return (
-      <View style={s.rowContent}>
-        <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[level] ?? Colors.textMuted }]}>
-          <Text style={s.levelIcon}>{LEVEL_ICONS[level] ?? '●'}</Text>
-        </View>
-        <View style={s.rowBody}>
-          <Text style={s.rowMsg} numberOfLines={2}>{msg}</Text>
+      <LogRow
+        content={msg}
+        contentStyle={s.rowMsg}
+        metadata={(
+          <View style={[s.levelDot, { backgroundColor: LEVEL_COLORS[level] ?? Colors.textMuted }]}>
+            <Text style={s.levelIcon}>{LEVEL_ICONS[level] ?? '●'}</Text>
+          </View>
+        )}
+        trailingMetadata={(
           <Text style={s.rowTime}>{new Date(e.timestamp).toLocaleTimeString()}</Text>
-        </View>
-      </View>
+        )}
+      />
+    );
+  }
+
+  if (entry.type === 'native_logs') {
+    const level = e.level ?? 'unknown';
+    const source = [e.platform, e.source, e.tag].filter(Boolean).join(' / ');
+    return (
+      <LogRow
+        content={e.message ?? safeStringify(e)}
+        contentStyle={s.rowMsg}
+        metadata={(
+          <>
+            <View style={[
+              s.levelDot,
+              { backgroundColor: LEVEL_COLORS[level] ?? SESSION_LOG_COLORS.native_logs },
+            ]}>
+              <Text style={s.levelIcon}>{String(level).slice(0, 1).toUpperCase()}</Text>
+            </View>
+            {!!source && <LogRowMetaText style={s.rowSource}>{source}</LogRowMetaText>}
+          </>
+        )}
+        trailingMetadata={(
+          <Text style={s.rowTime}>{new Date(e.timestamp).toLocaleTimeString()}</Text>
+        )}
+      />
     );
   }
 
@@ -320,36 +349,46 @@ const LogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) 
     const status = e.response?.status;
     const ok = !e.error && (!status || status < 400);
     return (
-      <View style={s.rowContent}>
-        <View style={[s.statusBar, { backgroundColor: ok ? Colors.success : Colors.error }]} />
-        <View style={s.rowBody}>
-          <View style={s.rowMeta}>
+      <LogRow
+        content={shortenUrl(url)}
+        contentStyle={[s.rowMsg, !ok && { color: Colors.error }]}
+        metadata={(
+          <>
+            <View style={[s.statusDot, { backgroundColor: ok ? Colors.success : Colors.error }]} />
             <Text style={[s.methodText, { color: getMethodColor(method) }]}>{method}</Text>
             {status != null && (
               <View style={[s.miniPill, { backgroundColor: ok ? Colors.success : Colors.error }]}>
                 <Text style={s.miniPillText}>{status}</Text>
               </View>
             )}
-          </View>
-          <Text style={[s.rowMsg, !ok && { color: Colors.error }]} numberOfLines={1}>{shortenUrl(url)}</Text>
+          </>
+        )}
+        trailingMetadata={(
           <Text style={s.rowTime}>{new Date(e.timestamp).toLocaleTimeString()}</Text>
-        </View>
-      </View>
+        )}
+      />
     );
   }
 
   // track_logs
   const name = e.eventName ?? e.action ?? 'Event';
   return (
-    <View style={s.rowContent}>
-      <View style={s.trackDot} />
-      <View style={s.rowBody}>
-        <Text style={s.rowMsg} numberOfLines={1}>{name}</Text>
-        <Text style={s.rowTime}>{e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''}</Text>
-      </View>
-    </View>
+    <LogRow
+      content={name}
+      contentStyle={s.rowMsg}
+      metadata={<View style={s.trackDot} />}
+      trailingMetadata={(
+        <Text style={s.rowTime}>
+          {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''}
+        </Text>
+      )}
+    />
   );
-});
+}
+
+const SessionLogRow: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ entry }) => (
+  renderSessionLogRow(entry)
+));
 
 // ── Log Detail Header ──────────────────────────────────────────────────
 
@@ -599,22 +638,19 @@ const s = StyleSheet.create({
   chipCountActive: { color: 'rgba(255,255,255,0.8)' },
 
   // ── Log rows (inside LogListScreen cards) ──
-  rowContent: { flexDirection: 'row', padding: Spacing.MD, alignItems: 'flex-start' },
   levelDot: {
     width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
-    marginRight: Spacing.MD, marginTop: 1,
   },
   levelIcon: { color: Colors.textInverse, fontSize: FontSize.XS, fontWeight: FontWeight.bold },
-  statusBar: { width: 3, borderRadius: 2, marginRight: Spacing.MD, minHeight: 36 },
-  rowBody: { flex: 1 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   rowMsg: { fontSize: FontSize.MD, color: Colors.text, lineHeight: 20 },
   rowTime: { fontSize: FontSize.XS, color: Colors.textSecondary, marginTop: Spacing.XXS },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.XXS, gap: Spacing.XS },
+  rowSource: { fontSize: FontSize.XS, color: Colors.textSecondary },
   methodText: { fontSize: FontSize.SM, fontWeight: FontWeight.bold },
   miniPill: { paddingHorizontal: Spacing.SM, paddingVertical: Spacing.XXS, borderRadius: Radius.XS },
   miniPillText: { color: Colors.textInverse, fontSize: FontSize.XXS, fontWeight: FontWeight.bold },
-  trackDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary, marginRight: Spacing.SM, marginTop: 5 },
+  trackDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
 
   // ── Log detail header ──
   levelBadge: { paddingHorizontal: Spacing.MD, paddingVertical: Spacing.XXS, borderRadius: Radius.SM },

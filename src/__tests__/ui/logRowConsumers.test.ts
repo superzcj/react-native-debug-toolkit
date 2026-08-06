@@ -6,6 +6,7 @@ import { renderNetworkLogRow } from '../../features/network/NetworkLogTab';
 import { renderTrackLogRow } from '../../features/track/TrackLogTab';
 import { renderZustandLogRow } from '../../features/zustand/ZustandLogTab';
 import { renderNavigationLogRow } from '../../features/navigation/NavigationLogTab';
+import { renderSessionLogRow } from '../../features/sessionHistory/SessionHistoryTab';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogRow } from '../../ui/shared/LogRow';
 import type { LogRowProps } from '../../ui/shared/LogRow';
@@ -141,5 +142,67 @@ describe('live log row consumers', () => {
     expect(textContent(props.trailingMetadata)).toContain('18ms');
     expect(copy?.props.text).toBe('PUSH: Home → Details');
     expect(copy?.props.compact).toBe(true);
+  });
+});
+
+describe('session history log row consumers', () => {
+  it('maps Session History Console entries into the shared row', () => {
+    const props = rowProps(renderSessionLogRow({
+      id: 'console_logs-0',
+      type: 'console_logs',
+      timestamp: 1,
+      raw: { timestamp: 1, level: 'error', data: ['session', 'failure'] },
+    }));
+
+    expect(props.content).toBe('session failure');
+    expect(textContent(props.metadata)).toContain('✕');
+  });
+
+  it('maps Session History Native entries without treating them as Track events', () => {
+    const props = rowProps(renderSessionLogRow({
+      id: 'native_logs-0',
+      type: 'native_logs',
+      timestamp: 1,
+      raw: {
+        timestamp: 1,
+        level: 'error',
+        platform: 'ios',
+        source: 'rctLog',
+        tag: 'Bridge',
+        message: 'native session failure',
+      },
+    }));
+
+    expect(props.content).toBe('native session failure');
+    expect(textContent(props.metadata)).toContain('ios / rctLog / Bridge');
+  });
+
+  it('maps Session History Network entries into content and metadata', () => {
+    const props = rowProps(renderSessionLogRow({
+      id: 'network_logs-0',
+      type: 'network_logs',
+      timestamp: 1,
+      raw: {
+        timestamp: 1,
+        request: { method: 'GET', url: 'https://api.example.com/orders' },
+        response: { status: 500 },
+      },
+    }));
+
+    expect(props.content).toBe('/orders');
+    expect(textContent(props.metadata)).toContain('GET');
+    expect(textContent(props.metadata)).toContain('500');
+  });
+
+  it('maps Session History Track entries into the shared row', () => {
+    const props = rowProps(renderSessionLogRow({
+      id: 'track_logs-0',
+      type: 'track_logs',
+      timestamp: 1,
+      raw: { timestamp: 1, eventName: 'purchase_completed' },
+    }));
+
+    expect(props.content).toBe('purchase_completed');
+    expect(props.trailingMetadata).toBeDefined();
   });
 });
