@@ -110,20 +110,50 @@ describe('live log row consumers', () => {
     expect(props.trailingMetadata).toBeDefined();
   });
 
-  it('maps Zustand store and duration into footer slots', () => {
+  it('puts changed keys in the title and store name in the footer', () => {
     const props = rowProps(renderZustandLogRow({
       id: 'zustand-1',
       timestamp: 1,
-      action: 'setUser',
-      prevState: null,
-      nextState: { id: 1 },
+      action: 'setState',
+      prevState: { id: null, setUser: () => undefined },
+      nextState: { id: 1, setUser: () => undefined },
       storeName: 'auth',
       actionCompleteTime: 12,
     }));
 
-    expect(props.content).toBe('setUser');
+    expect(props.content).toBe('id');
     expect(textContent(props.metadata)).toContain('auth');
+    expect(textContent(props.metadata)).not.toContain('setState');
     expect(textContent(props.trailingMetadata)).toContain('12ms');
+  });
+
+  it('keeps a named Zustand action as a footer badge when title is changed keys', () => {
+    const props = rowProps(renderZustandLogRow({
+      id: 'zustand-2',
+      timestamp: 1,
+      action: 'setUser',
+      prevState: { id: null },
+      nextState: { id: 1 },
+      storeName: 'auth',
+    }));
+
+    expect(props.content).toBe('id');
+    expect(textContent(props.metadata)).toContain('auth');
+    expect(textContent(props.metadata)).toContain('setUser');
+  });
+
+  it('falls back to named action as title when there is no key diff', () => {
+    const props = rowProps(renderZustandLogRow({
+      id: 'zustand-3',
+      timestamp: 1,
+      action: 'hydrate',
+      prevState: null,
+      nextState: { id: 1 },
+      storeName: 'auth',
+    }));
+
+    expect(props.content).toBe('hydrate');
+    expect(textContent(props.metadata)).toContain('auth');
   });
 
   it('keeps Navigation transition full-width and Copy in the footer', () => {

@@ -7,8 +7,11 @@ import { CollapsibleSection } from '../../ui/shared/CollapsibleSection';
 import { JsonView } from '../../ui/shared/JsonView';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
-import { LogRow } from '../../ui/shared/LogRow';
+import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, ZustandLogEntry } from '../../types';
+
+/** Middleware / subscribe fallbacks that are not useful as a list title. */
+const GENERIC_ACTIONS = new Set(['setState', 'object-set', 'set']);
 
 const getActionColor = (action: string): string => {
   if (action.includes('add') || action.includes('create')) return Colors.success;
@@ -24,33 +27,78 @@ const getActionBgColor = (action: string): string => {
   return 'rgba(14,165,233,0.12)';
 };
 
-function findChanges(prev: unknown, next: unknown): string[] {
+export function findZustandChanges(prev: unknown, next: unknown): string[] {
   if (typeof prev !== 'object' || typeof next !== 'object' || !prev || !next) return [];
   const allKeys = new Set([...Object.keys(prev as object), ...Object.keys(next as object)]);
   const changed: string[] = [];
   allKeys.forEach((key) => {
     const pv = (prev as Record<string, unknown>)[key];
     const nv = (next as Record<string, unknown>)[key];
+    // Skip action methods — only surface state field diffs.
+    if (typeof pv === 'function' || typeof nv === 'function') return;
     if (safeStringify(pv) !== safeStringify(nv)) changed.push(key);
   });
   return changed;
 }
 
+/**
+ * List title = what changed (keys / named action).
+ * Store name belongs in the footer — same split as Navigation (route vs action).
+ */
+export function resolveZustandLogTitle(item: ZustandLogEntry): {
+  title: string;
+  colorKey: string;
+  namedAction: string | null;
+  changes: string[];
+} {
+  const changes = findZustandChanges(item.prevState, item.nextState);
+  const namedAction =
+    item.action && !GENERIC_ACTIONS.has(item.action) ? item.action : null;
+
+  if (changes.length > 0) {
+    return {
+      title: changes.join(', '),
+      colorKey: namedAction ?? 'update',
+      namedAction,
+      changes,
+    };
+  }
+  if (namedAction) {
+    return {
+      title: namedAction,
+      colorKey: namedAction,
+      namedAction,
+      changes,
+    };
+  }
+  return {
+    title: 'state change',
+    colorKey: 'update',
+    namedAction: null,
+    changes,
+  };
+}
+
 export function renderZustandLogRow(item: ZustandLogEntry) {
+  const { title, colorKey, namedAction } = resolveZustandLogTitle(item);
+
   return (
     <LogRow
-      content={item.action}
+      content={title}
       contentStyle={s.action}
       metadata={(
         <>
-          <View style={[s.actionIcon, { backgroundColor: getActionBgColor(item.action) }]}>
-            <View style={[s.actionDot, { backgroundColor: getActionColor(item.action) }]} />
+          <View style={[s.actionIcon, { backgroundColor: getActionBgColor(colorKey) }]}>
+            <View style={[s.actionDot, { backgroundColor: getActionColor(colorKey) }]} />
           </View>
-          {item.storeName && (
-            <View style={s.storeBadge}>
-              <Text style={s.storeBadgeText}>{item.storeName}</Text>
+          {item.storeName ? (
+            <LogRowMetaText style={s.storeName}>{item.storeName}</LogRowMetaText>
+          ) : null}
+          {namedAction && namedAction !== title ? (
+            <View style={s.actionBadge}>
+              <Text style={s.actionBadgeText}>{namedAction}</Text>
             </View>
-          )}
+          ) : null}
         </>
       )}
       trailingMetadata={(
@@ -74,20 +122,24 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
     data={snapshot}
     emptyText="No Zustand state changes"
     renderRow={renderZustandLogRow}
-    renderDetailHeader={(item) => (
-      <View style={s.detailHeaderCenter}>
-        <Text style={[s.detailAction, { color: getActionColor(item.action) }]}>
-          {item.action}
-        </Text>
-        {item.storeName && (
-          <View style={s.storeBadge}>
-            <Text style={s.storeBadgeText}>{item.storeName}</Text>
-          </View>
-        )}
-      </View>
-    )}
+    renderDetailHeader={(item) => {
+      const { title, colorKey } = resolveZustandLogTitle(item);
+      return (
+        <View style={s.detailHeaderCenter}>
+          <Text style={[s.detailAction, { color: getActionColor(colorKey) }]}>
+            {title}
+          </Text>
+          {item.storeName ? (
+            <View style={s.actionBadge}>
+              <Text style={s.actionBadgeText}>{item.storeName}</Text>
+            </View>
+          ) : null}
+        </View>
+      );
+    }}
     renderDetailBody={(item) => {
-      const changes = findChanges(item.prevState, item.nextState);
+      const { namedAction } = resolveZustandLogTitle(item);
+      const changes = findZustandChanges(item.prevState, item.nextState);
       return (
         <ScrollView style={s.detailBody} contentContainerStyle={s.detailBodyContent}>
           <View style={s.metaCard}>
@@ -103,6 +155,24 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
               </View>
             )}
           </View>
+
+          {(item.storeName || namedAction) ? (
+            <View style={s.metaCard}>
+              {item.storeName ? (
+                <View style={s.metaItem}>
+                  <Text style={s.metaLabel}>Store</Text>
+                  <Text style={s.metaValue}>{item.storeName}</Text>
+                </View>
+              ) : null}
+              {item.storeName && namedAction ? <View style={s.metaDivider} /> : null}
+              {namedAction ? (
+                <View style={s.metaItem}>
+                  <Text style={s.metaLabel}>Action</Text>
+                  <Text style={s.metaValue}>{namedAction}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {changes.length > 0 && (
             <View style={s.changesCard}>
@@ -120,14 +190,14 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
           <CollapsibleSection title="Previous State">
             <View style={s.sectionWithCopy}>
               <CopyButton text={safeStringify(item.prevState, 2)} label="Previous State" />
-              <JsonView data={item.prevState} maxHeight={250} />
+              <JsonView data={item.prevState} maxHeight={250} highlightKeys={changes} />
             </View>
           </CollapsibleSection>
 
           <CollapsibleSection title="Next State" initiallyExpanded>
             <View style={s.sectionWithCopy}>
               <CopyButton text={safeStringify(item.nextState, 2)} label="Next State" />
-              <JsonView data={item.nextState} maxHeight={250} />
+              <JsonView data={item.nextState} maxHeight={250} highlightKeys={changes} />
             </View>
           </CollapsibleSection>
         </ScrollView>
@@ -146,13 +216,18 @@ const s = StyleSheet.create({
   },
   actionDot: { width: 8, height: 8, borderRadius: 4 },
   action: { fontSize: FontSize.MD, fontWeight: FontWeight.semibold, color: Colors.text },
-  storeBadge: {
+  storeName: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.medium,
+  },
+  actionBadge: {
     backgroundColor: Colors.primaryGhost,
     paddingHorizontal: Spacing.SM,
     paddingVertical: 1,
     borderRadius: Radius.XS,
   },
-  storeBadgeText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.semibold },
+  actionBadgeText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.semibold },
   time: { fontSize: FontSize.XS, color: Colors.textSecondary },
   durationBadge: {
     backgroundColor: Colors.surfaceElevated,
@@ -196,10 +271,12 @@ const s = StyleSheet.create({
   changesTitle: { fontSize: FontSize.SM, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.SM },
   changesTags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.XXS },
   changeTag: {
-    backgroundColor: Colors.primaryGhost,
+    backgroundColor: Colors.warningDim,
     paddingHorizontal: Spacing.SM,
     paddingVertical: Spacing.XXS,
     borderRadius: Radius.XS,
+    borderWidth: 1,
+    borderColor: Colors.warning,
   },
-  changeTagText: { fontSize: FontSize.XS, color: Colors.primary, fontWeight: FontWeight.semibold },
+  changeTagText: { fontSize: FontSize.XS, color: Colors.warning, fontWeight: FontWeight.semibold },
 });

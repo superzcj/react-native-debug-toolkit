@@ -1,14 +1,27 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  type TextStyle,
+} from 'react-native';
 import { Colors } from '../theme/colors';
-import { FontSize, Spacing, Radius } from '../theme/layout';
+import { FontSize, FontWeight, Spacing, Radius } from '../theme/layout';
 
 const MAX_DEPTH = 8;
 const MAX_CHILDREN = 100;
 
-export const JsonView: React.FC<{ data: unknown; maxHeight?: number }> = React.memo(({
+export const JsonView: React.FC<{
+  data: unknown;
+  maxHeight?: number;
+  /** Top-level object keys to emphasize (e.g. zustand changed fields). */
+  highlightKeys?: readonly string[];
+}> = React.memo(({
   data,
   maxHeight,
+  highlightKeys,
 }) => {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const prevDataRef = useRef(data);
@@ -16,6 +29,11 @@ export const JsonView: React.FC<{ data: unknown; maxHeight?: number }> = React.m
     prevDataRef.current = data;
     setCollapsed(new Set());
   }
+
+  const highlightSet = useMemo(
+    () => (highlightKeys && highlightKeys.length > 0 ? new Set(highlightKeys) : null),
+    [highlightKeys],
+  );
 
   const toggle = useCallback((path: string) => {
     setCollapsed(prev => {
@@ -34,7 +52,15 @@ export const JsonView: React.FC<{ data: unknown; maxHeight?: number }> = React.m
       showsVerticalScrollIndicator
     >
       <View style={s.block}>
-        <Node value={data} depth={0} isLast path="" collapsed={collapsed} toggle={toggle} />
+        <Node
+          value={data}
+          depth={0}
+          isLast
+          path=""
+          collapsed={collapsed}
+          toggle={toggle}
+          highlightKeys={highlightSet}
+        />
       </View>
     </ScrollView>
   );
@@ -47,7 +73,8 @@ const Node: React.FC<{
   path: string;
   collapsed: Set<string>;
   toggle: (path: string) => void;
-}> = ({ value, depth, isLast, path, collapsed, toggle }) => {
+  highlightKeys: Set<string> | null;
+}> = ({ value, depth, isLast, path, collapsed, toggle, highlightKeys }) => {
   const comma = isLast ? '' : ',';
 
   if (value === null) return <C color={Colors.codeNull}>{`null${comma}`}</C>;
@@ -100,22 +127,33 @@ const Node: React.FC<{
           <C color={Colors.codeComment}>{` // ${count} items`}</C>
         )}
       </Pressable>
-      {limited.map(([key, val], i) => (
-        <View key={key} style={s.line}>
-          <Text style={s.row}>
-            {!isArray && <C color={Colors.codeKey}>{`  "${key}"`}</C>}
-            {!isArray && <C color={Colors.codeText}>{': '}</C>}
-          </Text>
-          <Node
-            value={val}
-            depth={depth + 1}
-            isLast={i === limited.length - 1}
-            path={`${path}/${key}`}
-            collapsed={collapsed}
-            toggle={toggle}
-          />
-        </View>
-      ))}
+      {limited.map(([key, val], i) => {
+        const highlighted = depth === 0 && !isArray && highlightKeys?.has(key);
+        return (
+          <View key={key} style={[s.line, highlighted && s.highlightedLine]}>
+            <Text style={s.row}>
+              {!isArray && (
+                <C
+                  color={highlighted ? Colors.warning : Colors.codeKey}
+                  weight={highlighted ? FontWeight.bold : undefined}
+                >
+                  {`  "${key}"`}
+                </C>
+              )}
+              {!isArray && <C color={Colors.codeText}>{': '}</C>}
+            </Text>
+            <Node
+              value={val}
+              depth={depth + 1}
+              isLast={i === limited.length - 1}
+              path={`${path}/${key}`}
+              collapsed={collapsed}
+              toggle={toggle}
+              highlightKeys={highlightKeys}
+            />
+          </View>
+        );
+      })}
       {entries.length > MAX_CHILDREN && (
         <C color={Colors.codeComment}>{`  ... ${entries.length - MAX_CHILDREN} more`}</C>
       )}
@@ -124,12 +162,18 @@ const Node: React.FC<{
   );
 };
 
-const C: React.FC<{ color: string; children: string; selectable?: boolean }> = ({
+const C: React.FC<{
+  color: string;
+  children: string;
+  selectable?: boolean;
+  weight?: TextStyle['fontWeight'];
+}> = ({
   color,
   children,
   selectable,
+  weight,
 }) => (
-  <Text style={[s.node, { color }]} selectable={selectable}>
+  <Text style={[s.node, { color }, weight != null && { fontWeight: weight }]} selectable={selectable}>
     {children}
   </Text>
 );
@@ -156,6 +200,15 @@ const s = StyleSheet.create({
   line: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    borderRadius: Radius.XS,
+    paddingVertical: 1,
+  },
+  highlightedLine: {
+    backgroundColor: Colors.warningDim,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.warning,
+    marginLeft: -2,
+    paddingLeft: 2,
   },
   row: {},
   toggleRow: {

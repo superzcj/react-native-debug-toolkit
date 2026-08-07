@@ -772,8 +772,40 @@ mark{
     if (entry.from || entry.to) return escapeHtml((entry.from || '-') + ' -> ' + (entry.to || '-'));
     if (entry.eventName) return escapeHtml(String(entry.eventName));
     if (entry.event) return escapeHtml(String(entry.event));
+    if (entry.prevState !== undefined || entry.nextState !== undefined || entry.storeName) {
+      return escapeHtml(formatZustandSummary(entry));
+    }
     if (entry.action) return escapeHtml(String(entry.action));
     return escapeHtml(JSON.stringify(entry).substring(0, 200));
+  }
+
+  var GENERIC_ZUSTAND_ACTIONS = { setState: 1, 'object-set': 1, set: 1 };
+
+  function findZustandChanges(prev, next) {
+    if (!prev || !next || typeof prev !== 'object' || typeof next !== 'object') return [];
+    var keys = {};
+    Object.keys(prev).forEach(function(k) { keys[k] = 1; });
+    Object.keys(next).forEach(function(k) { keys[k] = 1; });
+    var changed = [];
+    Object.keys(keys).forEach(function(key) {
+      var pv = prev[key];
+      var nv = next[key];
+      if (typeof pv === 'function' || typeof nv === 'function') return;
+      try {
+        if (JSON.stringify(pv) !== JSON.stringify(nv)) changed.push(key);
+      } catch (e) {
+        if (pv !== nv) changed.push(key);
+      }
+    });
+    return changed;
+  }
+
+  function formatZustandSummary(entry) {
+    var changes = findZustandChanges(entry.prevState, entry.nextState);
+    var namedAction = entry.action && !GENERIC_ZUSTAND_ACTIONS[entry.action] ? entry.action : null;
+    if (changes.length) return changes.join(', ');
+    if (namedAction) return namedAction;
+    return 'state change';
   }
 
   function getLogType(entry) {
@@ -1074,9 +1106,12 @@ mark{
   }
 
   function renderStateDetails(entry) {
+    var changes = findZustandChanges(entry.prevState, entry.nextState);
     return renderSection('State', renderRows([
+      ['Title', formatZustandSummary(entry)],
       ['Store', entry.storeName],
       ['Action', entry.action],
+      ['Changed', changes.length ? changes.join(', ') : ''],
       ['Time', entry.timestamp ? formatTime(new Date(entry.timestamp).toISOString()) : ''],
     ])) +
     (entry.prevState !== undefined ? renderSection('Prev', renderValueCompact(entry.prevState), entry.prevState) : '') +
@@ -1365,7 +1400,11 @@ mark{
     html += '<div class="log-type log-type-' + typeClass + '">' + escapeHtml(labelForType(lt)) + '</div>';
     html += '<div class="log-summary-col">';
     html += '<div class="log-summary">' + matchSearch(summarize(entry)) + '</div>';
-    if (ts) {
+    if (lt === 'zustand' && entry.storeName) {
+      html += '<div class="log-timestamp">' + escapeHtml(String(entry.storeName));
+      if (ts) html += ' · ' + formatTimeShort(new Date(ts).toISOString());
+      html += '</div>';
+    } else if (ts) {
       html += '<div class="log-timestamp">' + formatTimeShort(new Date(ts).toISOString()) + '</div>';
     }
     html += '</div>';
