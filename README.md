@@ -273,6 +273,71 @@ const userDebugTab = createDebugTab<UserSnapshot>({
 
 Each custom feature becomes a panel tab. `name` is the stable tab id, `label` is shown in the tab bar, `getSnapshot` provides tab data, and `render` controls the UI. Add `subscribe` when the tab should refresh after external state changes.
 
+### Quick accounts (opt-in)
+
+Quick accounts is a custom feature, so it is only enabled when you pass it to `customFeatures`.
+
+```tsx
+import {
+  DebugView,
+  useQuickAccountsFeature,
+  type QuickAccountItem,
+} from 'react-native-debug-toolkit';
+
+type DebugAccount = QuickAccountItem & { phone: string };
+
+const accounts: DebugAccount[] = [
+  { id: 'driver-a', label: 'Driver A', phone: '+15550000001' },
+  { id: 'driver-b', label: 'Driver B', phone: '+15550000002' },
+];
+
+function AppDebugView() {
+  const quickAccounts = useQuickAccountsFeature({
+    accounts,
+    currentAccountId: session.accountId,
+    onSwitch: (account, { signal }) =>
+      signInForDebug(account.phone, { signal }),
+  });
+
+  return (
+    <DebugView customFeatures={[quickAccounts]}>
+      <AppContent />
+    </DebugView>
+  );
+}
+```
+
+`id`, `label`, `subtitle`, and `note` are the public display fields. Keep private values such as phone numbers, passwords, and tokens in your own extended account type; only `onSwitch` receives the full object. The device/MCP snapshot contains only account count and operation status—not account rows, private fields, or error details.
+
+For lifecycle control and custom persistence, use the factory:
+
+```tsx
+import {
+  createQuickAccountsFeature,
+  type StorageAdapter,
+} from 'react-native-debug-toolkit';
+
+const quickAccounts = createQuickAccountsFeature({
+  accounts,
+  currentAccountId: session.accountId,
+  scopeKey: environment.id,
+  storage: appDebugStorage as StorageAdapter,
+  storageKey: (scope) => `debug:quick-account:${scope}`,
+  onSwitch: (account, { signal }) => signInForDebug(account.phone, { signal }),
+  onRollback: (account, { reason }) => rollbackDebugSignIn(account.id, reason),
+});
+
+async function changeEnvironment() {
+  quickAccounts.suspend();
+  try {
+    await quickAccounts.waitForIdle();
+    await resetSessionForEnvironmentChange();
+  } finally {
+    quickAccounts.resume();
+  }
+}
+```
+
 ### Navigation tracking
 
 ```tsx
@@ -303,6 +368,8 @@ addTrackLog({ eventName: 'button_click' });
 - `DebugToolkit`
 - `initializeDebugToolkit`
 - `createDebugTab`
+- `useQuickAccountsFeature`
+- `createQuickAccountsFeature`
 - `createDebugDeviceReport`
 - `checkDaemonConnection`
 - `reportDebugDeviceToDaemon`

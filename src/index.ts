@@ -25,6 +25,28 @@ export type { DevConnectState } from './features/devConnect';
 export { createSessionHistoryFeature } from './features/sessionHistory';
 export { createNativeLogsFeature } from './features/nativeLogs';
 export type { NativeLogsFeatureConfig } from './features/nativeLogs';
+export {
+  createQuickAccountsFeature,
+  DEFAULT_QUICK_ACCOUNTS_COPY,
+  useQuickAccountsFeature,
+} from './features/quickAccounts';
+export type {
+  CreateQuickAccountsFeatureOptions,
+  QuickAccountDetail,
+  QuickAccountItem,
+  QuickAccountViewItem,
+  QuickAccountRollbackContext,
+  QuickAccountRollbackReason,
+  QuickAccountsCopy,
+  QuickAccountsFeature,
+  QuickAccountsLastResult,
+  QuickAccountsSnapshot,
+  QuickAccountsState,
+  QuickAccountsStorageKey,
+  QuickAccountsViewState,
+  QuickAccountSwitchContext,
+  QuickAccountSwitchResult,
+} from './features/quickAccounts';
 
 // Hooks
 export { useNavigationLogger } from './features/navigation/useNavigationLogger';

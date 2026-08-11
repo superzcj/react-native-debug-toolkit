@@ -273,6 +273,71 @@ const userDebugTab = createDebugTab<UserSnapshot>({
 
 每个自定义 feature 会变成面板 Tab。`name` 是稳定 Tab id，`label` 显示在 Tab 栏，`getSnapshot` 提供数据，`render` 控制展示 UI。需要自动刷新时加 `subscribe`。
 
+### 快捷账号（按需启用）
+
+快捷账号属于自定义 feature。只有传入 `customFeatures` 才会启用。
+
+```tsx
+import {
+  DebugView,
+  useQuickAccountsFeature,
+  type QuickAccountItem,
+} from 'react-native-debug-toolkit';
+
+type DebugAccount = QuickAccountItem & { phone: string };
+
+const accounts: DebugAccount[] = [
+  { id: 'driver-a', label: '司机 A', phone: '+15550000001' },
+  { id: 'driver-b', label: '司机 B', phone: '+15550000002' },
+];
+
+function AppDebugView() {
+  const quickAccounts = useQuickAccountsFeature({
+    accounts,
+    currentAccountId: session.accountId,
+    onSwitch: (account, { signal }) =>
+      signInForDebug(account.phone, { signal }),
+  });
+
+  return (
+    <DebugView customFeatures={[quickAccounts]}>
+      <AppContent />
+    </DebugView>
+  );
+}
+```
+
+`id`、`label`、`subtitle`、`note` 是公开展示字段。手机号、密码、token 等私密值放在宿主自己的扩展类型中；只有 `onSwitch` 会收到完整对象。设备/MCP 快照只包含账号数量和操作状态，不包含账号列表、私密扩展字段或错误详情。
+
+需要控制生命周期或自定义持久化时，使用工厂：
+
+```tsx
+import {
+  createQuickAccountsFeature,
+  type StorageAdapter,
+} from 'react-native-debug-toolkit';
+
+const quickAccounts = createQuickAccountsFeature({
+  accounts,
+  currentAccountId: session.accountId,
+  scopeKey: environment.id,
+  storage: appDebugStorage as StorageAdapter,
+  storageKey: (scope) => `debug:quick-account:${scope}`,
+  onSwitch: (account, { signal }) => signInForDebug(account.phone, { signal }),
+  onRollback: (account, { reason }) => rollbackDebugSignIn(account.id, reason),
+});
+
+async function changeEnvironment() {
+  quickAccounts.suspend();
+  try {
+    await quickAccounts.waitForIdle();
+    await resetSessionForEnvironmentChange();
+  } finally {
+    quickAccounts.resume();
+  }
+}
+```
+
 ### 导航追踪
 
 ```tsx
@@ -303,6 +368,8 @@ addTrackLog({ eventName: 'button_click' });
 - `DebugToolkit`
 - `initializeDebugToolkit`
 - `createDebugTab`
+- `useQuickAccountsFeature`
+- `createQuickAccountsFeature`
 - `createDebugDeviceReport`
 - `checkDaemonConnection`
 - `reportDebugDeviceToDaemon`

@@ -127,6 +127,21 @@ describe('buildFeatureSummary', () => {
     expect(s.statusLabel).toBe('QA');
   });
 
+  it('quick accounts: summarizes only the safe count and operation state', () => {
+    const f = mockFeature('quick-accounts');
+    const s = buildFeatureSummary(f, {
+      accountCount: 3,
+      busy: true,
+      suspended: false,
+      lastResult: 'idle',
+    });
+
+    expect(s.count).toBe(3);
+    expect(s.statusLabel).toBe('Switching');
+    expect(s.capabilityText).toBe('Opt-in debug account switching');
+    expect(s.supportsBadFilter).toBe(false);
+  });
+
   it('devConnect: streaming state', () => {
     const f = mockFeature('devConnect');
     const snap = { streaming: true, computerHost: '192.168.1.5', daemonPort: '3000' };

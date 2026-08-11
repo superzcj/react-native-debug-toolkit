@@ -25,6 +25,7 @@ export function buildFeatureSummary(
   if (name === 'track') return buildTrackSummary(snapshot);
   if (name === 'clipboard') return buildClipboardSummary(snapshot);
   if (name === 'environment') return buildEnvironmentSummary(snapshot);
+  if (name === 'quick-accounts') return buildQuickAccountsSummary(snapshot);
   if (name === 'devConnect') return buildDevConnectSummary(snapshot);
   if (name === 'sessionHistory') return buildSessionHistorySummary(snapshot);
   if (name === 'thirdPartyLibs') return buildThirdPartyLibsSummary(snapshot);
@@ -191,6 +192,32 @@ function buildEnvironmentSummary(snapshot: unknown): FeatureSummary {
     count: envs.length || undefined,
     latestLabel: current?.label,
     statusLabel: current?.label,
+    supportsBadFilter: false,
+  };
+}
+
+interface QuickAccountsSummarySnapshot {
+  accountCount?: number;
+  busy?: boolean;
+  suspended?: boolean;
+  lastResult?: 'idle' | 'success' | 'error' | 'superseded';
+}
+
+function buildQuickAccountsSummary(snapshot: unknown): FeatureSummary {
+  const state = (snapshot ?? {}) as QuickAccountsSummarySnapshot;
+  const statusLabel = state.suspended
+    ? 'Paused'
+    : state.busy
+      ? 'Switching'
+      : state.lastResult === 'error'
+        ? 'Error'
+        : undefined;
+
+  return {
+    capabilityText: 'Opt-in debug account switching',
+    count: typeof state.accountCount === 'number' ? state.accountCount : undefined,
+    statusLabel,
+    statusColor: state.lastResult === 'error' ? Colors.error : undefined,
     supportsBadFilter: false,
   };
 }

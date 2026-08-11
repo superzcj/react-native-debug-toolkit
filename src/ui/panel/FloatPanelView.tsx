@@ -63,6 +63,7 @@ function snapshotCount(feature: AnyDebugFeature): number | undefined {
       if (Array.isArray(obj.logs)) return obj.logs.length;
       if (Array.isArray(obj.entries)) return obj.entries.length;
       if (Array.isArray(obj.environments)) return obj.environments.length;
+      if (typeof obj.accountCount === 'number') return obj.accountCount;
     }
   } catch { /* ignore */ }
   return undefined;
@@ -232,7 +233,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     );
   };
 
-  const showSearch = activeSummary ? (activeSummary.count != null && activeSummary.count > 0) : false;
+  const showSearch = Array.isArray(activeSnapshot) && activeSnapshot.length > 0;
 
   return (
     <DebugErrorBoundary onError={onClosePanel}>
