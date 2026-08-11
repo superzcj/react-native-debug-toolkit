@@ -11,7 +11,12 @@ import { createTrackFeature } from '../features/track';
 import type { TrackFeatureConfig } from '../features/track';
 import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
-import { createDevConnectFeature, restoreDevConnectSettingsToDaemon, nativeIsDebugBuild } from '../features/devConnect';
+import {
+  createDevConnectFeature,
+  restoreDevConnectSettingsToDaemon,
+  nativeIsDebugBuild,
+  type DevConnectV4Config,
+} from '../features/devConnect';
 import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { createNativeLogsFeature } from '../features/nativeLogs';
 import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
@@ -36,7 +41,7 @@ export interface FeatureConfigs {
   track?: boolean | TrackFeatureConfig;
   environment?: Parameters<typeof createEnvironmentFeature>[0];
   clipboard?: boolean;
-  devConnect?: boolean;
+  devConnect?: boolean | DevConnectV4Config;
   sessionHistory?: boolean;
 }
 
@@ -74,7 +79,7 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   track: (config, runtime) => createTrackFeature(config as TrackFeatureConfig | undefined, runtime),
   environment: (config) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined),
   clipboard: () => createClipboardFeature(),
-  devConnect: () => createDevConnectFeature(),
+  devConnect: (config) => createDevConnectFeature(config as DevConnectV4Config | undefined),
   sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
 };
 

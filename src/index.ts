@@ -21,7 +21,7 @@ export { createEnvironmentFeature } from './features/environment';
 export type { EnvironmentFeatureAPI } from './features/environment';
 export { createClipboardFeature } from './features/clipboard';
 export { createDevConnectFeature } from './features/devConnect';
-export type { DevConnectState } from './features/devConnect';
+export type { DevConnectState, DevConnectV4Config, DevConnectV4State } from './features/devConnect';
 export { createSessionHistoryFeature } from './features/sessionHistory';
 export { createNativeLogsFeature } from './features/nativeLogs';
 export type { NativeLogsFeatureConfig } from './features/nativeLogs';

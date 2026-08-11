@@ -1,13 +1,21 @@
 import { DevConnectTab } from './DevConnectTab';
+import { DevConnectTabV4 } from './DevConnectTabV4';
 import { loadDevConnectPreferences } from './devConnectPreferences';
 import { DEFAULT_DAEMON_PORT, extractSubnetPrefix } from './devConnectUtils';
 import { getDeviceLocalIp } from './nativeDevConnect';
 import { isSimulator } from './platformDetect';
 import { daemonClient } from '../../utils/DaemonClient';
+import { hubClient, normalizeHubEndpoint } from '../../utils/HubClient';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
-import type { DevConnectFeatureControls, DevConnectSettingsPatch, DevConnectState } from './types';
+import type {
+  DevConnectFeatureControls,
+  DevConnectSettingsPatch,
+  DevConnectState,
+  DevConnectV4Config,
+  DevConnectV4State,
+} from './types';
 
-export type { DevConnectState } from './types';
+export type { DevConnectState, DevConnectV4Config, DevConnectV4State } from './types';
 export {
   normalizeComputerHost,
   normalizePort,
@@ -22,7 +30,41 @@ export {
 } from './devConnectPreferences';
 export { nativeIsDebugBuild } from './nativeDevConnect';
 
-export const createDevConnectFeature = (): DebugFeature<DevConnectState> => {
+function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevConnectV4State> {
+  const canonicalEndpoint = normalizeHubEndpoint(config.endpoint) || config.endpoint;
+  const listeners = new Set<DebugFeatureListener>();
+  const state: DevConnectV4State = {
+    appId: config.appId,
+    canonicalEndpoint,
+  };
+
+  return {
+    name: 'devConnect',
+    label: 'DevConnect',
+    renderContent: DevConnectTabV4,
+    setup() {
+      hubClient.configure({ appId: config.appId, endpoint: canonicalEndpoint });
+      hubClient.connect();
+    },
+    getSnapshot: () => state,
+    cleanup() {
+      hubClient.disconnect();
+      listeners.clear();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+export const createDevConnectFeature = (
+  config?: DevConnectV4Config,
+) => {
+  if (config) {
+    return createSharedHubFeature(config);
+  }
+
   const listeners = new Set<DebugFeatureListener>();
   let state: DevConnectState = {
     isSimulator: isSimulator(),

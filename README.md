@@ -4,6 +4,99 @@
 
 [中文](README.zh-CN.md)
 
+> **v4 is a breaking Shared Log Hub release.** The old per-developer daemon,
+> `/report`/`/ingest` endpoints and v3 MCP workflow are removed. The legacy
+> material below is retained only for unrelated Toolkit features; do not use
+> its daemon commands.
+
+## v4 Shared Log Hub
+
+One Mac mini runs the Hub; each debug/internal-test App uploads to its fixed
+LAN address. Day-to-day users only run the App and ask their repository AI to
+diagnose a runtime problem — MCP is optional.
+
+### 1. Install the Hub once (Mac mini)
+
+Use a fixed package version and the Mac mini's fixed LAN IP:
+
+```bash
+npm exec --yes --ignore-scripts --omit=peer \
+  --package=react-native-debug-toolkit@4.0.0 -- \
+  debug-toolkit hub install --system \
+  --bind 10.20.4.10 \
+  --advertise-url http://10.20.4.10:3799
+```
+
+`hub install --system` creates a LaunchDaemon, so the service comes back after
+reboot without a login. It stores data under
+`/Users/Shared/ReactNativeDebugToolkitHub/data`; retention is seven days and
+the Hub stops accepting new events at 20 GB. Keep the address on a trusted
+LAN/VPN only: logs are isolated by app, not confidential.
+
+The current minimal installer copies the bootstrap Node 20+ executable into
+the versioned runtime. It deliberately has no hidden download step; install it
+from the target Mac mini and re-run with `--replace` when changing the package
+version.
+
+For a no-write check of the generated paths and LaunchDaemon settings:
+
+```bash
+debug-toolkit hub install --system --dry-run \
+  --bind 10.20.4.10 --advertise-url http://10.20.4.10:3799
+```
+
+### 2. Connect an App once
+
+Use the existing `DebugView → features.devConnect` configuration; do not add a
+separate config file or persist a device-specific IP.
+
+```tsx
+<DebugView
+  enabled={__DEV__ || appConfig.buildChannel === 'internal'}
+  features={{
+    console: true,
+    network: true,
+    devConnect: {
+      appId: appConfig.appId,
+      endpoint: 'http://10.20.4.10:3799',
+    },
+  }}
+>
+  <AppContent />
+</DebugView>
+```
+
+Production builds must set `enabled={false}`. In bare React Native, add iOS
+Local Network/ATS and Android cleartext exceptions only to debug/internal build
+variants; Expo Go is unsupported (use a development build or prebuild).
+
+The v4 DevConnect tab has only a Hub-address input, **Sync Now** (with a short
+session code) and pause/resume. The address override lasts only for the current
+runtime; clearing it restores the configured Hub.
+
+### 3. Let repository AI read logs
+
+Generate and commit the repository Skill from the App workspace:
+
+```bash
+npm exec --no --package=react-native-debug-toolkit -- debug-toolkit init-skill
+```
+
+The Skill runs `status → context → inspect` over the Hub HTTP API. It asks the
+user for the short code shown by **Sync Now**, records that Session's sync
+baseline, and only then asks them to tap the button. This prevents an AI from
+reading a colleague's active Session by mistake. The local AI shell must be on
+the same LAN/VPN and able to reach the Hub.
+
+Manual read-only commands always use explicit values:
+
+```bash
+debug-toolkit status --endpoint http://10.20.4.10:3799 --app-id com.example.app
+debug-toolkit context --endpoint http://10.20.4.10:3799 --app-id com.example.app --session <session-id>
+```
+
+## Legacy v3 documentation (obsolete; do not follow its daemon/MCP commands)
+
 A local debugging toolkit for React Native apps. It provides an in-app debug panel, a desktop Web Console, an HTTP API, and an MCP server — all running locally with no cloud dependency.
 
 ```text

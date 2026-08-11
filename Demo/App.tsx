@@ -158,6 +158,13 @@ const T = {
   warning: '#C67A18',
 } as const;
 
+// Demo defaults to the Shared Hub address used in the v4 deployment guide.
+// Change this one build-time value to the fixed address of the target Mac mini.
+const DEMO_HUB = {
+  appId: 'com.reactnativedebugtoolkit.demo',
+  endpoint: 'http://10.20.4.10:3799',
+};
+
 function formatPrice(price: number): string {
   return `¥${price.toFixed(0)}`;
 }
@@ -881,6 +888,7 @@ function App(): React.JSX.Element {
 
   return (
     <DebugView
+      features={{ devConnect: DEMO_HUB }}
       customFeatures={customFeatures}
       environments={[
         { id: 'dev', label: 'Development', host: 'jsonplaceholder.typicode.com', color: '#34C759' },

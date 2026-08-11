@@ -52,14 +52,17 @@ class DebugToolkitCore implements FeatureDataProvider {
     const prevMap = new Map(this._features.map((f) => [f.name, f]));
     const nextMap = new Map(next.map((f) => [f.name, f]));
 
-    this._features.forEach((f) => {
+    const previousFeatures = this._features;
+    // A feature may subscribe to this provider during setup (the v4 Hub
+    // client does). Publish the new registry before setup so it sees the
+    // complete feature set rather than the old one.
+    this._features = next;
+    previousFeatures.forEach((f) => {
       if (!nextMap.get(f.name) || nextMap.get(f.name) !== f) f.cleanup?.();
     });
     next.forEach((f) => {
       if (!prevMap.get(f.name) || prevMap.get(f.name) !== f) f.setup?.();
     });
-
-    this._features = next;
     this.notify();
   }
 
@@ -75,19 +78,19 @@ class DebugToolkitCore implements FeatureDataProvider {
         return;
       }
 
-      existing.cleanup?.();
-      feature.setup?.();
       this._features = [
         ...this._features.slice(0, existingIndex),
         feature,
         ...this._features.slice(existingIndex + 1),
       ];
+      existing.cleanup?.();
+      feature.setup?.();
       this.notify();
       return;
     }
 
-    feature.setup?.();
     this._features = [...this._features, feature];
+    feature.setup?.();
     this.notify();
   }
 

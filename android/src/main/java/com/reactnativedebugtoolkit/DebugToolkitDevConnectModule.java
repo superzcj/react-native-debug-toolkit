@@ -2,6 +2,8 @@ package com.reactnativedebugtoolkit;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.os.Build;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
@@ -9,6 +11,7 @@ import androidx.annotation.Nullable;
 
 import com.reactnativedebugtoolkit.BuildConfig;
 import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -77,6 +80,24 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
         }
       }
       promise.resolve(fallback);
+    } catch (Exception e) {
+      promise.resolve(null);
+    }
+  }
+
+  @ReactMethod
+  public void getAppInfo(Promise promise) {
+    try {
+      Context context = getReactApplicationContext();
+      PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+      com.facebook.react.bridge.WritableMap info = Arguments.createMap();
+      info.putString("nativeApplicationId", context.getPackageName());
+      info.putString("manufacturer", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER);
+      info.putString("model", Build.MODEL == null ? "" : Build.MODEL);
+      info.putString("osVersion", Build.VERSION.RELEASE == null ? "" : Build.VERSION.RELEASE);
+      info.putString("appVersion", packageInfo.versionName == null ? "" : packageInfo.versionName);
+      info.putString("buildNumber", String.valueOf(packageInfo.versionCode));
+      promise.resolve(info);
     } catch (Exception e) {
       promise.resolve(null);
     }

@@ -1,7 +1,7 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "3.6.8",
-  "description": "A local-first React Native debug toolkit with Web Console, HTTP API, and MCP support for AI-readable app logs",
+  "version": "4.0.0",
+  "description": "AI-first Shared Log Hub for React Native — real-time debugging with CLI, Web Console, and optional MCP",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
@@ -52,6 +52,9 @@
   "bugs": {
     "url": "https://github.com/superzcj/react-native-debug-toolkit/issues"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "peerDependencies": {
     "@react-native-clipboard/clipboard": ">=1.0.0",
     "@react-native-async-storage/async-storage": ">=1.0.0",
@@ -67,6 +70,12 @@
       "optional": true
     },
     "react-native-mmkv": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-native": {
       "optional": true
     }
   },

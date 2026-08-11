@@ -1,6 +1,7 @@
 #import "DebugToolkitDevConnect.h"
 
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <React/RCTBridgeModule.h>
 #include <ifaddrs.h>
 #include <arpa/inet.h>
@@ -76,6 +77,25 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
     }
     freeifaddrs(interfaces);
     resolve(preferred ?: fallback ?: [NSNull null]);
+  } @catch (NSException *e) {
+    reject(@"native_error", e.reason ?: @"unknown", nil);
+  }
+}
+
+RCT_EXPORT_METHOD(getAppInfo:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  @try {
+    NSBundle *bundle = [NSBundle mainBundle];
+    UIDevice *device = [UIDevice currentDevice];
+    resolve(@{
+      @"nativeApplicationId": bundle.bundleIdentifier ?: @"",
+      @"manufacturer": @"Apple",
+      @"model": device.model ?: @"",
+      @"osVersion": device.systemVersion ?: @"",
+      @"appVersion": [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"",
+      @"buildNumber": [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"",
+    });
   } @catch (NSException *e) {
     reject(@"native_error", e.reason ?: @"unknown", nil);
   }
