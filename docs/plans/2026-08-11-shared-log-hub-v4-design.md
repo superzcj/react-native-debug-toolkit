@@ -238,11 +238,9 @@ npm exec --yes --package=react-native-debug-toolkit@4.0.0 -- \
 
 - LaunchDaemon：Mac 重启、无人登录时自动启动。
 - 数据目录：`/Users/Shared/ReactNativeDebugToolkitHub/data`。
-- 运行日志有界轮转。
-- `debug-toolkit-hub status|restart|uninstall` 三个管理命令。
-- `uninstall` 默认保留日志数据。
+- 安装命令与 `--dry-run` 是首版仅有的部署入口。
 
-首版安装器只需检查：Node 版本、端口占用、目录可写、bind 地址存在、`/ready` 可达。升级先停止旧进程、替换运行文件、启动并验证；失败时恢复上一个版本。暂不实现复杂 probe、nonce、身份迁移和管理审计。
+首版不做管理 shim、升级/回滚编排、运行日志轮转或复杂部署探针；需要变更时由维护者重新执行固定版本安装。后续以真实部署问题决定是否补充。
 
 本地开发 Hub：
 
@@ -259,7 +257,7 @@ npm exec --no --package=react-native-debug-toolkit -- debug-toolkit hub start \
 - `node/daemon/**`
 - `node/mcp/**`
 - RN `DaemonClient`、daemon settings/connection/streaming、report/ingest 代码与测试
-- 旧 `DevConnectTab` 与 v3 preferences
+- 旧 `DevConnectTab`、v3 preferences、IP 自动探测和本地 daemon 地址逻辑
 - `/report`、`/ingest`、`/devices/latest` 和 `--daemon-only`
 - v3 README、设计文档和示例
 - v4 MCP adapter 与 MCP 命令

@@ -22,6 +22,16 @@ type MMKVLikeV4 = {
   remove: (key: string) => boolean;
 };
 
+type OptionalModuleLoader = (moduleName: string) => unknown;
+
+type MMKVConstructor = new (options: { id: string }) => MMKVLike;
+type MMKVFactory = (options: { id: string }) => MMKVLike | MMKVLikeV4;
+type MMKVModule = {
+  createMMKV?: MMKVFactory;
+  MMKV?: MMKVConstructor;
+  default?: MMKVConstructor | { MMKV?: MMKVConstructor };
+};
+
 export class MemoryStorageAdapter implements StorageAdapter {
   private readonly store = new Map<string, string>();
 
@@ -88,38 +98,34 @@ function isAsyncStorageLike(value: unknown): value is AsyncStorageLike {
   );
 }
 
-function loadMMKVStorage(): StorageAdapter | null {
+function loadMMKVStorage(loadModule: OptionalModuleLoader): StorageAdapter | null {
   try {
-    const mod = require('react-native-mmkv');
-    console.warn('[StorageAdapter] MMKV module loaded, keys:', Object.keys(mod).join(','));
+    const mod = loadModule('react-native-mmkv') as MMKVModule;
 
     // v4+: createMMKV factory function
     if (typeof mod?.createMMKV === 'function') {
-      console.warn('[StorageAdapter] Found createMMKV (v4+)');
       const instance = mod.createMMKV({ id: 'debug-toolkit-logs' });
-      console.warn('[StorageAdapter] createMMKV returned:', typeof instance, instance ? 'has getString:' + typeof instance.getString : 'null');
       if (instance && typeof instance.getString === 'function' && typeof instance.set === 'function') {
         return new MMKVStorageAdapter(instance as unknown as MMKVLike);
       }
     }
 
     // v3 and earlier: MMKV class
-    const MMKV = mod?.MMKV ?? mod?.default?.MMKV ?? mod?.default;
+    const defaultMMKV = typeof mod?.default === 'function' ? mod.default : mod?.default?.MMKV;
+    const MMKV = mod?.MMKV ?? defaultMMKV;
     if (typeof MMKV === 'function') {
       return new MMKVStorageAdapter(new MMKV({ id: 'debug-toolkit-logs' }));
     }
 
-    console.warn('[StorageAdapter] No MMKV constructor found');
     return null;
-  } catch (e) {
-    console.warn('[StorageAdapter] loadMMKVStorage failed:', e);
+  } catch {
     return null;
   }
 }
 
-function loadAsyncStorage(): StorageAdapter | null {
+function loadAsyncStorage(loadModule: OptionalModuleLoader): StorageAdapter | null {
   try {
-    const mod = require('@react-native-async-storage/async-storage');
+    const mod = loadModule('@react-native-async-storage/async-storage') as { default?: unknown };
     const storage = isAsyncStorageLike(mod?.default) ? mod.default : mod;
     if (!isAsyncStorageLike(storage)) {
       return null;
@@ -130,6 +136,6 @@ function loadAsyncStorage(): StorageAdapter | null {
   }
 }
 
-export function createDefaultLogStorage(): StorageAdapter {
-  return loadMMKVStorage() ?? loadAsyncStorage() ?? new MemoryStorageAdapter();
+export function createDefaultLogStorage(loadModule: OptionalModuleLoader = require): StorageAdapter {
+  return loadMMKVStorage(loadModule) ?? loadAsyncStorage(loadModule) ?? new MemoryStorageAdapter();
 }

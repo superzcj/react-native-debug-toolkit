@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { generateHubRef } = require('../protocol/hubRef');
 
 class Mutex {
   constructor() { this._queue = []; this._locked = false; }
@@ -66,8 +65,6 @@ class IdentityRegistry {
       this._data = JSON.parse(raw);
     } catch {
       this._data = {
-        hubInstanceId: crypto.randomBytes(16).toString('hex'),
-        hubRef: generateHubRef(),
         createdAt: new Date().toISOString(),
         appBindings: {},
         sessionTombstones: {},
@@ -96,8 +93,6 @@ class IdentityRegistry {
     }
   }
 
-  getHubInstanceId() { return this._data?.hubInstanceId || null; }
-  getHubRef() { return this._data?.hubRef || null; }
   getCursorKey() { return this._cursorKey; }
 
   async checkAppBinding(appId, platform, nativeApplicationId) {

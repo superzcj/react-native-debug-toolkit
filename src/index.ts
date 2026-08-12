@@ -21,7 +21,7 @@ export { createEnvironmentFeature } from './features/environment';
 export type { EnvironmentFeatureAPI } from './features/environment';
 export { createClipboardFeature } from './features/clipboard';
 export { createDevConnectFeature } from './features/devConnect';
-export type { DevConnectState, DevConnectV4Config, DevConnectV4State } from './features/devConnect';
+export type { DevConnectV4Config, DevConnectV4State } from './features/devConnect';
 export { createSessionHistoryFeature } from './features/sessionHistory';
 export { createNativeLogsFeature } from './features/nativeLogs';
 export type { NativeLogsFeatureConfig } from './features/nativeLogs';
@@ -59,19 +59,6 @@ export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
 export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
 export { createDebugDeviceReport } from './utils/deviceReport';
 export type { DebugDeviceReport, DebugDeviceReportOptions } from './utils/deviceReport';
-export { DaemonClient, daemonClient } from './utils/DaemonClient';
-export type {
-  DaemonSettings,
-  DaemonConnectionMode,
-  DaemonConnectionFailureReason,
-  DaemonConnectionOptions,
-  DaemonConnectionResult,
-  StreamStatus,
-  StreamToDaemonOptions,
-  ReportResult,
-  ReportToDaemonOptions,
-} from './utils/DaemonClient';
-export { getDefaultDaemonEndpoint } from './utils/DaemonClient';
 export {
   createDefaultLogStorage,
   MemoryStorageAdapter,

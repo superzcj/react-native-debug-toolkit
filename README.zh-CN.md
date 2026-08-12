@@ -1,392 +1,115 @@
 # React Native Debug Toolkit
 
-![demo](demo.gif)
+面向 AI 的 React Native 运行时证据工具。App 把调试日志上传到公共 Shared Hub；仓库中的 Skill 让 AI 直接读取并诊断。Web Console 仅供人辅助浏览同一份证据。
 
-[English](README.md)
+## 包含什么
 
-React Native 开发期本地调试工具。提供 App 内调试面板、桌面 Web Console、本地 HTTP API 和 MCP server，全部在本地运行，不依赖云服务。
+- App 内 Toolkit：Console、Network、Native、Navigation、Track、Zustand、环境切换、Clipboard 和自定义 Tab。
+- Shared Hub：一台可信局域网 Mac 上的 Node 服务，带 Web Console，保存 7 天、总量 20 GB。
+- AI 流程：仓库 Skill → `status`、`context`、`inspect`、有界 `tail`。不需要安装 MCP。
 
-```text
-RN App -> Debug Panel -> 本地 daemon -> Web Console / HTTP API / MCP
-```
-
-## 功能
-
-- App 内调试面板：Network、Console、原生日志(Native)、Navigation、Track、Zustand、Environment、Clipboard，支持自定义 Tab。
-- 桌面 Web Console：在浏览器中查看模拟器和真机日志。
-- 本地 HTTP API：供 `curl`、脚本、AI Agent（Codex、Claude Code 等）读取日志。
-- 可选 MCP server：提供 `list_app_devices` 和 `get_app_logs`。
-- 本地优先：不接云服务，不注册，包内不调用 AI API。
-
-## 安装
+## 1. 安装 App 包
 
 ```bash
 npm install react-native-debug-toolkit
-```
-
-安装原生部分并重新构建：
-
-```bash
 cd ios && pod install
-# Android：下次构建时 Gradle autolinking 生效
 ```
 
-Expo Go 无法加载此原生模块。Expo 项目需用 development build、prebuild 或 bare React Native。
+Expo Go 不能加载原生模块，请使用 development build、prebuild 或 bare React Native。
 
-可选依赖：
+## 2. 在公共 Mac 上安装 Hub
+
+在拥有固定局域网地址的 Mac mini 执行一次：
 
 ```bash
-npm install @react-native-clipboard/clipboard
-npm install @react-native-async-storage/async-storage
+npm exec --yes --package=react-native-debug-toolkit@4.0.0 -- \
+  debug-toolkit hub install --system \
+  --bind 10.20.4.10 \
+  --advertise-url http://10.20.4.10:3800
 ```
 
-## 快速开始
+系统服务会在重启后自动恢复；数据写在 `/Users/Shared/ReactNativeDebugToolkitHub/data`。日志保留 7 天，达到 20 GB 后不再接收新日志。第一版没有鉴权、TLS 或脱敏，只能部署在可信局域网或 VPN。
 
-用 `DebugView` 包裹 App：
+只查看安装结果、不写文件：
+
+```bash
+debug-toolkit hub install --system --dry-run \
+  --bind 10.20.4.10 --advertise-url http://10.20.4.10:3800
+```
+
+本地开发 Hub：
+
+```bash
+debug-toolkit hub start \
+  --bind 10.20.4.10 --port 3800 \
+  --data-dir /tmp/react-native-debug-toolkit-hub
+```
+
+## 3. 配置 App
+
+继续使用 `DebugView.features.devConnect`。`appId` 直接使用业务 App 已有的固定标识；模拟器和真机都配置 Mac 的局域网 IP，真机不能填 `127.0.0.1`。
 
 ```tsx
-import { DebugView } from 'react-native-debug-toolkit';
-
-export function App() {
-  return (
-    <DebugView>
-      <AppContent />
-    </DebugView>
-  );
-}
-```
-
-开发模式启动 App，点击 `DBG` 打开调试面板。
-
-启动桌面 daemon：
-
-```bash
-npm exec -- debug-toolkit --daemon-only
-# 或：npx react-native-debug-toolkit --daemon-only
-```
-
-打开 Web Console：
-
-```text
-http://127.0.0.1:3799/console
-```
-
-App 内打开 Debug Panel → `DevConnect` → `Send Once` 或 `Start Live Sync` 同步日志到桌面。
-
-DevConnect 自动识别模拟器/真机并配置主机地址。真机需手动输入电脑 IP。
-
-IP 和端口通过 AsyncStorage（如果装了）或原生模块持久化。
-
-扫码是可选功能。安装 `react-native-camera-kit` 或 `expo-camera` 后 DevConnect 会显示扫码按钮。App 需在使用前自行申请相机权限。
-
-## 设备连接
-
-| 运行时 | App endpoint |
-| --- | --- |
-| iOS 模拟器 | `http://localhost:3799` |
-| Android 模拟器 | `http://10.0.2.2:3799` |
-| 真机 | `http://<电脑IP>:3799` |
-
-真机先用手机浏览器打开：
-
-```text
-http://<电脑IP>:3799/health
-```
-
-打不开则检查 Mac 防火墙、Wi-Fi 隔离、VPN、本地网络权限、明文 HTTP 配置。
-
-Daemon 日志存储位置：
-
-```text
-~/.react-native-debug-toolkit/daemon-devices.json
-```
-
-自定义存储路径：
-
-```bash
-npm exec -- debug-toolkit --daemon-only --store /path/to/devices.json
-# 或：npx react-native-debug-toolkit --daemon-only --store /path/to/devices.json
-DEBUG_TOOLKIT_DAEMON_STORE=/path/to/devices.json npm exec -- debug-toolkit --daemon-only
-```
-
-## 用 HTTP 读取日志
-
-AI 或脚本有 shell 访问时，推荐用 HTTP。
-
-```bash
-BASE=http://127.0.0.1:3799
-
-curl "$BASE/health"
-curl "$BASE/devices"
-curl "$BASE/devices/latest"
-
-DEVICE_ID=$(curl -s "$BASE/devices" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log((JSON.parse(s).devices||[])[0]?.deviceId||''))")
-
-curl "$BASE/devices/$DEVICE_ID/logs?limit=100"
-curl "$BASE/devices/$DEVICE_ID/logs?type=network&failedOnly=true&limit=50"
-curl "$BASE/devices/$DEVICE_ID/logs?type=console&limit=100"
-curl "$BASE/devices/$DEVICE_ID/logs?entryId=<entryId>"
-curl "$BASE/devices/$DEVICE_ID/logs?limit=100&includeBodies=true"
-curl -X DELETE "$BASE/devices"
-```
-
-端点：
-
-```text
-GET    /health
-POST   /report
-POST   /ingest
-GET    /devices
-GET    /devices/latest
-GET    /devices/:deviceId
-GET    /devices/:deviceId/logs?type=&limit=&failedOnly=&includeBodies=&entryId=
-DELETE /devices
-GET    /events
-GET    /console
-```
-
-## 使用 MCP
-
-```bash
-claude mcp add debug-toolkit -- npm exec -- debug-toolkit
-# 或：claude mcp add debug-toolkit -- npx react-native-debug-toolkit
-```
-
-工具：
-
-- `list_app_devices` — 列出已连接设备
-- `get_app_logs` — 拉取设备日志
-
-`get_app_logs` 默认不含 body 以节省 token。设 `includeBodies=true` 或传 `entryId` 获取单条完整日志。
-
-## 原生日志
-
-Native Logs 收集当前 App 进程的原生日志，显示在 `Native` Tab。
-
-- Android：收集当前 App 进程可见的 `logcat` 条目。
-- iOS：收集 React Native 通过 `RCTLog*` 输出的原生日志。
-- DevConnect 会把 Native 日志和当前 session 其他日志一起同步到桌面 daemon。
-
-Release 包默认关闭。内部 release、TestFlight、QA 或灰度构建需要开启时：
-
-```tsx
-<DebugView enabled={true} />
-```
-
-原生日志可能包含用户数据、token、URL 或设备状态，不要在公开生产包中默认开启。
-
-## App 配置
-
-### 环境切换
-
-App 需要运行时切换环境时，使用对象形式的 `environments`。
-
-```tsx
-import { DebugView, type DebugEnvironment } from 'react-native-debug-toolkit';
-
-async function applyEnvironment(env: DebugEnvironment) {
-  configureApiClients(env.urls);
-  queryClient.clear();
-  await authStorage.clearTokens();
-  signOut();
-}
-
 <DebugView
-  environments={{
-    defaultId: 'prod',
-    items: [
-      {
-        id: 'prod',
-        label: '生产',
-        urls: {
-          auth: 'https://api.auth.example.com',
-          app: 'https://api.app.example.com',
-          shop: 'https://api.app.example.com/shop',
-        },
-      },
-      {
-        id: 'qa',
-        label: '测试',
-        urls: {
-          auth: 'https://qa-auth.example.com',
-          app: 'https://qa-app.example.com',
-          shop: 'https://qa-app.example.com/shop',
-        },
-      },
-    ],
-    onChange: applyEnvironment,
+  enabled={__DEV__ || appConfig.buildChannel === 'internal'}
+  features={{
+    console: true,
+    network: true,
+    devConnect: {
+      appId: appConfig.appId,
+      endpoint: 'http://10.20.4.10:3800',
+    },
   }}
 >
   <AppContent />
 </DebugView>
 ```
 
-Toolkit 会持久化当前环境，在 `Environment` Tab 和悬浮按钮 badge 中显示，并把默认环境 URL 前缀自动 rewrite 到当前环境 URL 前缀。
+Connect Tab 只有一个 Hub 地址输入框和两个动作：**上传一次**、**开启/停止实时日志**。
 
-如果宿主 App 有缓存的 API client、query cache、auth token 或路由状态，需要在 `onChange` 里自行重置。环境切换应当视为一次会话边界。
+- Debug 包启动后自动连接、自动实时上传。
+- 显式开启 Toolkit 的内测/Release 包默认不上传；用户点击“上传一次”或“开启实时日志”后才上传。
+- 正式生产包应配置 `enabled={false}`，不会采集、连接或显示 Toolkit。
 
-### 禁用功能
+bare React Native 仅在 debug/internal 构建中添加 iOS Local Network / ATS 与 Android cleartext 配置；真机需要能在同一网络打开 Hub 地址。
 
-```tsx
-<DebugView features={{ clipboard: false, zustand: false }}>
-  <AppContent />
-</DebugView>
+## 4. 让 AI 读取日志
+
+在 App 仓库根目录生成并提交 Skill：
+
+```bash
+npm exec --no --package=react-native-debug-toolkit -- debug-toolkit init-skill
 ```
 
-### 自定义 Tab
+AI 会从 `DebugView` 配置读取 App 和 Hub，按 `status → context → inspect` 读取证据。只有一个活跃 Session 时自动读取；多个时展示设备信息并只问用户一次。
 
-```tsx
-import {
-  DebugView,
-  createDebugTab,
-  type DebugFeatureRenderProps,
-} from 'react-native-debug-toolkit';
+AI 必须在可访问公司局域网/VPN 的本地 shell 中运行。
 
-type UserSnapshot = {
-  id?: string;
-  role?: string;
-};
+手工只读查询：
 
-function UserDebugTab({ snapshot }: DebugFeatureRenderProps<UserSnapshot>) {
-  return (
-    <View>
-      <Text>User ID: {snapshot.id ?? '-'}</Text>
-      <Text>Role: {snapshot.role ?? '-'}</Text>
-    </View>
-  );
-}
-
-const userDebugTab = createDebugTab<UserSnapshot>({
-  name: 'user',
-  label: 'User',
-  getSnapshot: () => ({
-    id: authStore.user?.id,
-    role: authStore.user?.role,
-  }),
-  render: UserDebugTab,
-});
-
-<DebugView customFeatures={[userDebugTab]}>
-  <AppContent />
-</DebugView>;
+```bash
+debug-toolkit status --endpoint http://10.20.4.10:3800 --app-id com.example.app
+debug-toolkit context --endpoint http://10.20.4.10:3800 --app-id com.example.app --session <session-id>
+debug-toolkit inspect <entry-id> --endpoint http://10.20.4.10:3800 --app-id com.example.app
 ```
 
-每个自定义 feature 会变成面板 Tab。`name` 是稳定 Tab id，`label` 显示在 Tab 栏，`getSnapshot` 提供数据，`render` 控制展示 UI。需要自动刷新时加 `subscribe`。
+## Web Console
 
-### 快捷账号（按需启用）
+浏览器打开 `http://10.20.4.10:3800/console`。可按 App、设备/Session、日志类型、严重级别和关键词查看日志及详情；它是人辅助定位的入口，AI 使用 Skill 与 CLI。
 
-快捷账号属于自定义 feature。只有传入 `customFeatures` 才会启用。
+## 原生日志
 
-```tsx
-import {
-  DebugView,
-  useQuickAccountsFeature,
-  type QuickAccountItem,
-} from 'react-native-debug-toolkit';
+- Android：采集当前 App 进程可见的 `logcat`。
+- iOS：采集 `RCTLog*` 发出的 React Native 原生日志。
 
-type DebugAccount = QuickAccountItem & { phone: string };
-
-const accounts: DebugAccount[] = [
-  { id: 'driver-a', label: '司机 A', phone: '+15550000001' },
-  { id: 'driver-b', label: '司机 B', phone: '+15550000002' },
-];
-
-function AppDebugView() {
-  const quickAccounts = useQuickAccountsFeature({
-    accounts,
-    currentAccountId: session.accountId,
-    onSwitch: (account, { signal }) =>
-      signInForDebug(account.phone, { signal }),
-  });
-
-  return (
-    <DebugView customFeatures={[quickAccounts]}>
-      <AppContent />
-    </DebugView>
-  );
-}
-```
-
-`id`、`label`、`subtitle`、`note` 是公开展示字段。手机号、密码、token 等私密值放在宿主自己的扩展类型中；只有 `onSwitch` 会收到完整对象。设备/MCP 快照只包含账号数量和操作状态，不包含账号列表、私密扩展字段或错误详情。
-
-需要控制生命周期或自定义持久化时，使用工厂：
-
-```tsx
-import {
-  createQuickAccountsFeature,
-  type StorageAdapter,
-} from 'react-native-debug-toolkit';
-
-const quickAccounts = createQuickAccountsFeature({
-  accounts,
-  currentAccountId: session.accountId,
-  scopeKey: environment.id,
-  storage: appDebugStorage as StorageAdapter,
-  storageKey: (scope) => `debug:quick-account:${scope}`,
-  onSwitch: (account, { signal }) => signInForDebug(account.phone, { signal }),
-  onRollback: (account, { reason }) => rollbackDebugSignIn(account.id, reason),
-});
-
-async function changeEnvironment() {
-  quickAccounts.suspend();
-  try {
-    await quickAccounts.waitForIdle();
-    await resetSessionForEnvironmentChange();
-  } finally {
-    quickAccounts.resume();
-  }
-}
-```
-
-### 导航追踪
-
-```tsx
-<DebugView navigationRef={navigationRef}>
-  <NavigationContainer ref={navigationRef}>
-    <AppContent />
-  </NavigationContainer>
-</DebugView>
-```
-
-### Zustand
-
-```tsx
-import { zustandLogMiddleware } from 'react-native-debug-toolkit';
-```
-
-### Track 事件
-
-```tsx
-import { addTrackLog } from 'react-native-debug-toolkit';
-
-addTrackLog({ eventName: 'button_click' });
-```
-
-## 导出
-
-- `DebugView`
-- `DebugToolkit`
-- `initializeDebugToolkit`
-- `createDebugTab`
-- `useQuickAccountsFeature`
-- `createQuickAccountsFeature`
-- `createDebugDeviceReport`
-- `checkDaemonConnection`
-- `reportDebugDeviceToDaemon`
-- `startStreaming`
-- `stopStreaming`
-- `isStreaming`
-- `autoDetectDaemonIp`
-- feature factories 和类型
+原生日志可能包含用户数据、token、URL 或设备状态，公开生产包不要默认开启 Toolkit。
 
 ## 边界
 
-- 开发工具，不是生产监控。
-- 本地 daemon，不是云回放。
-- Network 只观察流量，不分析 auth、token、业务错误。
-- 不默认脱敏。
-- 不替代 React Native DevTools。
+- 调试证据工具，不是线上监控或 React Native DevTools 替代品。
+- 默认不脱敏。
+- Network 只采集请求证据，不会自动判断业务或鉴权问题。
 
-## 许可证
+## License
 
 MIT

@@ -29,8 +29,6 @@ function handleReady(req, res, hub) {
     version: HUB_VERSION,
     protocolVersion: PROTOCOL_VERSION,
     canonicalVersion: CANONICAL_VERSION,
-    hubInstanceId: info.hubInstanceId,
-    hubRef: info.hubRef,
     advertiseUrl: info.advertiseUrl,
     uptime: process.uptime(),
     serverTime: new Date().toISOString(),
@@ -85,14 +83,11 @@ async function handleSessionOpen(req, res, hub, appId) {
   }
 
   const httpStatus = result.isResume ? 200 : 201;
-  const hubInfo = hub.getHubInfo();
   sendJson(res, httpStatus, {
     ok: true,
     protocolVersion: PROTOCOL_VERSION,
     canonicalVersion: CANONICAL_VERSION,
     sessionId: result.sessionId,
-    hubRef: hubInfo.hubRef,
-    sessionRef: result.sessionRef,
     bindingEpoch: result.bindingEpoch,
     deviceId: result.deviceId,
     generation: result.generation,
@@ -307,7 +302,6 @@ function handleContext(req, res, hub, appId, sessionId) {
       byType: selectedTypeCounts,
       totalByType: typeCounts,
     },
-    lastManualSyncAt: session.getLastManualSyncAt(),
   });
 }
 

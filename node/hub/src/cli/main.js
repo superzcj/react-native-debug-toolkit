@@ -16,6 +16,7 @@ function hasFlag(args, name) {
 function parseArgs(args) {
   const command = args[0] || '';
   const subcommand = args[1] || '';
+  const portValue = readOption(args, '--port', undefined);
   return {
     command,
     subcommand,
@@ -29,7 +30,7 @@ function parseArgs(args) {
     allowStale: hasFlag(args, '--allow-stale'),
     follow: hasFlag(args, '--follow'),
     bind: readOption(args, '--bind', '127.0.0.1'),
-    port: parseInt(readOption(args, '--port', String(DEFAULT_PORT)), 10),
+    port: portValue === undefined ? undefined : parseInt(portValue, 10),
     dataDir: readOption(args, '--data-dir', undefined),
     advertiseUrl: readOption(args, '--advertise-url', undefined),
     system: hasFlag(args, '--system'),

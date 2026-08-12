@@ -108,15 +108,13 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   const stateColor = STATE_COLORS[status.state] || Colors.textMuted;
   const isPaused = status.state === 'paused';
   const isConnected = status.state === 'connected' || isPaused;
-  const displayCode = status.displayCode;
   const isErrorState = status.state === 'hub_unreachable' || status.state === 'storage_full' || status.state === 'protocol_mismatch';
   const isLoading = status.state === 'connecting' || syncing;
 
-  const syncButtonText = (() => {
-    if (syncing) return 'Syncing...';
+  const uploadButtonText = (() => {
+    if (syncing) return 'Uploading...';
     if (isLoading && !syncing) return 'Connecting...';
-    if (displayCode) return `Sync Now · ${displayCode}`;
-    return 'Sync Now';
+    return 'Upload Once';
   })();
 
   return (
@@ -147,7 +145,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
       </View>
 
-      {/* Sync Now Button + Pause/Resume */}
+      {/* Upload Once + Live Logs toggle */}
       <View style={styles.actions}>
         <TouchableOpacity
           style={[
@@ -165,19 +163,19 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
               styles.syncButtonText,
               isErrorState && styles.syncButtonTextError,
             ]}>
-              {syncButtonText}
+              {uploadButtonText}
             </Text>
           </View>
         </TouchableOpacity>
 
-        {isConnected ? (
+        {isConnected || isPaused ? (
           <TouchableOpacity
             style={styles.pauseButton}
             onPress={handleTogglePause}
             activeOpacity={0.75}
           >
             <Text style={styles.pauseButtonText}>
-              {isPaused ? 'Resume Sync' : 'Pause Sync'}
+              {isPaused ? 'Start Live Logs' : 'Stop Live Logs'}
             </Text>
           </TouchableOpacity>
         ) : null}

@@ -1,7 +1,7 @@
 {
   "name": "react-native-debug-toolkit",
   "version": "4.0.0",
-  "description": "AI-first Shared Log Hub for React Native — real-time debugging with CLI, Web Console, and optional MCP",
+  "description": "AI-first Shared Log Hub for React Native — real-time debugging with CLI and Web Console",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
@@ -38,7 +38,6 @@
     "ai-debugging",
     "toolkit",
     "http-inspector",
-    "mcp",
     "development-tools",
     "floating-panel"
   ],

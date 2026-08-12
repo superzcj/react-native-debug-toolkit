@@ -3,14 +3,8 @@ global.__DEV__ = true;
 
 import { DebugToolkit } from '../../core/DebugToolkit';
 import { initializeDebugToolkit } from '../../core/initialize';
-import { _resetDaemonClientForTesting, daemonClient } from '../../utils/DaemonClient';
-import { KEYS, setPreference } from '../../utils/debugPreferences';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import type { DebugFeature } from '../../types';
-
-jest.mock('../../features/devConnect/platformDetect', () => ({
-  isSimulator: jest.fn().mockReturnValue(false),
-}));
 
 jest.mock('../../features/devConnect/nativeDevConnect', () => ({
   ...jest.requireActual('../../features/devConnect/nativeDevConnect'),
@@ -21,18 +15,29 @@ describe('initializeDebugToolkit', () => {
   beforeEach(async () => {
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
-    _resetDaemonClientForTesting();
-    await setPreference(KEYS.computerHost, '');
   });
 
   afterEach(() => {
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
-    _resetDaemonClientForTesting();
   });
 
-  it('registers devConnect in default features', async () => {
+  it('does not register devConnect unless configured with appId and endpoint', async () => {
     await initializeDebugToolkit({ enabled: true });
+
+    expect(DebugToolkit.features.map((feature) => feature.name)).not.toContain('devConnect');
+  });
+
+  it('registers devConnect when configured with Shared Hub settings', async () => {
+    await initializeDebugToolkit({
+      enabled: true,
+      features: {
+        devConnect: {
+          appId: 'com.example.demo',
+          endpoint: 'http://172.31.23.124:3800',
+        },
+      },
+    });
 
     expect(DebugToolkit.features.map((feature) => feature.name)).toContain('devConnect');
   });
@@ -118,43 +123,10 @@ describe('initializeDebugToolkit', () => {
     expect(customNetworkFeature.setup).toHaveBeenCalledTimes(1);
   });
 
-  it('restores persisted DevConnect host and configures daemon', async () => {
-    await setPreference(KEYS.computerHost, '192.168.1.10');
-
-    await initializeDebugToolkit({ enabled: true });
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(daemonClient.getSettings()).toMatchObject({
-      mode: 'device',
-      deviceHost: '192.168.1.10',
-      endpoint: 'http://192.168.1.10:3799',
-    });
-  });
-
-  it('clears daemon session provider when initialized disabled', async () => {
-    const originalFetch = (globalThis as { fetch?: unknown }).fetch;
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ ok: true, logCount: {} }),
-    });
-    (globalThis as { fetch?: unknown }).fetch = fetchMock;
-    daemonClient.setSessionProvider(() => ({ id: 'stale-session', startedAt: 1 }));
-
+  it('skips initialization side effects when initialized disabled', async () => {
     await initializeDebugToolkit({ enabled: false });
-    await daemonClient.reportOnce({ endpoint: 'http://127.0.0.1:3799' });
 
-    const fetchInit = fetchMock.mock.calls[0]?.[1] as { body: string };
-    expect(JSON.parse(fetchInit.body).session.id).not.toBe('stale-session');
-
-    if (originalFetch) {
-      (globalThis as { fetch?: unknown }).fetch = originalFetch;
-    } else {
-      delete (globalThis as { fetch?: unknown }).fetch;
-    }
+    expect(DebugToolkit.features).toEqual([]);
   });
 
   it('registers native logs in default features', async () => {

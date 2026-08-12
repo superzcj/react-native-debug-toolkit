@@ -1,29 +1,25 @@
 # Domain Glossary
 
-## Core Concepts
+## Core concepts
 
-- **Device** — Mobile device running the React Native app with debug toolkit embedded
-- **Daemon** — Desktop HTTP server (node/daemon) that receives, persists, and serves debug logs from connected devices
-- **Feature** — A debug capability registered with the toolkit (network, console, zustand, navigation, track, environment, clipboard)
-- **Stream** — Continuous connection from device to daemon for real-time log delivery (delta-based)
-- **Report** — A full snapshot of device debug data (all features' logs + device info)
-- **Delta** — Incremental update containing only new log entries since last sync
-- **Channel** — Pub/sub event bus used by features to broadcast events
-- **FeatureDataProvider** — Interface that provides feature list and change notifications to consumers (DaemonClient). Decouples transport from feature registry.
+- **Feature** — An in-app debug capability such as Network, Console, Native, Navigation, Track, Zustand, Environment, or Clipboard.
+- **FeatureDataProvider** — The Toolkit feature registry exposed to `HubClient` for snapshots and change notifications.
+- **HubClient** — The one App-side transport. It opens the current runtime Session, batches events, and retries in memory with sequence/ACK protection.
+- **Session** — One App runtime connected to a Shared Hub.
+- **Event** — A normalized debug record with a sequence number and payload hash.
+- **Shared Hub** — The trusted-LAN HTTP service that persists sessions, exposes CLI APIs, and serves the human Web Console.
 
 ## Architecture
 
-- **Feature Registry** (`DebugToolkit`) — Class that manages feature lifecycle (setup/cleanup/snapshot). Implements `FeatureDataProvider`.
-- **Feature Factory** — Function that creates a `DebugFeature` instance (e.g., `createNetworkFeature`)
-- **DaemonClient** — Class that manages all device-to-daemon communication (streaming, one-shot reports, health checks, retry, delta tracking). Accepts `FeatureDataProvider` at construction — does not import DebugToolkit directly.
-- **Channel Feature** — Simple feature using `createChannelFeature` helper (track, navigation, zustand, network)
-- **Complex Feature** — Feature with custom interception logic (console)
-- **URL Rewriter Seam** (`src/utils/urlRewriter.ts`) — Neutral seam for URL rewriting. Environment feature registers rewriter; network interceptor reads it. No direct dependency between the two features.
+- **Feature Registry** (`DebugToolkit`) manages feature setup, cleanup, snapshots, and subscriptions.
+- **Feature Factories** create independent Toolkit features such as `createNetworkFeature`.
+- **HubClient** consumes the feature registry through `FeatureDataProvider`; it does not import `DebugToolkit` directly.
+- **Hub** (`node/hub/`) owns the HTTP protocol, JSONL storage, retention, CLI commands, and Web Console.
+- **Repository Skill** is the AI entry point. It calls the CLI to run `status`, `context`, `inspect`, and bounded `tail`.
 
-## Module Boundaries
+## Module boundaries
 
-- `src/core/` — Toolkit initialization, feature registry, provider
-- `src/features/` — Feature factories (each is independent)
-- `src/utils/` — Shared utilities (DaemonClient, stores, channels)
-- `node/daemon/` — Server-side HTTP API for receiving and serving debug logs
-- `node/mcp/` — MCP server adapter for Claude integration
+- `src/core/` — Toolkit initialization and feature registry.
+- `src/features/` — Independent feature factories and UI.
+- `src/utils/HubClient.ts` — App-to-Hub runtime transport.
+- `node/hub/` — Shared Hub server, storage, CLI, and Web Console.

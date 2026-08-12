@@ -28,9 +28,14 @@ function readIdentity(rootDir) {
 function buildInstallPlan(options = {}) {
   const rootDir = options.rootDir || ROOT_DIR;
   const bind = options.bind || '127.0.0.1';
-  const port = options.port || DEFAULT_PORT;
-  const advertiseUrl = normalizeEndpoint(options.advertiseUrl || `http://${bind}:${port}`);
+  const requestedPort = options.port;
+  const advertiseUrl = normalizeEndpoint(options.advertiseUrl || `http://${bind}:${requestedPort || DEFAULT_PORT}`);
   if (!advertiseUrl) throw new Error('Invalid --advertise-url');
+  const advertisedPort = Number(new URL(advertiseUrl).port || DEFAULT_PORT);
+  if (requestedPort !== undefined && requestedPort !== advertisedPort) {
+    throw new Error('--port must match --advertise-url');
+  }
+  const port = requestedPort || advertisedPort;
   const identity = options.identity || readIdentity(rootDir);
   const runtimeDir = path.join(rootDir, 'runtime', HUB_VERSION);
   const currentPath = path.join(rootDir, 'current');

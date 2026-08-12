@@ -8,5 +8,4 @@ module.exports = {
   ...require('./envelope'),
   ...require('./cursor'),
   ...require('./deviceId'),
-  ...require('./hubRef'),
 };

@@ -43,8 +43,8 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       if (!mounted || !saved) return;
       try {
         const pos = JSON.parse(saved) as { x: number; y: number };
-        const x = clampX(pos.x);
-        const y = clampY(pos.y);
+        const x = Math.max(minX, Math.min(pos.x, maxX));
+        const y = Math.max(minY, Math.min(pos.y, maxY));
         lastPosition.current = { x, y };
         pan.setValue({ x, y });
       } catch {
@@ -52,7 +52,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
       }
     });
     return () => { mounted = false; };
-  }, [maxX, maxY, pan]);
+  }, [maxX, maxY, minX, minY, pan]);
 
   const panResponder = useRef(
     PanResponder.create({

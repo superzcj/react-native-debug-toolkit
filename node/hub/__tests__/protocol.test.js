@@ -15,9 +15,9 @@ function wireEvent(hash) {
   return {
     sequence: 1,
     timestamp: 1700000000000,
-    type: 'toolkit.manual_sync',
+    type: 'console',
     severity: 'info',
-    data: { trigger: 'button' },
+    data: { message: 'hello' },
     payloadHash: hash,
   };
 }
@@ -58,7 +58,7 @@ describe('Shared Hub protocol', () => {
   it('keeps the cross-runtime canonical hash vector stable', () => {
     const event = wireEvent('');
     expect(computePayloadHash({ ...event, sessionId }))
-      .toBe('538fc3dc66a347a75d45b1582a4b5ef2a755934500702a0fd3555ce0d9563905');
+      .toBe('d81f12ba4811116fed294e3236a34a341f036a7e05d2e6bdf489656a784cb53b');
   });
 
   it('preserves the ACK checkpoint after ledger compaction and reload', async () => {

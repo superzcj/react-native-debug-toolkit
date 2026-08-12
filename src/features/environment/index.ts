@@ -83,7 +83,12 @@ export const createEnvironmentFeature = (
   const getLegacyItems = (): EnvironmentConfig[] =>
     config.items
       .filter((item): item is EnvironmentConfig & { mode: 'legacy' } => item.mode === 'legacy')
-      .map(({ mode, ...item }) => item);
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        host: item.host,
+        ...(item.color ? { color: item.color } : {}),
+      }));
 
   const installRewriter = () => {
     if (!initialized) return;

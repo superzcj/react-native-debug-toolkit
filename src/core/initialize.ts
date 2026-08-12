@@ -1,5 +1,5 @@
 import { DebugToolkit } from './DebugToolkit';
-import { createNetworkFeature, addToBlacklist } from '../features/network';
+import { createNetworkFeature } from '../features/network';
 import type { NetworkFeatureConfig } from '../features/network';
 import { createConsoleLogFeature } from '../features/console';
 import type { ConsoleFeatureConfig } from '../features/console';
@@ -13,14 +13,12 @@ import { createEnvironmentFeature } from '../features/environment';
 import { createClipboardFeature } from '../features/clipboard';
 import {
   createDevConnectFeature,
-  restoreDevConnectSettingsToDaemon,
   nativeIsDebugBuild,
   type DevConnectV4Config,
 } from '../features/devConnect';
 import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { createNativeLogsFeature } from '../features/nativeLogs';
 import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
-import { daemonClient } from '../utils/DaemonClient';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 import type { StorageAdapter } from '../utils/StorageAdapter';
 import {
@@ -54,7 +52,7 @@ export interface InitializeOptions {
 }
 
 type EnvironmentFeatureConfig = Parameters<typeof createEnvironmentFeature>[0];
-type BuiltInFeatureCreator = (config?: unknown, runtime?: LogRuntimeContext) => AnyDebugFeature;
+type BuiltInFeatureCreator = (config?: unknown, runtime?: LogRuntimeContext) => AnyDebugFeature | null;
 
 const BUILT_IN_FEATURE_ORDER: BuiltInFeatureName[] = [
   'network',
@@ -79,12 +77,17 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   track: (config, runtime) => createTrackFeature(config as TrackFeatureConfig | undefined, runtime),
   environment: (config) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined),
   clipboard: () => createClipboardFeature(),
-  devConnect: (config) => createDevConnectFeature(config as DevConnectV4Config | undefined),
+  devConnect: (config) => {
+    if (!config || typeof config !== 'object' || !('appId' in config) || !('endpoint' in config)) {
+      return null;
+    }
+    return createDevConnectFeature(config as DevConnectV4Config);
+  },
   sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
 };
 
 const DEFAULT_FEATURES: BuiltInFeatureName[] = BUILT_IN_FEATURE_ORDER.filter(
-  (name) => name !== 'environment',
+  (name) => name !== 'environment' && name !== 'devConnect',
 );
 
 function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeContext): AnyDebugFeature[] {
@@ -108,11 +111,28 @@ function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeConte
       continue;
     }
 
-    if (config === true || config === undefined) {
-      features.push(creator(undefined, runtime));
-    } else if (typeof config === 'object') {
-      features.push(creator(config as Record<string, unknown>, runtime));
+    if (name === 'devConnect' && (config === true || config === undefined)) {
+      console.warn('[DebugToolkit] devConnect requires { appId, endpoint } config; skipping');
+      continue;
     }
+
+    let feature: AnyDebugFeature | null;
+    if (config === true || config === undefined) {
+      feature = creator(undefined, runtime);
+    } else if (typeof config === 'object') {
+      feature = creator(config as Record<string, unknown>, runtime);
+    } else {
+      continue;
+    }
+
+    if (!feature) {
+      if (name === 'devConnect') {
+        console.warn('[DebugToolkit] devConnect requires { appId, endpoint } config; skipping');
+      }
+      continue;
+    }
+
+    features.push(feature);
   }
 
   for (const name of Object.keys(configs)) {
@@ -126,7 +146,7 @@ function resolveFeatureConfigs(configs: FeatureConfigs, runtime: LogRuntimeConte
 }
 
 function resolveDefaultFeatures(runtime: LogRuntimeContext): AnyDebugFeature[] {
-  return DEFAULT_FEATURES.map((name) => featureRegistry[name]!(undefined, runtime));
+  return DEFAULT_FEATURES.map((name) => featureRegistry[name]!(undefined, runtime)!);
 }
 
 function appendCustomFeatures(
@@ -170,7 +190,6 @@ export async function initializeDebugToolkit(
     DebugToolkit.setEnabled(enabled);
 
     if (!enabled) {
-      daemonClient.clearSessionProvider();
       DebugToolkit.reset();
       return DebugToolkit;
     }
@@ -180,7 +199,6 @@ export async function initializeDebugToolkit(
       maxSessions: options?.maxLogSessions,
     });
     setDefaultLogRuntime(runtime);
-    daemonClient.setSessionProvider(() => runtime.sessionManager.getCurrentSession());
 
     const resolvedBuiltInFeatures = options?.features
       ? resolveFeatureConfigs(options.features, runtime)
@@ -193,19 +211,11 @@ export async function initializeDebugToolkit(
     DebugToolkit.replaceFeatures(resolvedFeatures);
     runtime.sessionManager.initialize().catch(() => {});
 
-    daemonClient.setEndpointDetector((url) => {
-      addToBlacklist(url);
-    });
-
     if (DebugToolkit.hasFeatures()) {
       DebugToolkit.showLauncher();
     } else {
       DebugToolkit.hideLauncher();
     }
-
-    restoreDevConnectSettingsToDaemon()
-      .then(() => daemonClient.restore(), () => daemonClient.restore())
-      .catch(() => {});
 
     return DebugToolkit;
   } catch (error) {

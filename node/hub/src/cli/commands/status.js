@@ -48,7 +48,6 @@ async function statusCommand(options) {
   return {
     ok: true,
     hub: {
-      hubRef: hub.hubRef,
       version: hub.version,
       protocolVersion: hub.protocolVersion,
       serverTime: hub.serverTime,
@@ -59,14 +58,11 @@ async function statusCommand(options) {
     sessions: (sessionData?.sessions || []).map(s => ({
       control: {
         contentTrust: 'trusted-control',
-        hubRef: hub.hubRef,
         sessionId: s.sessionId,
-        sessionRef: s.sessionRef,
         sourceIp: s.sourceIp || null,
         connectionState: s.connectionState,
         syncState: s.syncState,
         lastSeenAt: s.lastSeenAt,
-        lastManualSyncAt: s.lastManualSyncAt || null,
       },
       device: {
         contentTrust: 'untrusted',

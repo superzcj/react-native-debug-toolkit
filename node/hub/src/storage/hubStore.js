@@ -76,8 +76,6 @@ class HubStore {
 
   getHubInfo() {
     return {
-      hubInstanceId: this._registry.getHubInstanceId(),
-      hubRef: this._registry.getHubRef(),
       protocolVersion: PROTOCOL_VERSION,
       canonicalVersion: CANONICAL_VERSION,
       advertiseUrl: this._advertiseUrl,

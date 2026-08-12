@@ -36,7 +36,7 @@ function requestText(port, pathname) {
 }
 
 describe('Shared Hub HTTP flow', () => {
-  it('serves the legacy device-list console workflow', async () => {
+  it('serves the device-list console workflow', async () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-console-'));
     const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
     const started = await server.start();
@@ -48,14 +48,23 @@ describe('Shared Hub HTTP flow', () => {
       expect(consolePage.body).toContain('class="device-grid"');
       expect(consolePage.body).toContain('All devices');
       expect(consolePage.body).toContain('Search logs...');
+      expect(consolePage.body).toContain('device.manufacturer');
+      expect(consolePage.body).toContain('if (session.sourceIp) parts.push(session.sourceIp)');
+      expect(consolePage.body).toContain('device.appVersion');
+      expect(consolePage.body).toContain('word-break:break-word');
       expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:20px;padding:6px 0;cursor:pointer;background:none;border:0}');
+      expect(consolePage.body).toContain('function renderEventDetails(event)');
+      expect(consolePage.body).toContain('function renderNetworkData(data)');
+      expect(consolePage.body).toContain('Raw event');
+      expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection('Event metadata'");
+      expect(consolePage.body).toContain("entry.classList.add('expanded')");
     } finally {
       await server.stop();
       fs.rmSync(dataDir, { recursive: true, force: true });
     }
   });
 
-  it('accepts verified App events and exposes the session sync marker', async () => {
+  it('accepts verified App events and exposes session context', async () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-server-'));
     const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
     const started = await server.start();
@@ -65,8 +74,10 @@ describe('Shared Hub HTTP flow', () => {
       protocolVersion: 1, canonicalVersion: 1, sessionId, startedAt: Date.now(), clientAckThrough: 0, device,
     });
     expect(opened.status).toBe(201);
+    expect(opened.body).not.toHaveProperty('hubRef');
+    expect(opened.body).not.toHaveProperty('sessionRef');
     const event = {
-      sequence: 1, timestamp: Date.now(), type: 'toolkit.manual_sync', severity: 'info', data: { trigger: 'button' },
+      sequence: 1, timestamp: Date.now(), type: 'console', severity: 'info', data: { message: 'hello' },
     };
     event.payloadHash = computePayloadHash({ ...event, sessionId });
     const appended = await request(port, 'POST', `/api/v1/apps/${appId}/sessions/${sessionId}/events`, {
@@ -75,13 +86,15 @@ describe('Shared Hub HTTP flow', () => {
     expect(appended.body).toMatchObject({ ok: true, ackThrough: 1 });
 
     const sessions = await request(port, 'GET', `/api/v1/apps/${appId}/sessions`);
-    expect(sessions.body.sessions[0]).toMatchObject({ sessionId, lastManualSyncAt: expect.any(String) });
+    expect(sessions.body.sessions[0]).toMatchObject({ sessionId });
+    expect(sessions.body.sessions[0]).not.toHaveProperty('sessionRef');
     const context = await request(port, 'GET', `/api/v1/apps/${appId}/sessions/${sessionId}/context`);
     expect(context.body.snapshotCursor).toEqual(expect.any(String));
     const conflictingReplay = await request(port, 'GET', `/api/v1/apps/${appId}/sessions/${sessionId}/context?through=${encodeURIComponent(context.body.snapshotCursor)}&since=2020-01-01T00:00:00.000Z`);
     expect(conflictingReplay).toMatchObject({ status: 400, body: { ok: false, error: { code: 'INVALID_ARGUMENT' } } });
     const ready = await request(port, 'GET', '/ready');
     expect(ready.body).toMatchObject({ ok: true, apps: [appId] });
+    expect(ready.body).not.toHaveProperty('hubRef');
     expect(ready.body.storage).toEqual(expect.objectContaining({ usedBytes: expect.any(Number), limitBytes: 20000000000 }));
 
     await server.stop();

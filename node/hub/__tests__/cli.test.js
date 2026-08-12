@@ -7,7 +7,7 @@ describe('Hub system installer', () => {
     const plan = buildInstallPlan({
       rootDir: '/tmp/dt-hub',
       bind: '10.20.4.10',
-      advertiseUrl: 'http://10.20.4.10:3799',
+      advertiseUrl: 'http://10.20.4.10:3800',
       identity: { username: 'toolkit', uid: 501, gid: 20 },
     });
 
@@ -15,6 +15,8 @@ describe('Hub system installer', () => {
     expect(plan.plist).toContain(`<string>${LAUNCH_SHIM_PATH}</string>`);
     expect(plan.plist).toContain(`<string>${LABEL}</string>`);
     expect(plan.plist).toContain('<string>toolkit</string>');
+    expect(plan.port).toBe(3800);
+    expect(plan.plist).toContain('<key>DEBUG_TOOLKIT_HUB_PORT</key><string>3800</string>');
     expect(plan.launcher).toContain('"$ROOT/current/node" "$ROOT/current/hub.js"');
   });
 });

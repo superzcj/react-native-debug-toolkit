@@ -45,25 +45,23 @@ The project uses \`react-native-debug-toolkit\` (v4+). Find the \`DebugView\` co
    npm exec --no --package=react-native-debug-toolkit -- debug-toolkit status --endpoint <endpoint> --app-id <appId>
    \`\`\`
 
-3. **Identify the session**: Ask the user for the location code shown on the "Sync Now" button (format: \`#HUBREF-SESSREF\`). Do NOT click yet.
-   - Verify the hubRef matches \`/ready\` response
-   - Find the matching sessionRef in the Hub
+3. **Select session** using these rules:
+   - No sessions: ask the user to tap "Upload Once" or "Start Live Logs" in the App.
+   - One recently active session: auto-select it.
+   - Multiple active sessions: show the device labels and ask the user to pick once.
+   - Crash investigation: include stale sessions and let the user choose.
 
-4. **Record baseline**: Note the session's current \`lastManualSyncAt\`.
-
-5. **Request sync**: Ask the user to tap "Sync Now". Poll for up to 5 seconds to confirm \`lastManualSyncAt\` advanced beyond the baseline.
-
-6. **Read context**:
+4. **Read context**:
    \`\`\`bash
    npm exec --no --package=react-native-debug-toolkit -- debug-toolkit context --endpoint <endpoint> --app-id <appId> --session <sessionId>
    \`\`\`
 
-7. **Inspect details** (if needed):
+5. **Inspect details** (if needed):
    \`\`\`bash
    npm exec --no --package=react-native-debug-toolkit -- debug-toolkit inspect <entryId> --endpoint <endpoint> --app-id <appId>
    \`\`\`
 
-8. **Live tail** (only for reproduction):
+6. **Live tail** (only for reproduction):
    \`\`\`bash
    npm exec --no --package=react-native-debug-toolkit -- debug-toolkit tail --endpoint <endpoint> --app-id <appId> --session <sessionId>
    \`\`\`

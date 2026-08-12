@@ -22,7 +22,7 @@ export interface DebugFeatureRenderProps<TSnapshot = unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyDebugFeature = DebugFeature<any>;
 
-/** Provides feature list and change notifications to consumers (e.g., DaemonClient). */
+/** Provides feature list and change notifications to consumers (e.g., HubClient). */
 export interface FeatureDataProvider {
   readonly features: AnyDebugFeature[];
   subscribe(listener: DebugFeatureListener): () => void;

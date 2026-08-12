@@ -56,8 +56,6 @@ function openSessionResponse() {
     json: async () => ({
       ok: true,
       sessionId: '123e4567-e89b-42d3-a456-426614174000',
-      hubRef: 'DEMO01',
-      sessionRef: 'A1B2',
       generation: 'demo-generation',
       deviceId: 'demo-device',
       expectedSequence: 1,
@@ -108,7 +106,7 @@ afterEach(() => {
   DebugToolkit.destroy();
 });
 
-test('opens the v4 Shared Hub controls with its session short code', async () => {
+test('opens the v4 Shared Hub controls', async () => {
   global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input).endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
     return { ok: true, status: 200, json: async () => [] };
@@ -122,27 +120,27 @@ test('opens the v4 Shared Hub controls with its session short code', async () =>
   await openConnectTab(renderer!);
 
   expect(findText(renderer!.root, 'Hub Address')).toBeTruthy();
-  expect(findText(renderer!.root, 'Sync Now · #DEMO01-A1B2')).toBeTruthy();
-  expect(findText(renderer!.root, 'Pause Sync')).toBeTruthy();
+  expect(findText(renderer!.root, 'Upload Once')).toBeTruthy();
+  expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
   expect(renderer!.root.findByProps({ placeholder: 'http://172.31.23.124:3800' }).props.value)
     .toBe('http://172.31.23.124:3800');
 
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, 'Pause Sync');
+    pressText(renderer!.root, 'Stop Live Logs');
     await Promise.resolve();
   });
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, 'Resume Sync');
+    pressText(renderer!.root, 'Start Live Logs');
     await Promise.resolve();
   });
-  expect(findText(renderer!.root, 'Pause Sync')).toBeTruthy();
+  expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
   });
 });
 
-test('sends a SHA-256 verified manual-sync event to the Shared Hub', async () => {
+test('uploads a SHA-256 verified snapshot batch to the Shared Hub', async () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
@@ -164,7 +162,7 @@ test('sends a SHA-256 verified manual-sync event to the Shared Hub', async () =>
   });
   await openConnectTab(renderer!);
   await ReactTestRenderer.act(async () => {
-    pressTextStartingWith(renderer!.root, 'Sync Now');
+    pressTextStartingWith(renderer!.root, 'Upload Once');
     await flushHub();
   });
 
@@ -173,15 +171,15 @@ test('sends a SHA-256 verified manual-sync event to the Shared Hub', async () =>
   );
   expect(eventsCall).toBeDefined();
   const body = JSON.parse(eventsCall![1]!.body as string);
-  const manualSync = body.events.find((event: { type: string }) => event.type === 'toolkit.manual_sync');
-  expect(manualSync.payloadHash).toMatch(/^[a-f0-9]{64}$/);
+  expect(body.events.length).toBeGreaterThan(0);
+  expect(body.events[0].payloadHash).toMatch(/^[a-f0-9]{64}$/);
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
   });
 });
 
-test('automatically flushes navigation logs without pressing Sync Now', async () => {
+test('automatically flushes navigation logs without pressing Upload Once', async () => {
   jest.useFakeTimers();
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);

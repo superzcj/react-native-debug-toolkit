@@ -1,7 +1,6 @@
 import { NativeModules } from 'react-native';
 
 interface DebugToolkitDevConnectNativeModule {
-  getLocalIp?: () => Promise<string | null>;
   isDebugBuild?: () => Promise<boolean>;
   getPreference?: (key: string) => Promise<string | null>;
   getAppInfo?: () => Promise<NativeAppInfo | null>;
@@ -26,19 +25,6 @@ function getNativeModule(): DebugToolkitDevConnectNativeModule | null {
 
 export function isNativeDevConnectAvailable(): boolean {
   return getNativeModule() !== null;
-}
-
-export async function getDeviceLocalIp(): Promise<string | null> {
-  const nativeModule = getNativeModule();
-  if (!nativeModule?.getLocalIp) {
-    return null;
-  }
-  try {
-    const ip = await nativeModule.getLocalIp();
-    return typeof ip === 'string' ? ip : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function nativeIsDebugBuild(): Promise<boolean | null> {

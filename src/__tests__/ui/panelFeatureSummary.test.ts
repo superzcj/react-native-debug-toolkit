@@ -142,19 +142,20 @@ describe('buildFeatureSummary', () => {
     expect(s.supportsBadFilter).toBe(false);
   });
 
-  it('devConnect: streaming state', () => {
+  it('devConnect: shows its configured Hub endpoint', () => {
     const f = mockFeature('devConnect');
-    const snap = { streaming: true, computerHost: '192.168.1.5', daemonPort: '3000' };
+    const snap = { canonicalEndpoint: 'http://192.168.1.5:3800' };
     const s = buildFeatureSummary(f, snap);
-    expect(s.statusLabel).toBe('live 192.168.1.5:3000');
+    expect(s.latestLabel).toBe('http://192.168.1.5:3800');
+    expect(s.statusLabel).toBe('Hub configured');
     expect(s.statusColor).toBe(Colors.success);
   });
 
-  it('devConnect: not streaming shows host', () => {
+  it('devConnect: shows when no Hub is configured', () => {
     const f = mockFeature('devConnect');
-    const snap = { streaming: false, computerHost: '192.168.1.5', daemonPort: '3000' };
+    const snap = {};
     const s = buildFeatureSummary(f, snap);
-    expect(s.statusLabel).toBe('offline 192.168.1.5:3000');
+    expect(s.statusLabel).toBe('Hub not configured');
     expect(s.statusColor).toBeUndefined();
   });
 
@@ -216,7 +217,7 @@ describe('filterFeatureSnapshot', () => {
 
   it('non-array snapshot returned unchanged', () => {
     const f = mockFeature('devConnect');
-    const snap = { streaming: true };
+    const snap = { canonicalEndpoint: 'http://192.168.1.5:3800' };
     const result = filterFeatureSnapshot(f, snap, 'anything', 'bad');
     expect(result).toBe(snap);
   });

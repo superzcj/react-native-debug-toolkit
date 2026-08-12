@@ -24,6 +24,10 @@ const MAX_RETRY_DELAY_MS = 30000;
 
 const APP_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
+function isDevRuntime(): boolean {
+  return typeof __DEV__ !== 'undefined' ? __DEV__ : false;
+}
+
 // ---- Types ----
 
 export type HubConnectionState =
@@ -43,8 +47,6 @@ export interface HubConfig {
 }
 
 export interface HubSessionInfo {
-  hubRef: string;
-  sessionRef: string;
   sessionId: string;
   generation: string;
   deviceId: string;
@@ -53,7 +55,6 @@ export interface HubSessionInfo {
 export interface HubStatus {
   state: HubConnectionState;
   session: HubSessionInfo | null;
-  displayCode: string | null;
   error?: string;
 }
 
@@ -99,6 +100,14 @@ function normalizeSeverity(value: string): string {
 function severityPriority(severity: string): number {
   const idx = SEVERITIES.indexOf(severity as typeof SEVERITIES[number]);
   return idx >= 0 ? idx : 1;
+}
+
+function normalizeEventTimestamp(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return Date.now();
+  }
+  const timestamp = Math.trunc(value);
+  return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : Date.now();
 }
 
 // ---- Endpoint Validation ----
@@ -221,7 +230,9 @@ export class HubClient {
     this._config = { appId: config.appId, endpoint };
     addToBlacklist(endpoint);
     this._runtimeEndpoint = null;
-    this._state = 'invalid_config';
+    this._syncPaused = !isDevRuntime();
+    this._state = this._syncPaused ? 'paused' : 'connecting';
+    this._emitStatus();
   }
 
   setRuntimeEndpoint(value: string): void {
@@ -258,7 +269,7 @@ export class HubClient {
 
   // ---- Connection ----
 
-  connect(): void {
+  connect(options?: { live?: boolean }): void {
     if (this._active) return;
 
     const endpoint = this.getEffectiveEndpoint();
@@ -268,6 +279,9 @@ export class HubClient {
       this._emitStatus();
       return;
     }
+
+    const live = options?.live ?? isDevRuntime();
+    this._syncPaused = !live;
 
     this._active = true;
     this._sessionId = generateUUIDv4();
@@ -324,9 +338,6 @@ export class HubClient {
     return {
       state: this._state,
       session: this._session,
-      displayCode: this._session
-        ? `#${this._session.hubRef}-${this._session.sessionRef}`
-        : null,
     };
   }
 
@@ -339,6 +350,10 @@ export class HubClient {
   }
 
   resumeSync(): void {
+    if (!this._active) {
+      this.connect({ live: true });
+      return;
+    }
     this._syncPaused = false;
     if (this._session) {
       this._state = 'connected';
@@ -350,19 +365,28 @@ export class HubClient {
   isSyncPaused(): boolean { return this._syncPaused; }
 
   async syncNow(): Promise<void> {
-    // Snapshot current features
+    const pauseAfterSync = !isDevRuntime() || this._syncPaused;
+    if (!this._active) {
+      this.connect({ live: true });
+    } else {
+      this._syncPaused = false;
+    }
+    await this._ensureSession();
     this._snapshotFeatures();
-
-    // Queue manual_sync event
-    this._enqueueEvent({
-      timestamp: Date.now(),
-      type: 'toolkit.manual_sync',
-      severity: 'info',
-      data: { trigger: 'button' },
-    });
-
-    // Immediately flush
     await this._doFlush();
+    if (pauseAfterSync && this._state === 'connected') {
+      this.pauseSync();
+    }
+  }
+
+  private async _ensureSession(): Promise<void> {
+    if (this._openSessionPromise) {
+      await this._openSessionPromise;
+      return;
+    }
+    if (!this._session) {
+      await this._openSession();
+    }
   }
 
   // ---- Private: Session ----
@@ -445,8 +469,6 @@ export class HubClient {
       }
 
       this._session = {
-        hubRef: data.hubRef as string,
-        sessionRef: data.sessionRef as string,
         sessionId: data.sessionId as string,
         generation: data.generation as string,
         deviceId: data.deviceId as string,
@@ -552,7 +574,7 @@ export class HubClient {
         for (const entry of newEntries) {
           const e = entry as Record<string, unknown>;
           this._enqueueEvent({
-            timestamp: typeof e.timestamp === 'number' ? e.timestamp : Date.now(),
+            timestamp: normalizeEventTimestamp(e.timestamp),
             type: feature.name,
             severity: normalizeSeverity(String(e.level || e.severity || 'info')),
             data: e,
@@ -584,7 +606,7 @@ export class HubClient {
 
   private async _doFlush(): Promise<void> {
     if (this._sending || !this._active || !this._session) return;
-    if (this._syncPaused && this._pending.every(e => e.type !== 'toolkit.manual_sync')) return;
+    if (this._syncPaused) return;
 
     // Snapshot dirty features first
     if (this._dirtyFeatures.size > 0) {

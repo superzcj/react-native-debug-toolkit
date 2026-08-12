@@ -1,3 +1,6 @@
+// @ts-expect-error __DEV__ is a React Native global
+global.__DEV__ = true;
+
 import { DevConnectTabV4 } from '../../features/devConnect/DevConnectTabV4';
 import { createDevConnectFeature } from '../../features/devConnect';
 import { _resetHubClientForTesting, hubClient } from '../../utils/HubClient';

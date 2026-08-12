@@ -7,7 +7,6 @@ const { Mutex, atomicWriteJson, fsyncDir } = require('./identityRegistry');
 const { SessionLedger } = require('./sessionLedger');
 const { SegmentWriter } = require('./segmentWriter');
 const { generateDeviceId } = require('../protocol/deviceId');
-const { generateSessionRef } = require('../protocol/hubRef');
 const { createEventEnvelope, createControlRecord } = require('../protocol/envelope');
 const { STALE_TIMEOUT_MS } = require('../protocol/constants');
 const { verifyPayloadHash } = require('../protocol/canonical');
@@ -26,7 +25,6 @@ class SessionStore {
     this._generation = null;
     this._device = null;
     this._deviceId = null;
-    this._sessionRef = null;
     this._lastSeenAt = null;
     this._syncState = 'live';
     this._sourceIp = null;
@@ -49,7 +47,6 @@ class SessionStore {
       this._generation = this._manifest.generation;
       this._device = this._manifest.device;
       this._deviceId = this._manifest.deviceId;
-      this._sessionRef = this._manifest.sessionRef;
       this._lastSeenAt = this._manifest.lastSeenAt;
       this._syncState = this._manifest.syncState || 'live';
       this._sourceIp = this._manifest.sourceIp || null;
@@ -71,7 +68,6 @@ class SessionStore {
       sessionId: this._sessionId,
       appId: this._appId,
       deviceId: this._deviceId,
-      sessionRef: this._sessionRef,
       device: this._device,
       generation: this._generation,
       ackThrough: this._ledger.getAckThrough(),
@@ -105,12 +101,9 @@ class SessionStore {
         params.device?.model,
         sourceIp,
       );
-      const sessionRef = generateSessionRef(this._sessionId);
-
       this._generation = crypto.randomBytes(32).toString('hex');
       this._device = params.device;
       this._deviceId = deviceId;
-      this._sessionRef = sessionRef;
       this._lastSeenAt = new Date().toISOString();
       this._syncState = 'live';
       this._sourceIp = sourceIp;
@@ -120,7 +113,6 @@ class SessionStore {
         sessionId: this._sessionId,
         appId: this._appId,
         deviceId,
-        sessionRef,
         generation: this._generation,
         device: params.device,
         sourceIp,
@@ -145,7 +137,6 @@ class SessionStore {
         ok: true,
         isResume,
         sessionId: this._sessionId,
-        sessionRef,
         deviceId,
         generation: this._generation,
         bindingEpoch: params.bindingEpoch || 1,
@@ -337,7 +328,6 @@ class SessionStore {
       sessionId: this._sessionId,
       appId: this._appId,
       deviceId: this._deviceId,
-      sessionRef: this._sessionRef,
       device: this._device,
       generation: this._generation,
       ackThrough: this._ledger.getAckThrough(),
@@ -345,26 +335,8 @@ class SessionStore {
       connectionState: this.getConnectionState(),
       syncState: this._syncState,
       sourceIp: this._sourceIp,
-      lastManualSyncAt: this.getLastManualSyncAt(),
       truncated: this._truncated,
     };
-  }
-
-  getLastManualSyncAt() {
-    const segments = this._writer.listSegments();
-    let lastManualSync = null;
-    for (const seg of segments.reverse()) {
-      const events = this._writer.readSegmentEvents(seg.path);
-      for (let i = events.length - 1; i >= 0; i--) {
-        if (events[i].type === 'toolkit.manual_sync') {
-          if (!lastManualSync || events[i].receivedAt > lastManualSync) {
-            lastManualSync = events[i].receivedAt;
-          }
-          return lastManualSync;
-        }
-      }
-    }
-    return lastManualSync;
   }
 
   queryEvents(options) {

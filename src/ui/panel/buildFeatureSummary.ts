@@ -223,19 +223,18 @@ function buildQuickAccountsSummary(snapshot: unknown): FeatureSummary {
 }
 
 interface DevConnectSnap {
-  streaming?: boolean;
-  computerHost?: string;
-  daemonPort?: string;
+  canonicalEndpoint?: string;
 }
 
 function buildDevConnectSummary(snapshot: unknown): FeatureSummary {
   const s = (snapshot ?? {}) as DevConnectSnap;
-  const host = [s.computerHost, s.daemonPort].filter(Boolean).join(':');
+  const endpoint = s.canonicalEndpoint?.trim();
 
   return {
-    capabilityText: 'Desktop sync with daemon connection',
-    statusLabel: host ? `${s.streaming ? 'live' : 'offline'} ${host}` : s.streaming ? 'live' : undefined,
-    statusColor: s.streaming ? Colors.success : undefined,
+    capabilityText: 'Shared Hub log upload',
+    latestLabel: endpoint,
+    statusLabel: endpoint ? 'Hub configured' : 'Hub not configured',
+    statusColor: endpoint ? Colors.success : undefined,
     supportsBadFilter: false,
   };
 }

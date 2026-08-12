@@ -3,9 +3,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <React/RCTBridgeModule.h>
-#include <ifaddrs.h>
-#include <arpa/inet.h>
-#include <net/if.h>
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -51,35 +48,6 @@ RCT_EXPORT_METHOD(isDebugBuild:(RCTPromiseResolveBlock)resolve
 #else
   resolve(@NO);
 #endif
-}
-
-RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
-                  rejecter:(__unused RCTPromiseRejectBlock)reject)
-{
-  @try {
-    struct ifaddrs *interfaces = NULL;
-    if (getifaddrs(&interfaces) != 0) {
-      resolve([NSNull null]);
-      return;
-    }
-
-    NSString *preferred = nil;
-    NSString *fallback = nil;
-    for (struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next) {
-      if (!iface->ifa_addr || iface->ifa_addr->sa_family != AF_INET) continue;
-      if (iface->ifa_flags & IFF_LOOPBACK) continue;
-      char addrStr[INET_ADDRSTRLEN];
-      struct sockaddr_in *sin = (struct sockaddr_in *)iface->ifa_addr;
-      inet_ntop(AF_INET, &sin->sin_addr, addrStr, sizeof(addrStr));
-      NSString *ip = [NSString stringWithUTF8String:addrStr];
-      if (strcmp(iface->ifa_name, "en0") == 0) { preferred = ip; break; }
-      if (!fallback) fallback = ip;
-    }
-    freeifaddrs(interfaces);
-    resolve(preferred ?: fallback ?: [NSNull null]);
-  } @catch (NSException *e) {
-    reject(@"native_error", e.reason ?: @"unknown", nil);
-  }
 }
 
 RCT_EXPORT_METHOD(getAppInfo:(RCTPromiseResolveBlock)resolve

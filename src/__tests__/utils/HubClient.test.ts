@@ -1,3 +1,6 @@
+// @ts-expect-error __DEV__ is a React Native global
+global.__DEV__ = true;
+
 import { HubClient } from '../../utils/HubClient';
 import type { FeatureDataProvider } from '../../types';
 import { computeHubPayloadHash } from '../../utils/hubCanonical';
@@ -27,8 +30,46 @@ function createFeatureProvider(): FeatureDataProvider {
   };
 }
 
+function createFeatureProviderWithConsoleEntry(): FeatureDataProvider {
+  return {
+    features: [{
+      name: 'console',
+      label: 'Console',
+      setup: () => undefined,
+      cleanup: () => undefined,
+      getSnapshot: () => [{
+        id: 1,
+        timestamp: 1700000000000,
+        level: 'info',
+        message: 'hello',
+      }],
+    }],
+    subscribe: () => () => undefined,
+  };
+}
+
+function createFeatureProviderWithFractionalNativeTimestamp(): FeatureDataProvider {
+  return {
+    features: [{
+      name: 'native',
+      label: 'Native',
+      setup: () => undefined,
+      cleanup: () => undefined,
+      getSnapshot: () => [{
+        id: 1,
+        timestamp: 1700000000000.625,
+        level: 'warn',
+        message: 'native log with sub-millisecond precision',
+      }],
+    }],
+    subscribe: () => () => undefined,
+  };
+}
+
 describe('HubClient transport', () => {
   afterEach(() => {
+    // @ts-expect-error __DEV__ is a React Native global
+    global.__DEV__ = true;
     jest.useRealTimers();
     jest.restoreAllMocks();
     _resetNetworkForTesting();
@@ -39,10 +80,10 @@ describe('HubClient transport', () => {
       sessionId: '123e4567-e89b-42d3-a456-426614174000',
       sequence: 1,
       timestamp: 1700000000000,
-      type: 'toolkit.manual_sync',
+      type: 'console',
       severity: 'info',
-      data: { trigger: 'button', nested: { z: 1, a: '中文' } },
-    })).toBe('74f9634aa3ce38326221e62fc41cef22de1e678eeab72df37f56de85663efa47');
+      data: { message: 'hello' },
+    })).toBe('d81f12ba4811116fed294e3236a34a341f036a7e05d2e6bdf489656a784cb53b');
   });
 
   it('excludes the configured Hub origin from captured network logs', () => {
@@ -59,8 +100,6 @@ describe('HubClient transport', () => {
       .mockResolvedValueOnce(response(201, {
         ok: true,
         sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        hubRef: 'ABCDEF',
-        sessionRef: '1234',
         generation: 'generation',
         deviceId: 'ios-test',
         expectedSequence: 1,
@@ -71,7 +110,7 @@ describe('HubClient transport', () => {
         expectedSequence: 2,
         rejected: [],
       }));
-    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    const client = new HubClient({ fetch, featureProvider: createFeatureProviderWithConsoleEntry() });
 
     client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
     client.connect();
@@ -87,12 +126,74 @@ describe('HubClient transport', () => {
     client.disconnect();
   });
 
+  it('normalizes fractional native log timestamps before uploading', async () => {
+    const fetch = jest.fn()
+      .mockResolvedValueOnce(response(201, {
+        ok: true,
+        sessionId: '123e4567-e89b-42d3-a456-426614174000',
+        generation: 'generation',
+        deviceId: 'ios-test',
+        expectedSequence: 1,
+      }))
+      .mockResolvedValueOnce(response(200, {
+        ok: true,
+        ackThrough: 1,
+        expectedSequence: 2,
+        rejected: [],
+      }));
+    const client = new HubClient({
+      fetch,
+      featureProvider: createFeatureProviderWithFractionalNativeTimestamp(),
+    });
+
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.connect();
+    await flushPromises();
+    await client.syncNow();
+
+    const request = JSON.parse(fetch.mock.calls[1]![1].body);
+    expect(request.events[0]).toMatchObject({
+      type: 'native',
+      timestamp: 1700000000000,
+    });
+    client.disconnect();
+  });
+
+  it('uploads one snapshot and returns to paused in a release build', async () => {
+    // @ts-expect-error __DEV__ is a React Native global
+    global.__DEV__ = false;
+    const fetch = jest.fn()
+      .mockResolvedValueOnce(response(201, {
+        ok: true,
+        sessionId: '123e4567-e89b-42d3-a456-426614174000',
+        generation: 'generation',
+        deviceId: 'ios-test',
+        expectedSequence: 1,
+      }))
+      .mockResolvedValueOnce(response(200, {
+        ok: true,
+        ackThrough: 1,
+        expectedSequence: 2,
+        rejected: [],
+      }));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProviderWithConsoleEntry() });
+
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    await client.syncNow();
+
+    const eventRequest = fetch.mock.calls.find(([url, init]) =>
+      String(url).includes('/events') && init?.method === 'POST',
+    );
+    expect(eventRequest).toBeDefined();
+    expect(JSON.parse(eventRequest![1]!.body).events).toHaveLength(1);
+    expect(client.getStatus().state).toBe('paused');
+    client.disconnect();
+  });
+
   it('coalesces concurrent session opens into one generation change', async () => {
     const fetch = jest.fn().mockResolvedValue(response(201, {
       ok: true,
       sessionId: '123e4567-e89b-42d3-a456-426614174000',
-      hubRef: 'ABCDEF',
-      sessionRef: '1234',
       generation: 'generation',
       deviceId: 'ios-test',
       expectedSequence: 1,
@@ -120,8 +221,6 @@ describe('HubClient transport', () => {
       .mockResolvedValueOnce(response(201, {
         ok: true,
         sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        hubRef: 'ABCDEF',
-        sessionRef: '1234',
         generation: 'generation',
         deviceId: 'ios-test',
         expectedSequence: 1,
@@ -163,8 +262,6 @@ describe('HubClient transport', () => {
       .mockResolvedValueOnce(response(201, {
         ok: true,
         sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        hubRef: 'ABCDEF',
-        sessionRef: '1234',
         generation: 'generation',
         deviceId: 'ios-test',
         expectedSequence: 1,
@@ -177,11 +274,21 @@ describe('HubClient transport', () => {
         rejected: [],
       }));
     const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    const internals = client as unknown as {
+      _enqueueEvent(event: { timestamp: number; type: string; severity: string; data: unknown }): void;
+      _doFlush(): Promise<void>;
+    };
 
     client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
     client.connect();
     await flushPromises();
-    await client.syncNow();
+    internals._enqueueEvent({
+      timestamp: 1700000000000,
+      type: 'console',
+      severity: 'info',
+      data: { message: 'retry-me' },
+    });
+    await internals._doFlush();
     expect(fetch).toHaveBeenCalledTimes(2);
 
     await jest.advanceTimersByTimeAsync(1000);

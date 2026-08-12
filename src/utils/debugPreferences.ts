@@ -119,7 +119,5 @@ export async function removePreference(key: string): Promise<void> {
 export const KEYS = {
   fabPosition: '@react_native_debug_toolkit/fab_position',
   lastTab: '@react_native_debug_toolkit/last_tab',
-  computerHost: '@react_native_debug_toolkit/computer_host',
-  daemonPort: '@react_native_debug_toolkit/daemon_port',
   environmentId: '@react_native_debug_toolkit/environment_id',
 } as const;

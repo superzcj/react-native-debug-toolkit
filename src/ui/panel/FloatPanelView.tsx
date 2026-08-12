@@ -75,29 +75,24 @@ interface PanelConnectionStatus {
 }
 
 interface DevConnectSnapshot {
-  isSimulator?: boolean;
-  computerHost?: string;
-  daemonPort?: string;
-  streaming?: boolean;
+  canonicalEndpoint?: string;
 }
 
 function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
   const devConnect = features.find((f) => f.name === 'devConnect');
   if (!devConnect) {
-    return { label: 'offline desktop sync unavailable', color: Colors.textMuted };
+    return { label: 'Shared Hub unavailable', color: Colors.textMuted };
   }
 
   try {
     const snap = (devConnect.getSnapshot() ?? {}) as DevConnectSnapshot;
-    const host = snap.isSimulator ? 'localhost' : snap.computerHost?.trim();
-    const port = snap.daemonPort?.trim();
-    const target = host && port ? `${host}:${port}` : host || (port ? `port ${port}` : 'not configured');
+    const endpoint = snap.canonicalEndpoint?.trim();
     return {
-      label: `${snap.streaming ? 'live' : 'offline'} ${target}`,
-      color: snap.streaming ? Colors.success : Colors.textMuted,
+      label: endpoint ? 'Shared Hub configured' : 'Shared Hub not configured',
+      color: Colors.textMuted,
     };
   } catch {
-    return { label: 'offline desktop sync unavailable', color: Colors.textMuted };
+    return { label: 'Shared Hub unavailable', color: Colors.textMuted };
   }
 }
 
@@ -184,16 +179,6 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
 
-  // DevConnect streaming status
-  const devConnect = features.find((f) => f.name === 'devConnect');
-  const isStreaming = (() => {
-    if (!devConnect) return false;
-    try {
-      const snap = (devConnect.getSnapshot() ?? {}) as DevConnectSnapshot;
-      return snap.streaming ?? false;
-    } catch { return false; }
-  })();
-
   // Rail items with counts
   const railItems: RailItem[] = features.map((f) => {
     const b = f.badge?.();
@@ -238,7 +223,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   return (
     <DebugErrorBoundary onError={onClosePanel}>
       <View style={styles.container} pointerEvents="box-none">
-        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={isStreaming} />
+        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={false} />
         {panelOpen && (
           <DebugPanel
             onClose={onClosePanel}

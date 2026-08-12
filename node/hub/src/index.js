@@ -5,5 +5,4 @@ module.exports = {
   ...require('./storage'),
   ...require('./server'),
   ...require('./cli'),
-  ...require('./mcp'),
 };
