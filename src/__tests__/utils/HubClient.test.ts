@@ -1,6 +1,10 @@
 import { HubClient } from '../../utils/HubClient';
 import type { FeatureDataProvider } from '../../types';
 import { computeHubPayloadHash } from '../../utils/hubCanonical';
+import {
+  _isNetworkUrlBlacklistedForTesting,
+  _resetNetworkForTesting,
+} from '../../features/network';
 
 function response(status: number, body: Record<string, unknown>) {
   return {
@@ -27,6 +31,7 @@ describe('HubClient transport', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    _resetNetworkForTesting();
   });
 
   it('matches the Hub canonical payload-hash vector', () => {
@@ -38,6 +43,15 @@ describe('HubClient transport', () => {
       severity: 'info',
       data: { trigger: 'button', nested: { z: 1, a: '中文' } },
     })).toBe('74f9634aa3ce38326221e62fc41cef22de1e678eeab72df37f56de85663efa47');
+  });
+
+  it('excludes the configured Hub origin from captured network logs', () => {
+    const client = new HubClient({ fetch: jest.fn(), featureProvider: createFeatureProvider() });
+
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+
+    expect(_isNetworkUrlBlacklistedForTesting('http://10.20.4.10:3799/api/v1/apps/com.example.audit/sessions'))
+      .toBe(true);
   });
 
   it('sends a canonical payload hash for each numbered event', async () => {
@@ -66,6 +80,79 @@ describe('HubClient transport', () => {
 
     const request = JSON.parse(fetch.mock.calls[1]![1].body);
     expect(request.events[0].payloadHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(fetch.mock.calls[1]![1].headers).toMatchObject({
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    });
+    client.disconnect();
+  });
+
+  it('coalesces concurrent session opens into one generation change', async () => {
+    const fetch = jest.fn().mockResolvedValue(response(201, {
+      ok: true,
+      sessionId: '123e4567-e89b-42d3-a456-426614174000',
+      hubRef: 'ABCDEF',
+      sessionRef: '1234',
+      generation: 'generation',
+      deviceId: 'ios-test',
+      expectedSequence: 1,
+    }));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    const internals = client as unknown as { _openSession(): Promise<void> };
+
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.connect();
+    const reopenFromEvents = internals._openSession();
+    const reopenFromHeartbeat = internals._openSession();
+
+    try {
+      await flushPromises();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await Promise.all([reopenFromEvents, reopenFromHeartbeat]);
+    } finally {
+      await flushPromises();
+      client.disconnect();
+    }
+  });
+
+  it('hashes the same normalized data that it sends over JSON', async () => {
+    const fetch = jest.fn()
+      .mockResolvedValueOnce(response(201, {
+        ok: true,
+        sessionId: '123e4567-e89b-42d3-a456-426614174000',
+        hubRef: 'ABCDEF',
+        sessionRef: '1234',
+        generation: 'generation',
+        deviceId: 'ios-test',
+        expectedSequence: 1,
+      }))
+      .mockResolvedValueOnce(response(200, {
+        ok: true,
+        ackThrough: 1,
+        expectedSequence: 2,
+        rejected: [],
+      }));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    const internals = client as unknown as {
+      _enqueueEvent(event: { timestamp: number; type: string; severity: string; data: unknown }): void;
+      _doFlush(): Promise<void>;
+    };
+
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.connect();
+    await flushPromises();
+    internals._enqueueEvent({
+      timestamp: 1700000000000,
+      type: 'network',
+      severity: 'info',
+      data: { response: { toJSON: () => ({ serialized: true }) } },
+    });
+    await internals._doFlush();
+
+    const request = JSON.parse(fetch.mock.calls[1]![1].body);
+    expect(request.events[0].data).toEqual({
+      response: { toJSON: { $type: 'function', name: 'toJSON' } },
+    });
     client.disconnect();
   });
 

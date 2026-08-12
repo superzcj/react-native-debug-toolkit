@@ -7,6 +7,7 @@ const { validateWireEvent } = require('../src/protocol/validation');
 const { computePayloadHash } = require('../src/protocol/canonical');
 const { SessionStore } = require('../src/storage/sessionStore');
 const { SessionLedger } = require('../src/storage/sessionLedger');
+const { sendJson } = require('../src/server/httpUtils');
 
 const sessionId = '123e4567-e89b-42d3-a456-426614174000';
 
@@ -22,6 +23,17 @@ function wireEvent(hash) {
 }
 
 describe('Shared Hub protocol', () => {
+  it('marks Hub responses as non-storable for mobile clients', () => {
+    const response = { writeHead: jest.fn(), end: jest.fn() };
+
+    sendJson(response, 200, { ok: true });
+
+    expect(response.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
+      'cache-control': expect.stringContaining('no-store'),
+      pragma: 'no-cache',
+    }));
+  });
+
   it('requires the client payload hash on every wire event', () => {
     expect(validateWireEvent({ ...wireEvent(undefined), payloadHash: undefined }))
       .toBe('payloadHash is required');

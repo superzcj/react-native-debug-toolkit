@@ -158,11 +158,12 @@ const T = {
   warning: '#C67A18',
 } as const;
 
-// Demo defaults to the Shared Hub address used in the v4 deployment guide.
-// Change this one build-time value to the fixed address of the target Mac mini.
+// All debug clients, including physical devices, use the debug Mac's fixed
+// LAN address. Port 3799 is occupied by an unrelated legacy daemon on this
+// Mac, so the v4 Demo Hub uses its dedicated port 3800.
 const DEMO_HUB = {
   appId: 'com.reactnativedebugtoolkit.demo',
-  endpoint: 'http://10.20.4.10:3799',
+  endpoint: 'http://172.31.23.124:3800',
 };
 
 function formatPrice(price: number): string {

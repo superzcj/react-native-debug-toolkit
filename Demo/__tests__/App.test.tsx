@@ -124,8 +124,8 @@ test('opens the v4 Shared Hub controls with its session short code', async () =>
   expect(findText(renderer!.root, 'Hub Address')).toBeTruthy();
   expect(findText(renderer!.root, 'Sync Now · #DEMO01-A1B2')).toBeTruthy();
   expect(findText(renderer!.root, 'Pause Sync')).toBeTruthy();
-  expect(renderer!.root.findByProps({ placeholder: 'http://10.20.4.10:3799' }).props.value)
-    .toBe('http://10.20.4.10:3799');
+  expect(renderer!.root.findByProps({ placeholder: 'http://172.31.23.124:3800' }).props.value)
+    .toBe('http://172.31.23.124:3800');
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Pause Sync');
@@ -179,4 +179,47 @@ test('sends a SHA-256 verified manual-sync event to the Shared Hub', async () =>
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
   });
+});
+
+test('automatically flushes navigation logs without pressing Sync Now', async () => {
+  jest.useFakeTimers();
+  const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
+    if (url.includes('/events') && init?.method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, ackThrough: 50, expectedSequence: 51, rejected: [] }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => [] };
+  }) as unknown as jest.MockedFunction<typeof fetch>;
+  global.fetch = fetchMock;
+
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+    await flushHub();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, 'Profile');
+    await flushHub();
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+
+  const eventsCall = fetchMock.mock.calls.find(([url, init]) =>
+    String(url).includes('/events') && init?.method === 'POST',
+  );
+  expect(eventsCall).toBeDefined();
+  const body = JSON.parse(eventsCall![1]!.body as string);
+  expect(body.events).toEqual(expect.arrayContaining([
+    expect.objectContaining({ type: 'navigation' }),
+  ]));
+
+  await ReactTestRenderer.act(async () => {
+    renderer!.unmount();
+  });
+  jest.useRealTimers();
 });

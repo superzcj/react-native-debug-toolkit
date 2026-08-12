@@ -23,7 +23,38 @@ function request(port, method, pathname, body) {
   });
 }
 
+function requestText(port, pathname) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, method: 'GET', path: pathname }, (res) => {
+      let raw = '';
+      res.on('data', chunk => { raw += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, body: raw }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 describe('Shared Hub HTTP flow', () => {
+  it('serves the legacy device-list console workflow', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-console-'));
+    const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
+    const started = await server.start();
+
+    try {
+      const consolePage = await requestText(started.address.port, '/console');
+
+      expect(consolePage.status).toBe(200);
+      expect(consolePage.body).toContain('class="device-grid"');
+      expect(consolePage.body).toContain('All devices');
+      expect(consolePage.body).toContain('Search logs...');
+      expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:20px;padding:6px 0;cursor:pointer;background:none;border:0}');
+    } finally {
+      await server.stop();
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it('accepts verified App events and exposes the session sync marker', async () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-server-'));
     const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });

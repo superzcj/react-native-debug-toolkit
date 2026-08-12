@@ -1,8 +1,9 @@
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import { debugToolkit } from '../core/DebugToolkit';
 import type { FeatureDataProvider } from '../types';
+import { addToBlacklist } from '../features/network';
 import { safeStringify } from './safeStringify';
-import { computeHubPayloadHash } from './hubCanonical';
+import { computeHubPayloadHash, normalizeHubValue } from './hubCanonical';
 import { getNativeAppInfo } from '../features/devConnect/nativeDevConnect';
 
 // ---- Protocol Constants ----
@@ -184,6 +185,7 @@ export class HubClient {
   private _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private _retryTimer: ReturnType<typeof setTimeout> | null = null;
   private _retryAttempt = 0;
+  private _openSessionPromise: Promise<void> | null = null;
 
   // Flags
   private _sending = false;
@@ -217,6 +219,7 @@ export class HubClient {
       return;
     }
     this._config = { appId: config.appId, endpoint };
+    addToBlacklist(endpoint);
     this._runtimeEndpoint = null;
     this._state = 'invalid_config';
   }
@@ -227,6 +230,7 @@ export class HubClient {
 
     const oldEndpoint = this.getEffectiveEndpoint();
     this._runtimeEndpoint = normalized;
+    addToBlacklist(normalized);
 
     if (oldEndpoint && oldEndpoint !== normalized && this._active) {
       // Endpoint changed: flush old, create new session
@@ -363,7 +367,21 @@ export class HubClient {
 
   // ---- Private: Session ----
 
-  private async _openSession(): Promise<void> {
+  private _openSession(): Promise<void> {
+    if (this._openSessionPromise) return this._openSessionPromise;
+
+    const opening = this._openSessionInternal();
+    this._openSessionPromise = opening;
+    const clearOpening = () => {
+      if (this._openSessionPromise === opening) {
+        this._openSessionPromise = null;
+      }
+    };
+    opening.then(clearOpening, clearOpening);
+    return opening;
+  }
+
+  private async _openSessionInternal(): Promise<void> {
     const endpoint = this.getEffectiveEndpoint();
     const appId = this._config?.appId;
     if (!endpoint || !appId || !this._sessionId) return;
@@ -592,19 +610,23 @@ export class HubClient {
         while (this._pending.length > 0 && batch.length < MAX_BATCH_EVENTS) {
           const pending = this._pending[0]!;
           const severity = normalizeSeverity(pending.severity);
+          // Hash exactly the JSON-compatible value that will cross the wire.
+          // Native Blob and other host objects can expose a different toJSON()
+          // representation than their enumerable in-memory shape.
+          const data = normalizeHubValue(pending.data);
           const event: InFlightEvent = {
             sequence: this._nextSequence,
             timestamp: pending.timestamp,
             type: pending.type,
             severity,
-            data: pending.data,
+            data,
             payloadHash: computeHubPayloadHash({
               sessionId: this._sessionId!,
               sequence: this._nextSequence,
               timestamp: pending.timestamp,
               type: pending.type,
               severity,
-              data: pending.data,
+              data,
             }),
             wireBytes: pending.estimatedBytes,
           };
@@ -814,7 +836,13 @@ export class HubClient {
     try {
       return await fetchImpl(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // React Native on iOS may otherwise replay a cached POST response
+          // after a Hub restart, including an obsolete generation token.
+          'Cache-Control': 'no-store',
+          Pragma: 'no-cache',
+        },
         body: safeStringify(body) || '{}',
         signal: controller?.signal,
       });

@@ -1,25 +1,26 @@
 # Shared Hub v4 Demo 验收
 
-Demo 已固定接入 Shared Hub v4。它的 `appId` 是 `com.reactnativedebugtoolkit.demo`；只需把 [App.tsx](./App.tsx) 的 `DEMO_HUB.endpoint` 改为公共 Mac mini 的实际地址。
+Demo 在调试阶段默认接入调试 Mac 的固定局域网地址：`http://172.31.23.124:3800`。它的 `appId` 是 `com.reactnativedebugtoolkit.demo`。这样 iOS Simulator 和真机始终访问同一个 Hub。
 
 ## 1. 启动 Hub
 
-在公共 Mac mini（或同一局域网中用于验收的 Mac）从仓库根目录执行：
+在调试 Mac 上，从仓库根目录执行：
 
 ```sh
 node bin/debug-toolkit.js hub start \
-  --bind 10.20.4.10 \
-  --advertise-url http://10.20.4.10:3799 \
-  --data-dir /Users/Shared/ReactNativeDebugToolkit/log-hub
+  --bind 172.31.23.124 \
+  --port 3800 \
+  --advertise-url http://172.31.23.124:3800 \
+  --data-dir /tmp/react-native-debug-toolkit-hub
 ```
 
-把示例 IP 换成 Mac mini 的固定 IP。启动后，任意同网设备可验证：
+启动后，在本机验证：
 
 ```sh
-curl http://10.20.4.10:3799/ready
+curl http://172.31.23.124:3800/ready
 ```
 
-返回 `ready: true` 且 `storage.writable: true` 才继续。长期公共服务使用 `hub install --system`；本说明先使用前台启动，便于 Demo 验收和排错。
+返回 `ready: true` 且 `storage.writable: true` 才继续。当前仅用于本机前台验收；公共服务部署再改用固定 Mac mini 地址与 `hub install --system`。
 
 ## 2. 运行 Demo
 
@@ -30,7 +31,7 @@ npm run ios
 npm run android
 ```
 
-Android Debug 构建已允许连接到 HTTP Hub，Release 保持关闭。iOS 使用真机 HTTP 地址时，按宿主 App 的 Debug 配置增加该内网地址的 ATS 例外；不要把这项例外带进生产构建。
+这个默认地址同时适用于 iOS Simulator 和真机。Android 模拟器也可以访问调试 Mac IP；若使用 Android Studio 的 host loopback 映射，才改为 `http://10.0.2.2:3800`。真机需按宿主 App 的 Debug 配置增加该内网地址的 ATS 例外。Release 保持关闭。
 
 Demo 会排除一个与 Shared Hub 无关、且不兼容当前 React Native 新架构的旧 Clipboard 原生依赖；Toolkit 会自动使用其无原生模块的降级行为。
 
@@ -42,11 +43,11 @@ Demo 会排除一个与 Shared Hub 无关、且不兼容当前 React Native 新�
 
 ## 3. 从命令行和 AI 验证
 
-在能访问该局域网/VPN 的终端执行：
+在本机终端执行：
 
 ```sh
 node bin/debug-toolkit.js status \
-  --endpoint http://10.20.4.10:3799 \
+  --endpoint http://172.31.23.124:3800 \
   --app-id com.reactnativedebugtoolkit.demo
 ```
 
