@@ -23,10 +23,10 @@ function parseArgs(args) {
     hub: readOption(args, '--hub', undefined),
     appId: readOption(args, '--app-id', process.env.DEBUG_TOOLKIT_APP_ID),
     session: readOption(args, '--session', undefined),
-    cursor: readOption(args, '--cursor', undefined),
     through: readOption(args, '--through', undefined),
     since: readOption(args, '--since', undefined),
     until: readOption(args, '--until', undefined),
+    sinceSequence: readOption(args, '--since-sequence', undefined),
     allowStale: hasFlag(args, '--allow-stale'),
     follow: hasFlag(args, '--follow'),
     url: readOption(args, '--url', undefined),
@@ -34,11 +34,6 @@ function parseArgs(args) {
     port: portValue === undefined ? undefined : parseInt(portValue, 10),
     dataDir: readOption(args, '--data-dir', undefined),
     advertiseUrl: readOption(args, '--advertise-url', undefined),
-    system: hasFlag(args, '--system'),
-    replace: hasFlag(args, '--replace'),
-    dryRun: hasFlag(args, '--dry-run'),
-    check: hasFlag(args, '--check'),
-    update: hasFlag(args, '--update'),
     help: hasFlag(args, '--help') || hasFlag(args, '-h'),
     json: hasFlag(args, '--json'),
     entryId: null, // set below
@@ -50,8 +45,6 @@ function printHelp() {
     'Usage: debug-toolkit <command> [options]\n\n'
     + 'Commands:\n'
     + '  hub dev                   Run a local Hub for App development\n'
-    + '  hub install --url <url>   Install the shared macOS Hub once\n'
-    + '  hub update                Update an installed shared Hub\n'
     + '  init                      Enable AI runtime diagnostics in this repository\n'
     + '  status                    Check Hub and list sessions (AI/advanced)\n'
     + '  context                   Read evidence snapshot (AI/advanced)\n'
@@ -68,7 +61,7 @@ function printHelp() {
     + '  -h, --help                Show help\n'
     + '\n'
     + 'tail options:\n'
-    + '  --cursor <cursor>         Resume from cursor\n'
+    + '  --since-sequence <n>      Resume after this sequence\n'
     + '  --follow                  Infinite tail (human use)\n'
   );
 }
@@ -78,13 +71,9 @@ function printHubHelp() {
     'Usage: debug-toolkit hub <command>\n\n'
     + 'Commands:\n'
     + '  dev                       Run a local foreground Hub on port 3800\n'
-    + '  install --url <url>       Install the shared Hub as a macOS service\n'
-    + '  update                    Replace the installed Hub with this version\n'
     + '\n'
     + 'Examples:\n'
     + '  debug-toolkit hub dev\n'
-    + '  debug-toolkit hub install --url http://10.20.4.10:3800\n'
-    + '  debug-toolkit hub update\n'
   );
 }
 
@@ -113,19 +102,7 @@ async function main(argv) {
       const { hubStartCommand } = require('./commands/hubStart');
       return hubStartCommand(parsed);
     }
-    if (parsed.subcommand === 'install') {
-      if (!parsed.url && !parsed.advertiseUrl) {
-        process.stderr.write('hub install requires --url <Hub URL>\n');
-        return { ok: false, exitCode: 2 };
-      }
-      const { hubInstallCommand } = require('./commands/hubInstall');
-      return hubInstallCommand({ ...parsed, system: true });
-    }
-    if (parsed.subcommand === 'update') {
-      const { hubUpdateCommand } = require('./commands/hubInstall');
-      return hubUpdateCommand(parsed);
-    }
-    process.stderr.write('Unknown hub command. Use: hub dev | hub install --url <url> | hub update\n');
+    process.stderr.write('Unknown hub command. Use: hub dev\n');
     return { exitCode: 1 };
   }
 

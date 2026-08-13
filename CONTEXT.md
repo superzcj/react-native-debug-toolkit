@@ -6,8 +6,8 @@
 - **FeatureDataProvider** — The Toolkit feature registry exposed to `HubClient` for snapshots and change notifications.
 - **HubClient** — The one App-side transport. It opens the current runtime Session, batches events, and retries in memory with sequence/ACK protection.
 - **Session** — One App runtime connected to a Hub.
-- **Event** — A normalized debug record with a sequence number and payload hash.
-- **Hub** — The HTTP service that persists sessions, exposes CLI APIs, and serves the human Web Console. It usually runs on the developer's Mac; a Mac mini can host one for a team.
+- **Event** — A normalized debug record with a sequence number.
+- **Hub** — The local HTTP process that persists sessions, exposes CLI APIs, and serves the human Web Console. Developers usually run it on their own Mac with `hub dev`.
 
 ## Architecture
 

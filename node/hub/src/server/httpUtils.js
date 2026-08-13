@@ -7,9 +7,8 @@ function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(body),
-    // Session opens and acknowledgements carry a generation token. iOS may
-    // otherwise serve an old POST response from NSURLCache, which makes every
-    // following event appear to use a stale generation.
+    // React Native on iOS may otherwise serve an old POST response from
+    // NSURLCache after a Hub restart.
     'cache-control': 'no-store, no-cache, must-revalidate',
     pragma: 'no-cache',
     expires: '0',

@@ -3,6 +3,7 @@
 const http = require('http');
 const { URL } = require('url');
 const os = require('os');
+const path = require('path');
 const { API_PREFIX, DEFAULT_PORT, HUB_NAME, HUB_VERSION } = require('../protocol/constants');
 const { HubStore } = require('../storage/hubStore');
 const { sendJson, sendError } = require('./httpUtils');
@@ -10,7 +11,7 @@ const routes = require('./routes');
 const { createConsoleHandler } = require('../console');
 
 function createHubServer(options = {}) {
-  const dataDir = options.dataDir || '/Users/Shared/ReactNativeDebugToolkitHub/data';
+  const dataDir = options.dataDir || path.join(process.cwd(), '.debug-toolkit', 'hub');
   const bindAddress = options.bindAddress || '127.0.0.1';
   const port = options.port ?? DEFAULT_PORT;
   const configuredAdvertiseUrl = options.advertiseUrl;

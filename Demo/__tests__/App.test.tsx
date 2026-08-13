@@ -49,6 +49,18 @@ async function flushHub(): Promise<void> {
   for (let index = 0; index < 12; index += 1) await Promise.resolve();
 }
 
+function readyResponse() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      ok: true,
+      name: 'react-native-debug-toolkit-hub',
+      protocolVersion: 1,
+    }),
+  };
+}
+
 function openSessionResponse() {
   return {
     ok: true,
@@ -56,11 +68,34 @@ function openSessionResponse() {
     json: async () => ({
       ok: true,
       sessionId: '123e4567-e89b-42d3-a456-426614174000',
-      generation: 'demo-generation',
       deviceId: 'demo-device',
       expectedSequence: 1,
+      ackThrough: 0,
     }),
   };
+}
+
+function mockHubFetch(): jest.MockedFunction<typeof fetch> {
+  return jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/ready') && (!init?.method || init.method === 'GET')) {
+      return readyResponse();
+    }
+    if (url.includes('/sessions') && init?.method === 'POST' && !url.includes('/events')) {
+      return openSessionResponse();
+    }
+    if (url.includes('/events') && init?.method === 'POST') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, ackThrough: 1, expectedSequence: 2, rejected: [] }),
+      };
+    }
+    if (url.includes('/heartbeat') && init?.method === 'POST') {
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  }) as unknown as jest.MockedFunction<typeof fetch>;
 }
 
 async function openConnectTab(renderer: ReactTestRenderer.ReactTestRenderer) {
@@ -106,11 +141,8 @@ afterEach(() => {
   DebugToolkit.destroy();
 });
 
-test('opens the v4 Shared Hub controls', async () => {
-  global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
-    return { ok: true, status: 200, json: async () => [] };
-  }) as unknown as typeof fetch;
+test('opens the v4 local Hub controls', async () => {
+  global.fetch = mockHubFetch();
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -122,8 +154,8 @@ test('opens the v4 Shared Hub controls', async () => {
   expect(findText(renderer!.root, 'Hub Address')).toBeTruthy();
   expect(findText(renderer!.root, 'Upload Once')).toBeTruthy();
   expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
-  expect(renderer!.root.findByProps({ placeholder: 'http://172.31.23.124:3800' }).props.value)
-    .toBe('http://172.31.23.124:3800');
+  expect(renderer!.root.findByProps({ placeholder: 'http://127.0.0.1:3800' }).props.value)
+    .toBe('http://127.0.0.1:3800');
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Stop Live Logs');
@@ -140,19 +172,8 @@ test('opens the v4 Shared Hub controls', async () => {
   });
 });
 
-test('uploads a SHA-256 verified snapshot batch to the Shared Hub', async () => {
-  const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    if (url.endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
-    if (url.includes('/events') && init?.method === 'POST') {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ ok: true, ackThrough: 1, expectedSequence: 2, rejected: [] }),
-      };
-    }
-    return { ok: true, status: 200, json: async () => [] };
-  }) as unknown as jest.MockedFunction<typeof fetch>;
+test('uploads a snapshot batch to the local Hub', async () => {
+  const fetchMock = mockHubFetch();
   global.fetch = fetchMock;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -172,7 +193,8 @@ test('uploads a SHA-256 verified snapshot batch to the Shared Hub', async () => 
   expect(eventsCall).toBeDefined();
   const body = JSON.parse(eventsCall![1]!.body as string);
   expect(body.events.length).toBeGreaterThan(0);
-  expect(body.events[0].payloadHash).toMatch(/^[a-f0-9]{64}$/);
+  expect(body.generation).toBeUndefined();
+  expect(body.events[0].payloadHash).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
@@ -181,9 +203,15 @@ test('uploads a SHA-256 verified snapshot batch to the Shared Hub', async () => 
 
 test('automatically flushes navigation logs without pressing Upload Once', async () => {
   jest.useFakeTimers();
-  const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  const fetchMock = mockHubFetch();
+  fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.endsWith('/sessions') && init?.method === 'POST') return openSessionResponse();
+    if (url.endsWith('/ready') && (!init?.method || init.method === 'GET')) {
+      return readyResponse();
+    }
+    if (url.includes('/sessions') && init?.method === 'POST' && !url.includes('/events')) {
+      return openSessionResponse();
+    }
     if (url.includes('/events') && init?.method === 'POST') {
       return {
         ok: true,
@@ -191,8 +219,11 @@ test('automatically flushes navigation logs without pressing Upload Once', async
         json: async () => ({ ok: true, ackThrough: 50, expectedSequence: 51, rejected: [] }),
       };
     }
-    return { ok: true, status: 200, json: async () => [] };
-  }) as unknown as jest.MockedFunction<typeof fetch>;
+    if (url.includes('/heartbeat') && init?.method === 'POST') {
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  });
   global.fetch = fetchMock;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;

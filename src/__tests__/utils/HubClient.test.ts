@@ -3,7 +3,6 @@ global.__DEV__ = true;
 
 import { HubClient } from '../../utils/HubClient';
 import type { FeatureDataProvider } from '../../types';
-import { computeHubPayloadHash } from '../../utils/hubCanonical';
 import {
   _isNetworkUrlBlacklistedForTesting,
   _resetNetworkForTesting,
@@ -66,6 +65,14 @@ function createFeatureProviderWithFractionalNativeTimestamp(): FeatureDataProvid
   };
 }
 
+const openBody = {
+  ok: true,
+  sessionId: '123e4567-e89b-42d3-a456-426614174000',
+  deviceId: 'ios-test',
+  expectedSequence: 1,
+  ackThrough: 0,
+};
+
 describe('HubClient transport', () => {
   afterEach(() => {
     // @ts-expect-error __DEV__ is a React Native global
@@ -73,17 +80,6 @@ describe('HubClient transport', () => {
     jest.useRealTimers();
     jest.restoreAllMocks();
     _resetNetworkForTesting();
-  });
-
-  it('matches the Hub canonical payload-hash vector', () => {
-    expect(computeHubPayloadHash({
-      sessionId: '123e4567-e89b-42d3-a456-426614174000',
-      sequence: 1,
-      timestamp: 1700000000000,
-      type: 'console',
-      severity: 'info',
-      data: { message: 'hello' },
-    })).toBe('d81f12ba4811116fed294e3236a34a341f036a7e05d2e6bdf489656a784cb53b');
   });
 
   it('excludes the configured Hub origin from captured network logs', () => {
@@ -95,15 +91,9 @@ describe('HubClient transport', () => {
       .toBe(true);
   });
 
-  it('sends a canonical payload hash for each numbered event', async () => {
+  it('uploads events without payloadHash or generation', async () => {
     const fetch = jest.fn()
-      .mockResolvedValueOnce(response(201, {
-        ok: true,
-        sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        generation: 'generation',
-        deviceId: 'ios-test',
-        expectedSequence: 1,
-      }))
+      .mockResolvedValueOnce(response(201, openBody))
       .mockResolvedValueOnce(response(200, {
         ok: true,
         ackThrough: 1,
@@ -118,7 +108,13 @@ describe('HubClient transport', () => {
     await client.syncNow();
 
     const request = JSON.parse(fetch.mock.calls[1]![1].body);
-    expect(request.events[0].payloadHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(request.generation).toBeUndefined();
+    expect(request.events[0].payloadHash).toBeUndefined();
+    expect(request.events[0]).toMatchObject({
+      sequence: 1,
+      type: 'console',
+      severity: 'info',
+    });
     expect(fetch.mock.calls[1]![1].headers).toMatchObject({
       'Cache-Control': 'no-store',
       Pragma: 'no-cache',
@@ -128,13 +124,7 @@ describe('HubClient transport', () => {
 
   it('normalizes fractional native log timestamps before uploading', async () => {
     const fetch = jest.fn()
-      .mockResolvedValueOnce(response(201, {
-        ok: true,
-        sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        generation: 'generation',
-        deviceId: 'ios-test',
-        expectedSequence: 1,
-      }))
+      .mockResolvedValueOnce(response(201, openBody))
       .mockResolvedValueOnce(response(200, {
         ok: true,
         ackThrough: 1,
@@ -163,13 +153,7 @@ describe('HubClient transport', () => {
     // @ts-expect-error __DEV__ is a React Native global
     global.__DEV__ = false;
     const fetch = jest.fn()
-      .mockResolvedValueOnce(response(201, {
-        ok: true,
-        sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        generation: 'generation',
-        deviceId: 'ios-test',
-        expectedSequence: 1,
-      }))
+      .mockResolvedValueOnce(response(201, openBody))
       .mockResolvedValueOnce(response(200, {
         ok: true,
         ackThrough: 1,
@@ -190,14 +174,8 @@ describe('HubClient transport', () => {
     client.disconnect();
   });
 
-  it('coalesces concurrent session opens into one generation change', async () => {
-    const fetch = jest.fn().mockResolvedValue(response(201, {
-      ok: true,
-      sessionId: '123e4567-e89b-42d3-a456-426614174000',
-      generation: 'generation',
-      deviceId: 'ios-test',
-      expectedSequence: 1,
-    }));
+  it('coalesces concurrent session opens into one request', async () => {
+    const fetch = jest.fn().mockResolvedValue(response(201, openBody));
     const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
     const internals = client as unknown as { _openSession(): Promise<void> };
 
@@ -216,15 +194,9 @@ describe('HubClient transport', () => {
     }
   });
 
-  it('hashes the same normalized data that it sends over JSON', async () => {
+  it('normalizes host objects before sending JSON', async () => {
     const fetch = jest.fn()
-      .mockResolvedValueOnce(response(201, {
-        ok: true,
-        sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        generation: 'generation',
-        deviceId: 'ios-test',
-        expectedSequence: 1,
-      }))
+      .mockResolvedValueOnce(response(201, openBody))
       .mockResolvedValueOnce(response(200, {
         ok: true,
         ackThrough: 1,
@@ -259,13 +231,7 @@ describe('HubClient transport', () => {
     jest.useFakeTimers();
     jest.spyOn(Math, 'random').mockReturnValue(0);
     const fetch = jest.fn()
-      .mockResolvedValueOnce(response(201, {
-        ok: true,
-        sessionId: '123e4567-e89b-42d3-a456-426614174000',
-        generation: 'generation',
-        deviceId: 'ios-test',
-        expectedSequence: 1,
-      }))
+      .mockResolvedValueOnce(response(201, openBody))
       .mockResolvedValueOnce(response(503, { ok: false }))
       .mockResolvedValueOnce(response(200, {
         ok: true,

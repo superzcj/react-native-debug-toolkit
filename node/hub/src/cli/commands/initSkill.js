@@ -44,7 +44,7 @@ Search the project for \`features.devConnect\` or \`DebugView\`. Read:
    - If neither address works, the CLI lists the URLs it tried. Ask the user for the Hub address and retry with \`--hub\`.
 
 2. Choose the Session:
-   - No Sessions: ask the user to use "Upload Once" or "Start Live Logs" in the App.
+   - No Sessions: ask the user to confirm the Hub is running (\`npx debug-toolkit hub dev\`) and that the App has auto-uploaded (Debug), used "Upload Once", or enabled "Start Live Logs".
    - One recent Session: use it.
    - Several recent Sessions: show the device labels and ask the user to pick one.
    - Crash investigation: include stale Sessions.

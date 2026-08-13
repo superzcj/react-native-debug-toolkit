@@ -2,81 +2,110 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { Mutex, atomicWriteJson, fsyncDir } = require('./identityRegistry');
-const { SessionLedger } = require('./sessionLedger');
-const { SegmentWriter } = require('./segmentWriter');
+const { Mutex, atomicWriteJson } = require('./fsUtils');
 const { generateDeviceId } = require('../protocol/deviceId');
 const { createEventEnvelope, createControlRecord } = require('../protocol/envelope');
 const { STALE_TIMEOUT_MS } = require('../protocol/constants');
-const { verifyPayloadHash } = require('../protocol/canonical');
 
 class SessionStore {
   constructor(sessionDir, appId, sessionId) {
     this._dir = sessionDir;
     this._appId = appId;
     this._sessionId = sessionId;
-    this._manifestPath = path.join(sessionDir, `${sessionId}.manifest.json`);
-    this._ledgerPath = path.join(sessionDir, `${sessionId}.ledger.jsonl`);
+    this._manifestPath = path.join(sessionDir, 'manifest.json');
+    this._eventsPath = path.join(sessionDir, 'events.jsonl');
     this._mutex = new Mutex();
-    this._ledger = new SessionLedger(this._ledgerPath);
-    this._writer = new SegmentWriter(sessionDir, sessionId);
     this._manifest = null;
-    this._generation = null;
+    this._ackThrough = 0;
     this._device = null;
     this._deviceId = null;
     this._lastSeenAt = null;
+    this._startedAt = null;
     this._syncState = 'live';
     this._sourceIp = null;
     this._truncated = false;
+    this._events = [];
     this._listeners = new Set();
   }
 
   initialize() {
     fs.mkdirSync(this._dir, { recursive: true });
-    this._ledger.load();
-    this._writer.initialize();
-    this._writer.recoverToSequence(this._ledger.getAckThrough());
     this._loadManifest();
+    this._loadEvents();
   }
 
   _loadManifest() {
     try {
       const raw = fs.readFileSync(this._manifestPath, 'utf8');
       this._manifest = JSON.parse(raw);
-      this._generation = this._manifest.generation;
-      this._device = this._manifest.device;
-      this._deviceId = this._manifest.deviceId;
-      this._lastSeenAt = this._manifest.lastSeenAt;
+      this._ackThrough = Number(this._manifest.ackThrough) || 0;
+      this._device = this._manifest.device || null;
+      this._deviceId = this._manifest.deviceId || null;
+      this._lastSeenAt = this._manifest.lastSeenAt || this._manifest.lastActiveAt || null;
+      this._startedAt = this._manifest.startedAt || null;
       this._syncState = this._manifest.syncState || 'live';
       this._sourceIp = this._manifest.sourceIp || null;
-      this._truncated = this._manifest.truncated || false;
+      this._truncated = !!this._manifest.truncated;
     } catch {
       this._manifest = null;
+      this._ackThrough = 0;
+    }
+  }
+
+  _loadEvents() {
+    this._events = [];
+    try {
+      const raw = fs.readFileSync(this._eventsPath, 'utf8');
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          this._events.push(JSON.parse(line));
+        } catch {
+          // skip corrupt line
+        }
+      }
+    } catch {
+      this._events = [];
+    }
+
+    // Truncate any uncommitted tail past ackThrough (crash safety).
+    if (this._ackThrough > 0) {
+      const kept = this._events.filter(e => e.sequence <= this._ackThrough);
+      if (kept.length !== this._events.length) {
+        this._events = kept;
+        this._rewriteEventsFile();
+      }
+    } else if (this._events.length > 0 && this._ackThrough === 0) {
+      this._events = [];
+      this._rewriteEventsFile();
+    }
+  }
+
+  _rewriteEventsFile() {
+    const fd = fs.openSync(this._eventsPath, 'w');
+    try {
+      for (const event of this._events) {
+        fs.writeSync(fd, JSON.stringify(event) + '\n');
+      }
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
     }
   }
 
   _saveManifest() {
-    const segInfo = this._writer.getCurrentSegmentInfo();
-    const segments = this._writer.listSegments().map(s => ({
-      name: s.name,
-      bytes: s.bytes,
-      closed: s.closed,
-    }));
-    
     this._manifest = {
       sessionId: this._sessionId,
       appId: this._appId,
       deviceId: this._deviceId,
       device: this._device,
-      generation: this._generation,
-      ackThrough: this._ledger.getAckThrough(),
+      ackThrough: this._ackThrough,
       lastSeenAt: this._lastSeenAt,
+      lastActiveAt: this._lastSeenAt,
+      startedAt: this._startedAt,
       syncState: this._syncState,
       sourceIp: this._sourceIp,
       truncated: this._truncated,
-      currentSegment: segInfo,
-      segments,
       updatedAt: new Date().toISOString(),
     };
     atomicWriteJson(this._manifestPath, this._manifest);
@@ -85,11 +114,11 @@ class SessionStore {
   async open(params, sourceIp) {
     await this._mutex.acquire();
     try {
-      const existingOpen = this._ledger.getSessionOpen();
-      
-      if (existingOpen) {
-        if (existingOpen.appId !== this._appId ||
-            JSON.stringify(existingOpen.device || {}) !== JSON.stringify(params.device || {})) {
+      if (this._manifest) {
+        if (this._manifest.appId !== this._appId) {
+          return { ok: false, code: 'SESSION_METADATA_CONFLICT' };
+        }
+        if (JSON.stringify(this._device || {}) !== JSON.stringify(params.device || {})) {
           return { ok: false, code: 'SESSION_METADATA_CONFLICT' };
         }
       }
@@ -101,47 +130,28 @@ class SessionStore {
         params.device?.model,
         sourceIp,
       );
-      this._generation = crypto.randomBytes(32).toString('hex');
+
+      const isResume = !!this._manifest;
       this._device = params.device;
       this._deviceId = deviceId;
       this._lastSeenAt = new Date().toISOString();
       this._syncState = 'live';
       this._sourceIp = sourceIp;
-
-      const record = {
-        type: 'session_open',
-        sessionId: this._sessionId,
-        appId: this._appId,
-        deviceId,
-        generation: this._generation,
-        device: params.device,
-        sourceIp,
-        startedAt: params.startedAt,
-        bindingEpoch: params.bindingEpoch || 1,
-      };
-
-      await this._ledger.append(record);
-
-      await this._ledger.append({
-        type: 'generation_change',
-        generation: this._generation,
-        previousGeneration: existingOpen ? this._ledger.getCurrentGeneration() : null,
-      });
+      if (!this._startedAt) {
+        this._startedAt = params.startedAt
+          ? new Date(params.startedAt).toISOString()
+          : this._lastSeenAt;
+      }
 
       this._saveManifest();
-
-      const isResume = !!existingOpen;
-      const ackThrough = this._ledger.getAckThrough();
 
       return {
         ok: true,
         isResume,
         sessionId: this._sessionId,
         deviceId,
-        generation: this._generation,
-        bindingEpoch: params.bindingEpoch || 1,
-        ackThrough,
-        expectedSequence: ackThrough + 1,
+        ackThrough: this._ackThrough,
+        expectedSequence: this._ackThrough + 1,
         rejected: [],
       };
     } finally {
@@ -149,46 +159,29 @@ class SessionStore {
     }
   }
 
-  async appendEvents(generation, firstSequence, wireEvents) {
+  async appendEvents(firstSequence, wireEvents) {
     await this._mutex.acquire();
     try {
-      if (generation !== this._generation) {
-        return { ok: false, code: 'STALE_GENERATION' };
-      }
-
-      const expectedSeq = this._ledger.getExpectedSequence();
-      const ackThrough = this._ledger.getAckThrough();
-
-      for (const wireEvent of wireEvents) {
-        if (!verifyPayloadHash({ ...wireEvent, sessionId: this._sessionId }, wireEvent.payloadHash)) {
-          return {
-            ok: false,
-            code: 'PAYLOAD_HASH_MISMATCH',
-            message: `Payload hash mismatch at sequence ${wireEvent.sequence}`,
-          };
-        }
-      }
-
+      const expectedSeq = this._ackThrough + 1;
       let startIdx = 0;
-      if (firstSequence <= ackThrough) {
-        const skipCount = ackThrough - firstSequence + 1;
-        for (const wireEvent of wireEvents.slice(0, Math.min(skipCount, wireEvents.length))) {
-          const stored = this.getEvent(wireEvent.sequence);
-          if (stored?.payloadHash && stored.payloadHash !== wireEvent.payloadHash) {
-            return { ok: false, code: 'SEQUENCE_CONFLICT', message: `Conflicting duplicate at sequence ${wireEvent.sequence}` };
-          }
-        }
+
+      if (firstSequence <= this._ackThrough) {
+        const skipCount = this._ackThrough - firstSequence + 1;
         if (skipCount >= wireEvents.length) {
           return {
             ok: true,
-            ackThrough,
+            ackThrough: this._ackThrough,
             expectedSequence: expectedSeq,
             rejected: [],
           };
         }
         startIdx = skipCount;
         if (wireEvents[startIdx].sequence !== expectedSeq) {
-          return { ok: false, code: 'INVALID_ARGUMENT', message: 'Non-contiguous sequence after duplicate prefix' };
+          return {
+            ok: false,
+            code: 'INVALID_ARGUMENT',
+            message: 'Non-contiguous sequence after duplicate prefix',
+          };
         }
       } else if (firstSequence > expectedSeq) {
         return {
@@ -203,7 +196,7 @@ class SessionStore {
       if (newEvents.length === 0) {
         return {
           ok: true,
-          ackThrough,
+          ackThrough: this._ackThrough,
           expectedSequence: expectedSeq,
           rejected: [],
         };
@@ -212,7 +205,11 @@ class SessionStore {
       for (let i = 0; i < newEvents.length; i++) {
         const expected = expectedSeq + i;
         if (newEvents[i].sequence !== expected) {
-          return { ok: false, code: 'INVALID_ARGUMENT', message: `Non-contiguous sequence: expected ${expected}, got ${newEvents[i].sequence}` };
+          return {
+            ok: false,
+            code: 'INVALID_ARGUMENT',
+            message: `Non-contiguous sequence: expected ${expected}, got ${newEvents[i].sequence}`,
+          };
         }
       }
 
@@ -229,27 +226,23 @@ class SessionStore {
           const envelope = createEventEnvelope(wireEvent, sessionMeta);
           const json = JSON.stringify(envelope);
           if (Buffer.byteLength(json) > 64 * 1024) {
-            const tombstone = createControlRecord('event_rejected', sessionMeta, {
+            const control = createControlRecord('event_rejected', sessionMeta, {
               sequence: wireEvent.sequence,
               reason: 'ENVELOPE_TOO_LARGE',
               originalType: wireEvent.type,
-              payloadHash: wireEvent.payloadHash,
             });
-            envelopes.push(tombstone);
-            rejected.push({
-              sequence: wireEvent.sequence,
-              reason: 'ENVELOPE_TOO_LARGE',
-            });
+            envelopes.push(control);
+            rejected.push({ sequence: wireEvent.sequence, reason: 'ENVELOPE_TOO_LARGE' });
           } else {
             envelopes.push(envelope);
           }
         } catch (e) {
-          const tombstone = createControlRecord('event_rejected', sessionMeta, {
+          const control = createControlRecord('event_rejected', sessionMeta, {
             sequence: wireEvent.sequence,
             reason: 'VALIDATION_ERROR',
             message: e.message,
           });
-          envelopes.push(tombstone);
+          envelopes.push(control);
           rejected.push({
             sequence: wireEvent.sequence,
             reason: 'VALIDATION_ERROR',
@@ -258,37 +251,29 @@ class SessionStore {
         }
       }
 
-      this._writer.appendEvents(envelopes);
-
-      const newAckThrough = expectedSeq + newEvents.length - 1;
-      await this._ledger.append({
-        type: 'batch_commit',
-        ackThrough: newAckThrough,
-        eventCount: newEvents.length,
-        firstSequence: expectedSeq,
-        lastSequence: newAckThrough,
-      });
-
-      for (const rej of rejected) {
-        await this._ledger.append({
-          type: 'rejection',
-          sequence: rej.sequence,
-          reason: rej.reason,
-          acknowledged: false,
-        });
+      const fd = fs.openSync(this._eventsPath, 'a');
+      try {
+        for (const envelope of envelopes) {
+          fs.writeSync(fd, JSON.stringify(envelope) + '\n');
+          this._events.push(envelope);
+        }
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
       }
 
+      this._ackThrough = expectedSeq + newEvents.length - 1;
       this._lastSeenAt = new Date().toISOString();
       this._saveManifest();
 
       for (const listener of this._listeners) {
-        try { listener(envelopes); } catch {}
+        try { listener(envelopes); } catch { /* ignore */ }
       }
 
       return {
         ok: true,
-        ackThrough: newAckThrough,
-        expectedSequence: newAckThrough + 1,
+        ackThrough: this._ackThrough,
+        expectedSequence: this._ackThrough + 1,
         rejected,
       };
     } finally {
@@ -296,16 +281,12 @@ class SessionStore {
     }
   }
 
-  async heartbeat(generation, syncState, clientAckThrough) {
+  async heartbeat(syncState) {
     await this._mutex.acquire();
     try {
-      if (generation !== this._generation) {
-        return { ok: false, code: 'STALE_GENERATION' };
-      }
-
       this._lastSeenAt = new Date().toISOString();
       this._syncState = syncState || 'live';
-
+      this._saveManifest();
       return {
         ok: true,
         lastSeenAt: this._lastSeenAt,
@@ -329,9 +310,9 @@ class SessionStore {
       appId: this._appId,
       deviceId: this._deviceId,
       device: this._device,
-      generation: this._generation,
-      ackThrough: this._ledger.getAckThrough(),
+      ackThrough: this._ackThrough,
       lastSeenAt: this._lastSeenAt,
+      startedAt: this._startedAt,
       connectionState: this.getConnectionState(),
       syncState: this._syncState,
       sourceIp: this._sourceIp,
@@ -342,14 +323,8 @@ class SessionStore {
   queryEvents(options) {
     const { since, until, type, severity, text, cursor: fromSequence, limit } = options || {};
     const maxLimit = Math.min(limit || 200, 200);
-    const segments = this._writer.listSegments();
-    let allEvents = [];
-    
-    for (const seg of segments) {
-      const events = this._writer.readSegmentEvents(seg.path);
-      allEvents.push(...events);
-    }
-    
+    let allEvents = this._events.slice();
+
     if (since) allEvents = allEvents.filter(e => e.receivedAt >= since);
     if (until) allEvents = allEvents.filter(e => e.receivedAt <= until);
     if (type) allEvents = allEvents.filter(e => e.type === type);
@@ -358,31 +333,22 @@ class SessionStore {
       const lower = text.toLowerCase();
       allEvents = allEvents.filter(e => JSON.stringify(e.data).toLowerCase().includes(lower));
     }
-    if (fromSequence !== undefined) {
+    if (fromSequence !== undefined && fromSequence !== null) {
       allEvents = allEvents.filter(e => e.sequence > fromSequence);
     }
-    
+
     allEvents.sort((a, b) => a.sequence - b.sequence);
-    
     const selected = allEvents.slice(0, maxLimit);
-    const hasMore = allEvents.length > maxLimit;
-    const nextSequence = selected.length > 0 ? selected[selected.length - 1].sequence : fromSequence;
-    
     return {
       events: selected,
-      hasMore,
-      nextSequence,
+      hasMore: allEvents.length > maxLimit,
+      nextSequence: selected.length > 0 ? selected[selected.length - 1].sequence : fromSequence,
       total: allEvents.length,
     };
   }
 
   getEvent(sequence) {
-    const segments = this._writer.listSegments();
-    for (const seg of segments) {
-      const events = this._writer.readSegmentEvents(seg.path, sequence, sequence);
-      if (events.length > 0) return events[0];
-    }
-    return null;
+    return this._events.find(e => e.sequence === sequence) || null;
   }
 
   addListener(fn) {
@@ -391,49 +357,22 @@ class SessionStore {
   }
 
   getTotalBytes() {
-    const segments = this._writer.listSegments();
     let total = 0;
-    for (const seg of segments) total += seg.bytes;
-    try { total += fs.statSync(this._ledgerPath).size; } catch {}
-    try { total += fs.statSync(this._manifestPath).size; } catch {}
+    try { total += fs.statSync(this._eventsPath).size; } catch { /* missing */ }
+    try { total += fs.statSync(this._manifestPath).size; } catch { /* missing */ }
     return total;
   }
 
-  async discardClosedSegment(segmentPath) {
-    await this._mutex.acquire();
-    try {
-      const segment = this._writer.listSegments().find(item => item.path === segmentPath);
-      if (!segment || !segment.closed) return false;
-      const events = this._writer.readSegmentEvents(segmentPath);
-      const sequences = events.map(event => event.sequence).filter(sequence => Number.isSafeInteger(sequence) && sequence > 0);
-      if (sequences.length > 0) {
-        await this._ledger.append({
-          type: 'retention_gap',
-          fromSequence: Math.min(...sequences),
-          throughSequence: Math.max(...sequences),
-        });
-      }
-      fs.unlinkSync(segmentPath);
-      this._truncated = true;
-      this._saveManifest();
-      return true;
-    } finally {
-      this._mutex.release();
-    }
-  }
-
   close() {
-    this._writer.close();
     this._listeners.clear();
   }
 
   purge() {
     this.close();
-    const paths = [this._manifestPath, this._ledgerPath, `${this._ledgerPath}.compact.tmp`];
-    for (const segment of this._writer.listSegments()) paths.push(segment.path);
-    for (const filePath of paths) {
-      try { fs.unlinkSync(filePath); } catch {}
+    for (const filePath of [this._manifestPath, this._eventsPath]) {
+      try { fs.unlinkSync(filePath); } catch { /* missing */ }
     }
+    try { fs.rmdirSync(this._dir); } catch { /* not empty / missing */ }
   }
 }
 

@@ -3,7 +3,7 @@ import { debugToolkit } from '../core/DebugToolkit';
 import type { FeatureDataProvider } from '../types';
 import { addToBlacklist } from '../features/network';
 import { safeStringify } from './safeStringify';
-import { computeHubPayloadHash, normalizeHubValue } from './hubCanonical';
+import { normalizeHubValue } from './hubCanonical';
 import { getNativeAppInfo } from '../features/devConnect/nativeDevConnect';
 
 // ---- Protocol Constants ----
@@ -48,7 +48,6 @@ export interface HubConfig {
 
 export interface HubSessionInfo {
   sessionId: string;
-  generation: string;
   deviceId: string;
 }
 
@@ -84,7 +83,6 @@ interface InFlightEvent {
   type: string;
   severity: string;
   data: unknown;
-  payloadHash: string;
   wireBytes: number;
 }
 
@@ -176,7 +174,6 @@ export class HubClient {
   private _discoveredEndpoint: string | null = null;
   private _sessionId: string | null = null;
   private _session: HubSessionInfo | null = null;
-  private _generation: string | null = null;
   private _state: HubConnectionState = 'invalid_config';
   private _lastError: string | undefined;
   private _syncPaused = false;
@@ -367,7 +364,6 @@ export class HubClient {
     this._appStateSubscription?.();
     this._appStateSubscription = null;
     this._session = null;
-    this._generation = null;
     this._sessionId = null;
     this._pending = [];
     this._inFlight = [];
@@ -516,10 +512,8 @@ export class HubClient {
 
       this._session = {
         sessionId: data.sessionId as string,
-        generation: data.generation as string,
         deviceId: data.deviceId as string,
       };
-      this._generation = data.generation as string;
       this._nextSequence = (data.expectedSequence as number) || 1;
       this._ackThrough = (data.ackThrough as number) || this._ackThrough;
       this._retryAttempt = 0;
@@ -542,7 +536,7 @@ export class HubClient {
   // ---- Private: Events & Buffer ----
 
   private _enqueueEvent(event: Omit<PendingEvent, 'estimatedBytes'>): void {
-    const serialized = safeStringify({ ...event, sequence: 0, payloadHash: '0'.repeat(64) });
+    const serialized = safeStringify({ ...event, sequence: 0 });
     const estimatedBytes = typeof serialized === 'string' ? serialized.length : 200;
 
     if (estimatedBytes > MAX_EVENT_WIRE_BYTES) {
@@ -688,14 +682,6 @@ export class HubClient {
             type: pending.type,
             severity,
             data,
-            payloadHash: computeHubPayloadHash({
-              sessionId: this._sessionId!,
-              sequence: this._nextSequence,
-              timestamp: pending.timestamp,
-              type: pending.type,
-              severity,
-              data,
-            }),
             wireBytes: pending.estimatedBytes,
           };
 
@@ -725,13 +711,11 @@ export class HubClient {
         type: e.type,
         severity: e.severity,
         data: e.data,
-        payloadHash: e.payloadHash,
       }));
 
       const response = await this._post(
         `${endpoint}${API_PREFIX}/apps/${encodeURIComponent(appId)}/sessions/${encodeURIComponent(this._sessionId!)}/events`,
         {
-          generation: this._generation,
           firstSequence: batch[0]!.sequence,
           events: wireEvents,
         },
@@ -802,7 +786,6 @@ export class HubClient {
       const response = await this._post(
         `${endpoint}${API_PREFIX}/apps/${encodeURIComponent(appId)}/sessions/${encodeURIComponent(this._sessionId)}/heartbeat`,
         {
-          generation: this._generation,
           syncState: this._syncPaused ? 'paused' : 'live',
           clientTime: Date.now(),
           clientAckThrough: this._ackThrough,
@@ -810,7 +793,6 @@ export class HubClient {
       );
 
       if (response?.status === 409) {
-        // Stale generation - re-open
         await this._openSession();
       }
     } catch {
@@ -854,7 +836,6 @@ export class HubClient {
 
     // New session for new hub
     this._session = null;
-    this._generation = null;
     this._sessionId = generateUUIDv4();
     this._nextSequence = 1;
     this._ackThrough = 0;
@@ -907,7 +888,7 @@ export class HubClient {
         headers: {
           'Content-Type': 'application/json',
           // React Native on iOS may otherwise replay a cached POST response
-          // after a Hub restart, including an obsolete generation token.
+          // after a Hub restart.
           'Cache-Control': 'no-store',
           Pragma: 'no-cache',
         },

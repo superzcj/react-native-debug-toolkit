@@ -136,8 +136,9 @@ function validateWireEvent(event) {
   const severity = normalizeSeverity(event.severity);
   if (!severity) return 'invalid severity';
 
-  if (event.payloadHash === undefined) return 'payloadHash is required';
-  if (!isValidPayloadHash(event.payloadHash)) return 'invalid payloadHash';
+  if (event.payloadHash !== undefined && event.payloadHash !== null) {
+    if (!isValidPayloadHash(event.payloadHash)) return 'invalid payloadHash';
+  }
 
   const serialized = JSON.stringify(event);
   if (utf8ByteLength(serialized) > MAX_EVENT_WIRE_BYTES)

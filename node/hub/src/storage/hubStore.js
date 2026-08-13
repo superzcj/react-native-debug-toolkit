@@ -2,9 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { IdentityRegistry } = require('./identityRegistry');
 const { SessionStore } = require('./sessionStore');
-const { createCursorSigner } = require('../protocol/cursor');
 const {
   RETENTION_MS, MAX_STORAGE_BYTES,
   PROTOCOL_VERSION, CANONICAL_VERSION,
@@ -17,62 +15,60 @@ function safeAppDir(appId) {
 class HubStore {
   constructor(dataDir) {
     this._dataDir = dataDir;
-    this._registry = new IdentityRegistry(dataDir);
     this._sessions = new Map();
-    this._cursorSigner = null;
     this._cleanupTimer = null;
     this._initialized = false;
     this._advertiseUrl = null;
   }
 
   async initialize() {
-    await this._registry.initialize();
-    this._cursorSigner = createCursorSigner(this._registry.getCursorKey());
-    
+    fs.mkdirSync(this._dataDir, { recursive: true });
     this._loadExistingSessions();
-    
     this._cleanupTimer = setInterval(() => this.runCleanup().catch(() => {}), 60 * 60 * 1000);
     await this.runCleanup();
-    
     this._initialized = true;
   }
 
   _loadExistingSessions() {
+    let appDirs = [];
     try {
-      const appDirs = fs.readdirSync(this._dataDir).filter(d => {
+      appDirs = fs.readdirSync(this._dataDir).filter(d => {
         const full = path.join(this._dataDir, d);
-        return fs.statSync(full).isDirectory() && d !== 'runtime' && d !== 'home' && d !== 'logs';
+        return fs.statSync(full).isDirectory();
       });
-      
-      for (const appDir of appDirs) {
-        const appPath = path.join(this._dataDir, appDir);
-        try {
-          const deviceDirs = fs.readdirSync(appPath).filter(d => 
-            fs.statSync(path.join(appPath, d)).isDirectory()
-          );
-          for (const deviceDir of deviceDirs) {
-            const devicePath = path.join(appPath, deviceDir);
-            const manifests = fs.readdirSync(devicePath).filter(f => f.endsWith('.manifest.json'));
-            for (const manifest of manifests) {
-              const sessionId = manifest.replace('.manifest.json', '');
-              try {
-                const raw = fs.readFileSync(path.join(devicePath, manifest), 'utf8');
-                const data = JSON.parse(raw);
-                const store = new SessionStore(devicePath, data.appId || appDir, sessionId);
-                store.initialize();
-                this._sessions.set(sessionId, store);
-              } catch {}
-            }
-          }
-        } catch {}
+    } catch {
+      return;
+    }
+
+    for (const appDir of appDirs) {
+      const appPath = path.join(this._dataDir, appDir);
+      let sessionDirs = [];
+      try {
+        sessionDirs = fs.readdirSync(appPath).filter(d =>
+          fs.statSync(path.join(appPath, d)).isDirectory()
+        );
+      } catch {
+        continue;
       }
-    } catch {}
+
+      for (const sessionId of sessionDirs) {
+        const sessionPath = path.join(appPath, sessionId);
+        const manifestPath = path.join(sessionPath, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) continue;
+        try {
+          const raw = fs.readFileSync(manifestPath, 'utf8');
+          const data = JSON.parse(raw);
+          const store = new SessionStore(sessionPath, data.appId || appDir, sessionId);
+          store.initialize();
+          this._sessions.set(sessionId, store);
+        } catch {
+          // skip broken session
+        }
+      }
+    }
   }
 
   isReady() { return this._initialized; }
-
-  getRegistry() { return this._registry; }
-  getCursorSigner() { return this._cursorSigner; }
 
   getHubInfo() {
     return {
@@ -85,31 +81,13 @@ class HubStore {
   setAdvertiseUrl(advertiseUrl) { this._advertiseUrl = advertiseUrl; }
 
   async openSession(appId, sessionId, params, sourceIp) {
-    if (this._registry.isSessionTombstoned(sessionId)) {
-      return { ok: false, code: 'SESSION_EXPIRED' };
-    }
-
-    if (params.device?.nativeApplicationId) {
-      const binding = await this._registry.checkAppBinding(
-        appId, params.device.platform, params.device.nativeApplicationId
-      );
-      if (!binding.ok) return binding;
-      params.bindingEpoch = binding.bindingEpoch;
-    }
-
     let store = this._sessions.get(sessionId);
     if (!store) {
-      const appDir = safeAppDir(appId);
-      const deviceId = require('../protocol/deviceId').generateDeviceId(
-        appId, params.device?.platform, params.device?.manufacturer,
-        params.device?.model, sourceIp
-      );
-      const sessionDir = path.join(this._dataDir, appDir, deviceId);
+      const sessionDir = path.join(this._dataDir, safeAppDir(appId), sessionId);
       store = new SessionStore(sessionDir, appId, sessionId);
       store.initialize();
       this._sessions.set(sessionId, store);
     }
-
     return store.open(params, sourceIp);
   }
 
@@ -126,14 +104,14 @@ class HubStore {
   listSessions(appId, options) {
     const { limit, activeFirst } = options || {};
     const maxLimit = Math.min(limit || 50, 50);
-    
+
     const sessions = [];
-    for (const [id, store] of this._sessions) {
+    for (const [, store] of this._sessions) {
       const info = store.getSessionInfo();
       if (appId && info.appId !== appId) continue;
       sessions.push(info);
     }
-    
+
     sessions.sort((a, b) => {
       if (activeFirst !== false) {
         if (a.connectionState === 'active' && b.connectionState !== 'active') return -1;
@@ -141,7 +119,7 @@ class HubStore {
       }
       return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || '');
     });
-    
+
     return {
       sessions: sessions.slice(0, maxLimit),
       total: sessions.length,
@@ -154,8 +132,6 @@ class HubStore {
     for (const [, store] of this._sessions) {
       total += store.getTotalBytes();
     }
-    try { total += fs.statSync(path.join(this._dataDir, 'identity-registry.json')).size; } catch {}
-    try { total += fs.statSync(path.join(this._dataDir, 'cursor.key')).size; } catch {}
     return total;
   }
 
@@ -165,52 +141,17 @@ class HubStore {
 
   async runCleanup() {
     const now = Date.now();
-    
-    this._registry.cleanExpiredTombstones().catch(() => {});
-    
-    const allSegments = [];
-    for (const [sessionId, store] of this._sessions) {
+    for (const [sessionId, store] of [...this._sessions.entries()]) {
       const info = store.getSessionInfo();
-      const segments = store._writer?.listSegments() || [];
-      for (const seg of segments) {
-        allSegments.push({ sessionId, ...seg, appId: info.appId });
-      }
-    }
-    
-    allSegments.sort((a, b) => a.name.localeCompare(b.name));
-    
-    let usage = this.getStorageUsage();
-    for (const seg of allSegments) {
-      if (seg.closed) {
-        const store = this._sessions.get(seg.sessionId);
-        if (store) {
-          const events = store._writer?.readSegmentEvents(seg.path, undefined, undefined);
-          if (events && events.length > 0) {
-            const oldest = new Date(events[0].receivedAt).getTime();
-            if (now - oldest > RETENTION_MS || usage > MAX_STORAGE_BYTES) {
-              try {
-                if (await store.discardClosedSegment(seg.path)) {
-                usage -= seg.bytes;
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-    }
-    
-    for (const [sessionId, store] of this._sessions) {
-      const info = store.getSessionInfo();
-      if (info.connectionState === 'stale' && info.lastSeenAt) {
-        const lastSeen = new Date(info.lastSeenAt).getTime();
-        if (now - lastSeen > RETENTION_MS) {
-          this._sessions.delete(sessionId);
-          try {
-            await this._registry.addSessionTombstone(sessionId, info.appId, info.ackThrough);
-            await this._registry.finalizeSessionTombstone(sessionId);
-            store.purge();
-          } catch {}
-        }
+      const lastSeen = info.lastSeenAt ? new Date(info.lastSeenAt).getTime() : 0;
+      if (lastSeen && now - lastSeen > RETENTION_MS) {
+        this._sessions.delete(sessionId);
+        try { store.purge(); } catch { /* ignore */ }
+        // Remove empty app directory if possible
+        try {
+          const sessionDir = path.join(this._dataDir, safeAppDir(info.appId), sessionId);
+          fs.rmSync(path.dirname(sessionDir), { recursive: false, force: false });
+        } catch { /* not empty */ }
       }
     }
   }

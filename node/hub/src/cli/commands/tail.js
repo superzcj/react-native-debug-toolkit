@@ -13,13 +13,13 @@ const TRAILER_RESERVE = 8 * 1024;
 const SESSION_CHECK_INTERVAL_MS = 2000;
 
 async function tailCommand(options) {
-  const { endpoint, appId, session: sessionId, cursor, follow, duration, allowStale } = options;
+  const { endpoint, appId, session: sessionId, sinceSequence, follow, duration, allowStale } = options;
   const output = options.output || process.stdout;
 
   const resolved = await resolveSession(endpoint, appId, sessionId, allowStale);
   if (!resolved.ok) {
     writeNdjson(output, { kind: 'error', contentTrust: 'trusted-control', error: resolved });
-    writeNdjson(output, { kind: 'end', contentTrust: 'trusted-control', reason: 'error', cursors: [] });
+    writeNdjson(output, { kind: 'end', contentTrust: 'trusted-control', reason: 'error', sequences: [] });
     return { exitCode: resolved.exitCode };
   }
 
@@ -27,11 +27,13 @@ async function tailCommand(options) {
   const durationMs = follow ? Infinity : (duration || DEFAULT_DURATION_MS);
   let eventCount = 0;
   let totalBytes = 0;
-  let lastCursor = cursor || null;
-  let lastSequence = null;
+  let lastSequence = sinceSequence != null ? Number(sinceSequence) : null;
 
   return new Promise((resolve) => {
-    const streamPath = apiPath(appId, 'sessions', sid, 'stream') + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '');
+    const query = lastSequence != null && Number.isFinite(lastSequence)
+      ? `?sinceSequence=${encodeURIComponent(String(lastSequence))}`
+      : '';
+    const streamPath = apiPath(appId, 'sessions', sid, 'stream') + query;
     const url = new URL(`${endpoint}${streamPath}`);
 
     const reqOptions = {
@@ -41,7 +43,7 @@ async function tailCommand(options) {
       method: 'GET',
       headers: {
         'accept': 'text/event-stream',
-        ...(lastCursor ? { 'last-event-id': lastCursor } : {}),
+        ...(lastSequence != null ? { 'last-event-id': String(lastSequence) } : {}),
       },
     };
 
@@ -92,13 +94,11 @@ async function tailCommand(options) {
 
     req.end();
 
-    // Duration timer
     let durationTimer;
     if (durationMs !== Infinity) {
       durationTimer = setTimeout(() => finish('duration'), durationMs);
     }
 
-    // Session check timer
     const sessionCheckTimer = setInterval(async () => {
       if (finished) return;
       try {
@@ -127,12 +127,10 @@ async function tailCommand(options) {
           finish('selection_required');
         }
       } catch {
-        // The SSE request has its own reconnect/error path; do not turn one
-        // failed lifecycle probe into a false session switch.
+        // The SSE request has its own reconnect/error path.
       }
     }, SESSION_CHECK_INTERVAL_MS);
 
-    // SIGINT handler
     const sigintHandler = () => finish('interrupted');
     process.on('SIGINT', sigintHandler);
 
@@ -140,11 +138,12 @@ async function tailCommand(options) {
       if (checkBudget()) return;
       try {
         const event = JSON.parse(data);
+        const sequence = event.sequence || (id ? Number(id) : null);
         const record = {
           kind: 'event',
           contentTrust: 'untrusted',
           sessionId: sid,
-          cursor: id || null,
+          sequence,
           event,
         };
         const line = JSON.stringify(record);
@@ -158,13 +157,12 @@ async function tailCommand(options) {
         output.write(line + '\n');
         eventCount++;
         totalBytes += lineBytes;
-        lastCursor = id || lastCursor;
-        lastSequence = event.sequence || lastSequence;
+        lastSequence = sequence || lastSequence;
 
         if (eventCount >= MAX_EVENTS) {
           finish('limit');
         }
-      } catch {}
+      } catch { /* ignore malformed */ }
     }
 
     function checkBudget() {
@@ -185,7 +183,7 @@ async function tailCommand(options) {
         kind: 'end',
         contentTrust: 'trusted-control',
         reason,
-        cursors: lastCursor ? [{ sessionId: sid, cursor: lastCursor }] : [],
+        sequences: lastSequence != null ? [{ sessionId: sid, sinceSequence: lastSequence }] : [],
         omittedCount: 0,
       };
       writeNdjson(output, endRecord);
@@ -197,7 +195,7 @@ async function tailCommand(options) {
 }
 
 function writeNdjson(output, record) {
-  try { output.write(JSON.stringify(record) + '\n'); } catch {}
+  try { output.write(JSON.stringify(record) + '\n'); } catch { /* ignore */ }
 }
 
 module.exports = { tailCommand };

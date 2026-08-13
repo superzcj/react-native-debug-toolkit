@@ -1,21 +1,19 @@
 # React Native Debug Toolkit
 
-React Native runtime logs for debugging with AI. Most people run a Hub on their own Mac while they work on an App. The App sends logs to it, AI reads them through a Skill in the repository, and the Hub web page shows the same logs. A Mac mini is optional when a team wants one Hub for several people.
+React Native runtime logs for debugging with AI. Run a Hub on your Mac, let the App send logs to it, and let AI read them through a Skill in the repository. The Hub web page is a supporting view for humans.
 
 [中文说明](README.zh-CN.md)
 
 ## Pick a command
 
-| Situation                                 | Run from        | Command                                                                               |
-| ----------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
-| Debug an App on your own Mac (usual)      | that App's root | `npx debug-toolkit hub dev`                                                           |
-| Work on this repository and start the Hub | repository root | `npm run hub`                                                                         |
-| Run the Demo on iOS                       | repository root | `npm run demo:ios`                                                                    |
-| Run the Demo on Android                   | repository root | `npm run demo:android`                                                                |
-| Set up AI for this repository             | repository root | `npm run ai:init`                                                                     |
-| Share one Hub with a team (optional)      | Mac mini        | `npx -y react-native-debug-toolkit@4.0.0 hub install --url http://<mac-mini-ip>:3800` |
-| Update a shared Hub                       | Mac mini        | `npx -y react-native-debug-toolkit@<version> hub update`                              |
-| Set up AI for an App repository           | that App's root | `npx debug-toolkit init`                                                              |
+| Situation                                 | Run from        | Command                         |
+| ----------------------------------------- | --------------- | ------------------------------- |
+| Debug an App on your own Mac (usual)      | that App's root | `npx debug-toolkit hub dev`     |
+| Work on this repository and start the Hub | repository root | `npm run hub`                   |
+| Run the Demo on iOS                       | repository root | `npm run demo:ios`              |
+| Run the Demo on Android                   | repository root | `npm run demo:android`          |
+| Set up AI for this repository             | repository root | `npm run ai:init`               |
+| Set up AI for an App repository           | that App's root | `npx debug-toolkit init`        |
 
 The `npm run` commands above are scripts in this repository's `package.json`. They are only for this checkout. Use `npx debug-toolkit ...` in an App repository.
 
@@ -27,9 +25,11 @@ This is the normal way to debug an App. Run it from the App repository:
 npx debug-toolkit hub dev
 ```
 
-It runs in the foreground on port `3800` and stores data in `.debug-toolkit/hub`. It prints loopback and LAN addresses. Debug Apps can discover the Hub from the Metro bundle host; `features.devConnect.endpoint` is the Release default and the Debug fallback.
+It runs in the foreground on port `3800` and stores data in `.debug-toolkit/hub`. It prints loopback and LAN addresses. Debug Apps can discover the Hub from the Metro bundle host; `features.devConnect.endpoint` is optional — used as the Release default and the Debug fallback when auto-discovery fails.
 
 Stop the Hub with `Ctrl+C` when you are done. When an Android device or emulator is present, `hub dev` tries `adb reverse tcp:3800 tcp:3800` and continues even if that fails.
+
+If a team runs the same command on another always-on machine, Apps can connect through `endpoint`. Process supervision, auto-start, upgrades, and network hardening are outside the Toolkit.
 
 ## Test this repository
 
@@ -44,9 +44,9 @@ npm run demo:ios
 # or: npm run demo:android
 ```
 
-The Hub listens on port `3800` and keeps its data in `.debug-toolkit/hub`. The Demo currently sends logs to `http://172.31.23.124:3800`. Open that address in a browser, use the Demo, and check that a device and its events appear.
+The Hub listens on port `3800` and keeps its data in `.debug-toolkit/hub`. Open the printed LAN address in a browser, use the Demo, and check that a device and its events appear.
 
-The Demo address must be the debug Mac's LAN address. Do not use `127.0.0.1` for a physical device. If the Mac's address changes, update the Demo configuration before testing.
+A physical device must reach the Hub over the LAN — do not use `127.0.0.1` for that device.
 
 For the exact Demo checks, see [Demo/README.md](Demo/README.md).
 
@@ -59,7 +59,7 @@ cd ios && pod install
 
 Expo Go cannot load the native module. Use a development build, prebuild, or bare React Native.
 
-Configure the App with its existing identifier. Debug builds can omit `endpoint` and auto-discover the Hub. Release or internal builds that enable Toolkit must set `endpoint`:
+Configure the App with its existing identifier. Debug builds can omit `endpoint` and auto-discover the Hub. Release or internal builds that enable Toolkit may set `endpoint`, or let the user type a reachable Hub address in the Connect tab:
 
 ```tsx
 import { DebugView } from "react-native-debug-toolkit";
@@ -94,27 +94,6 @@ npm install react-native-debug-toolkit@<version>
 cd ios && pod install
 ```
 
-## Optional: run a shared Hub
-
-Use this only when several people need to inspect logs through one Hub. Install it once on a Mac mini with a fixed LAN address:
-
-```bash
-npx -y react-native-debug-toolkit@4.0.0 hub install \
-  --url http://10.20.4.10:3800
-```
-
-The URL sets the address and port. The service starts after the Mac restarts, even with no user signed in. It stores data in `/Users/Shared/ReactNativeDebugToolkitHub/data`, keeps it for seven days, and stops accepting new events at 20 GB.
-
-To update the Hub, choose the package version explicitly:
-
-```bash
-npx -y react-native-debug-toolkit@4.1.0 hub update
-```
-
-The command does not upgrade the Hub by itself. Run it again with `hub install --url ...` if the public address changes.
-
-This first version has no authentication, TLS, or redaction. Run it only on a trusted company LAN or VPN. Do not expose it to the public Internet.
-
 ## Let AI read runtime logs
 
 At the root of an App repository, run once:
@@ -131,13 +110,13 @@ Then describe the problem normally, for example:
 Why did the login request fail just now?
 ```
 
-The Skill reads the App's `devConnect` configuration, finds the session, and reads the relevant logs. If more than one device is active, AI asks which device to use. For a local Hub, run AI on the same Mac. For a shared Hub, AI needs access through the company LAN or VPN.
+The Skill reads the App's `devConnect` configuration, finds the session, and reads the relevant logs. If more than one device is active, AI asks which device to use. Run AI on the same Mac as the local Hub (it prefers `http://127.0.0.1:3800`).
 
 `status`, `context`, `inspect`, and `tail` remain available when someone needs to query the Hub manually.
 
 ## Hub web page
 
-Open the Hub address in a browser, for example `http://172.31.23.124:3800/` or `http://10.20.4.10:3800/`. Select the App and device, then filter or inspect the events. It is a supporting view for human debugging; the Skill is the AI entry point.
+Open the Hub address in a browser, for example `http://127.0.0.1:3800/` or the printed LAN URL. Select the App and device, then filter or inspect the events. It is a supporting view for human debugging; the Skill is the AI entry point.
 
 ## Included features
 
@@ -150,6 +129,7 @@ Open the Hub address in a browser, for example `http://172.31.23.124:3800/` or `
 - This is a debugging tool, not production monitoring or a React Native DevTools replacement.
 - It does not redact data by default.
 - Network capture records requests. It cannot determine a business or authentication failure on its own.
+- First release keeps Hub on trusted developer machines or LANs. Do not expose it to the public Internet.
 
 ## License
 

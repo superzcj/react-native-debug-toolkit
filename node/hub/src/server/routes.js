@@ -8,12 +8,11 @@ const {
 const { createErrorResponse, getHttpStatus } = require('../protocol/errors');
 const {
   isValidAppId, isValidSessionId, validateDeviceMetadata,
-  isValidSequence, validateWireEvent, normalizeSeverity,
+  isValidSequence, validateWireEvent,
 } = require('../protocol/validation');
-const { createEventCursor, createSnapshotCursor, parseCursor } = require('../protocol/cursor');
-const { sendJson, readJsonBody, sendError, getSourceIp, parsePath } = require('./httpUtils');
+const { sendJson, readJsonBody, sendError, getSourceIp } = require('./httpUtils');
 
-function handleHealth(req, res, hub) {
+function handleHealth(req, res) {
   sendJson(res, 200, { ok: true, name: HUB_NAME, version: HUB_VERSION });
 }
 
@@ -88,9 +87,7 @@ async function handleSessionOpen(req, res, hub, appId) {
     protocolVersion: PROTOCOL_VERSION,
     canonicalVersion: CANONICAL_VERSION,
     sessionId: result.sessionId,
-    bindingEpoch: result.bindingEpoch,
     deviceId: result.deviceId,
-    generation: result.generation,
     ackThrough: result.ackThrough,
     expectedSequence: result.expectedSequence,
     rejected: result.rejected,
@@ -112,7 +109,6 @@ async function handleEvents(req, res, hub, appId, sessionId) {
 
   const body = await readJsonBody(req, MAX_BATCH_BYTES);
   if (!body) return sendError(res, 'INVALID_ARGUMENT', 'Request body required');
-  if (!body.generation) return sendError(res, 'INVALID_ARGUMENT', 'generation required');
   if (!Array.isArray(body.events) || body.events.length === 0) {
     return sendError(res, 'INVALID_ARGUMENT', 'events array required');
   }
@@ -120,13 +116,11 @@ async function handleEvents(req, res, hub, appId, sessionId) {
     return sendError(res, 'INVALID_ARGUMENT', `Batch exceeds ${MAX_BATCH_EVENTS} event limit`);
   }
 
-  // Validate wire events
   for (const event of body.events) {
     const err = validateWireEvent(event);
     if (err) return sendError(res, 'INVALID_ARGUMENT', err);
   }
 
-  // Verify contiguous and firstSequence matches
   if (!isValidSequence(body.firstSequence)) {
     return sendError(res, 'INVALID_ARGUMENT', 'Invalid firstSequence');
   }
@@ -134,7 +128,7 @@ async function handleEvents(req, res, hub, appId, sessionId) {
     return sendError(res, 'INVALID_ARGUMENT', 'firstSequence does not match first event');
   }
 
-  const result = await session.appendEvents(body.generation, body.firstSequence, body.events);
+  const result = await session.appendEvents(body.firstSequence, body.events);
 
   if (!result.ok) {
     const status = getHttpStatus(result.code);
@@ -159,9 +153,7 @@ async function handleHeartbeat(req, res, hub, appId, sessionId) {
   if (!session) return sendError(res, 'NO_SESSION', 'Session not found');
 
   const body = await readJsonBody(req);
-  if (!body || !body.generation) return sendError(res, 'INVALID_ARGUMENT', 'generation required');
-
-  const result = await session.heartbeat(body.generation, body.syncState, body.clientAckThrough);
+  const result = await session.heartbeat(body?.syncState, body?.clientAckThrough);
   if (!result.ok) {
     const status = getHttpStatus(result.code);
     return sendJson(res, status || 409, createErrorResponse(result.code));
@@ -183,6 +175,14 @@ function handleSessionsList(req, res, hub, appId) {
   });
 }
 
+function parseThroughSequence(url, defaultThrough) {
+  const throughParam = url.searchParams.get('through');
+  if (!throughParam) return defaultThrough;
+  const asNumber = Number(throughParam);
+  if (Number.isSafeInteger(asNumber) && asNumber >= 0) return asNumber;
+  return defaultThrough;
+}
+
 function handleContext(req, res, hub, appId, sessionId) {
   if (!isValidAppId(appId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid appId');
   if (!isValidSessionId(sessionId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid sessionId');
@@ -194,43 +194,22 @@ function handleContext(req, res, hub, appId, sessionId) {
   if (info.appId !== appId) return sendError(res, 'INVALID_ARGUMENT', 'Session does not belong to this appId');
 
   const url = new URL(req.url || '/', 'http://localhost');
-  const throughParam = url.searchParams.get('through');
   const sinceParam = url.searchParams.get('since');
   const untilParam = url.searchParams.get('until');
-
-  const signer = hub.getCursorSigner();
-  let throughSequence = info.ackThrough;
-  let capturedAt = new Date().toISOString();
-  let params = { since: sinceParam || null, until: untilParam || null };
-
-  if (throughParam) {
-    const parsed = parseCursor(signer, throughParam, sessionId);
-    if (!parsed.valid) return sendError(res, parsed.code, 'Invalid or mismatched snapshot cursor');
-    if (parsed.payload.kind !== 'snapshot') return sendError(res, 'CURSOR_INVALID', 'Expected snapshot cursor');
-    throughSequence = parsed.payload.throughSequence;
-    capturedAt = parsed.payload.capturedAt;
-    params = parsed.payload.params || {};
-    if ((sinceParam || null) !== (params.since || null) ||
-        (untilParam || null) !== (params.until || null)) {
-      return sendError(res, 'INVALID_ARGUMENT', 'Snapshot cursor parameters do not match this request');
-    }
-  }
-
-  // Build context window
+  const throughSequence = parseThroughSequence(url, info.ackThrough);
+  const capturedAt = new Date().toISOString();
   const capturedAtMs = new Date(capturedAt).getTime();
   const windowMs = 10 * 60 * 1000;
-  const sinceMs = params.since ? new Date(params.since).getTime() : capturedAtMs - windowMs;
-  const untilMs = params.until ? new Date(params.until).getTime() : capturedAtMs;
+  const sinceMs = sinceParam ? new Date(sinceParam).getTime() : capturedAtMs - windowMs;
+  const untilMs = untilParam ? new Date(untilParam).getTime() : capturedAtMs;
 
   const allEvents = session.queryEvents({
     since: new Date(sinceMs).toISOString(),
     until: new Date(untilMs).toISOString(),
   });
 
-  // Filter to throughSequence
   let events = allEvents.events.filter(e => e.sequence <= throughSequence);
 
-  // Context selection algorithm (section 10.3)
   const errors = events.filter(e =>
     e.severity === 'error' || e.severity === 'fatal' ||
     (e.type === 'network' && (e.data?.error || (e.data?.response?.status >= 400)))
@@ -246,7 +225,7 @@ function handleContext(req, res, hub, appId, sessionId) {
 
   const adjacentEvents = events.filter(e => adjacentSequences.has(e.sequence));
   const selectedSet = new Set([...errors.map(e => e.sequence), ...adjacentEvents.map(e => e.sequence)]);
-  
+
   const remainingBudget = 200 - selectedSet.size;
   const otherEvents = events
     .filter(e => !selectedSet.has(e.sequence))
@@ -257,10 +236,6 @@ function handleContext(req, res, hub, appId, sessionId) {
     .sort((a, b) => a.sequence - b.sequence)
     .slice(0, 200);
 
-  // Generate snapshot cursor
-  const snapshotCursor = throughParam || createSnapshotCursor(signer, sessionId, throughSequence, capturedAt, params);
-
-  // Truncate data previews for context
   const contextEvents = selected.map(e => {
     const preview = { ...e };
     if (preview.data) {
@@ -272,7 +247,6 @@ function handleContext(req, res, hub, appId, sessionId) {
     return preview;
   });
 
-  // Count by type
   const typeCounts = {};
   for (const e of events) {
     typeCounts[e.type] = (typeCounts[e.type] || 0) + 1;
@@ -290,7 +264,6 @@ function handleContext(req, res, hub, appId, sessionId) {
     connectionState: info.connectionState,
     syncState: info.syncState,
     truncated: info.truncated,
-    snapshotCursor,
     throughSequence,
     capturedAt,
     window: { since: new Date(sinceMs).toISOString(), until: new Date(untilMs).toISOString() },
@@ -309,7 +282,6 @@ function handleInspect(req, res, hub, appId, sessionId, entryId) {
   if (!isValidAppId(appId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid appId');
   if (!isValidSessionId(sessionId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid sessionId');
 
-  // Validate entryId format: sessionId:sequence
   const parts = entryId.split(':');
   if (parts.length !== 2) return sendError(res, 'INVALID_ARGUMENT', 'Invalid entryId format');
   const entrySessionId = parts[0];
@@ -334,6 +306,16 @@ function handleInspect(req, res, hub, appId, sessionId, entryId) {
   });
 }
 
+function parseSinceSequence(url, headers) {
+  const fromHeader = headers && headers['last-event-id'];
+  const fromQuery = url.searchParams.get('sinceSequence') || url.searchParams.get('cursor');
+  const raw = fromHeader || fromQuery;
+  if (raw == null || raw === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) return undefined;
+  return value;
+}
+
 function handleQueryEvents(req, res, hub, appId, sessionId) {
   if (!isValidAppId(appId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid appId');
   if (!isValidSessionId(sessionId)) return sendError(res, 'INVALID_ARGUMENT', 'Invalid sessionId');
@@ -345,15 +327,7 @@ function handleQueryEvents(req, res, hub, appId, sessionId) {
   if (info.appId !== appId) return sendError(res, 'INVALID_ARGUMENT', 'Session does not belong to this appId');
 
   const url = new URL(req.url || '/', 'http://localhost');
-  const signer = hub.getCursorSigner();
-  
-  let fromSequence;
-  const cursorParam = url.searchParams.get('cursor');
-  if (cursorParam) {
-    const parsed = parseCursor(signer, cursorParam, sessionId);
-    if (!parsed.valid) return sendError(res, parsed.code, 'Invalid cursor');
-    fromSequence = parsed.payload.sequence;
-  }
+  const fromSequence = parseSinceSequence(url, req.headers);
 
   const result = session.queryEvents({
     since: url.searchParams.get('since'),
@@ -365,14 +339,10 @@ function handleQueryEvents(req, res, hub, appId, sessionId) {
     cursor: fromSequence,
   });
 
-  const nextCursor = result.nextSequence !== undefined
-    ? createEventCursor(signer, sessionId, result.nextSequence)
-    : null;
-
   sendJson(res, 200, {
     ok: true,
     events: result.events,
-    nextCursor,
+    nextSequence: result.nextSequence ?? null,
     hasMore: result.hasMore,
     total: result.total,
   });
@@ -388,21 +358,10 @@ function handleStream(req, res, hub, appId, sessionId) {
   const info = session.getSessionInfo();
   if (info.appId !== appId) return sendError(res, 'INVALID_ARGUMENT', 'Session does not belong to this appId');
 
-  const signer = hub.getCursorSigner();
-  
-  // Parse cursor from Last-Event-ID or query
   const url = new URL(req.url || '/', 'http://localhost');
-  const lastEventId = req.headers['last-event-id'];
-  const cursorParam = lastEventId || url.searchParams.get('cursor');
-  let fromSequence = info.ackThrough;
-  
-  if (cursorParam) {
-    const parsed = parseCursor(signer, cursorParam, sessionId);
-    if (!parsed.valid) return sendError(res, parsed.code, 'Invalid cursor');
-    fromSequence = parsed.payload.sequence;
-  }
+  let fromSequence = parseSinceSequence(url, req.headers);
+  if (fromSequence === undefined) fromSequence = 0;
 
-  // SSE headers
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
@@ -417,9 +376,8 @@ function handleStream(req, res, hub, appId, sessionId) {
   const emit = (envelope) => {
     if (envelope.sequence <= lastEmittedSequence) return;
     lastEmittedSequence = envelope.sequence;
-    const cursor = createEventCursor(signer, sessionId, envelope.sequence);
     const data = JSON.stringify(envelope);
-    const chunk = `id: ${cursor}\nevent: event\ndata: ${data}\n\n`;
+    const chunk = `id: ${envelope.sequence}\nevent: event\ndata: ${data}\n\n`;
     bufferBytes += Buffer.byteLength(chunk);
     if (bufferBytes > maxBuffer) {
       removeListener();
@@ -429,8 +387,6 @@ function handleStream(req, res, hub, appId, sessionId) {
     try { res.write(chunk); } catch { removeListener(); }
   };
 
-  // Register before replay. Events that arrive during replay are buffered and
-  // emitted afterwards in sequence order, closing the replay/live gap.
   const removeListener = session.addListener((envelopes) => {
     for (const envelope of envelopes) {
       if (envelope.sequence <= fromSequence) continue;
@@ -444,7 +400,6 @@ function handleStream(req, res, hub, appId, sessionId) {
   replaying = false;
   replayBuffer.sort((a, b) => a.sequence - b.sequence).forEach(emit);
 
-  // Keepalive
   const keepalive = setInterval(() => {
     try { res.write(':keepalive\n\n'); }
     catch { clearInterval(keepalive); removeListener(); }
@@ -461,4 +416,5 @@ module.exports = {
   handleSessionOpen, handleEvents, handleHeartbeat,
   handleSessionsList, handleContext, handleInspect,
   handleQueryEvents, handleStream,
+  API_PREFIX,
 };

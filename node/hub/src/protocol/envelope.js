@@ -33,7 +33,6 @@ function createEventEnvelope(wireEvent, sessionMeta) {
     type: wireEvent.type,
     severity,
     contentTrust: 'untrusted',
-    payloadHash: wireEvent.payloadHash || null,
     data: wireEvent.data || {},
   };
 

@@ -158,10 +158,9 @@ const T = {
   warning: '#C67A18',
 } as const;
 
-// Demo uses the debug Mac LAN address so simulators and devices share one Hub URL.
+// Demo Debug builds omit endpoint and auto-discover the local Hub.
 const DEMO_HUB = {
   appId: 'com.reactnativedebugtoolkit.demo',
-  endpoint: 'http://172.31.23.124:3800',
 };
 
 function formatPrice(price: number): string {

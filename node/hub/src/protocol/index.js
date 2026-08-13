@@ -6,6 +6,5 @@ module.exports = {
   ...require('./validation'),
   ...require('./canonical'),
   ...require('./envelope'),
-  ...require('./cursor'),
   ...require('./deviceId'),
 };

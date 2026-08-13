@@ -15,14 +15,14 @@ npm run demo:ios
 # 或：npm run demo:android
 ```
 
-Demo 验证的是本机 Hub。它当前使用 `http://172.31.23.124:3800`。浏览器打开这个地址，在 Demo 中进入 **Profile**，会产生一条 Navigation 日志。Hub 应显示 Demo App、设备 Session 和这条日志，不需要先点 Connect。
+Demo 验证的是本机 Hub。浏览器打开 `hub dev` 打印的局域网地址，在 Demo 中进入 **Profile**，会产生一条 Navigation 日志。Hub 应显示 Demo App、设备 Session 和这条日志，不需要先点 Connect。
 
-模拟器和真机都用调试 Mac 的局域网 IP。真机不能用 `127.0.0.1`。如果调试 Mac 换了地址，先改 `Demo/App.tsx` 中的 Hub 地址。
+模拟器用 loopback / `10.0.2.2` / `adb reverse`；真机从 Metro bundle host 找到当前 Mac。Demo Debug 默认不配 `endpoint`，靠自动发现。
 
 可以这样确认 Hub 已启动：
 
 ```bash
-curl http://172.31.23.124:3800/ready
+curl http://127.0.0.1:3800/ready
 ```
 
 ## 内测或 Release 包手动上传

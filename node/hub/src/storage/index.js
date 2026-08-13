@@ -1,9 +1,7 @@
 'use strict';
 
 module.exports = {
-  ...require('./identityRegistry'),
-  ...require('./sessionLedger'),
-  ...require('./segmentWriter'),
+  ...require('./fsUtils'),
   ...require('./sessionStore'),
   ...require('./hubStore'),
 };
