@@ -11,7 +11,7 @@ import { getNativeAppInfo } from '../features/devConnect/nativeDevConnect';
 const PROTOCOL_VERSION = 1;
 const CANONICAL_VERSION = 1;
 const API_PREFIX = '/api/v1';
-const DEFAULT_PORT = 3799;
+const DEFAULT_PORT = 3800;
 const HEARTBEAT_INTERVAL_MS = 15 * 1000;
 const MAX_BATCH_EVENTS = 50;
 const MAX_BATCH_BYTES = 512 * 1024;
@@ -43,7 +43,7 @@ export type HubConnectionState =
 
 export interface HubConfig {
   appId: string;
-  endpoint: string;
+  endpoint?: string | null;
 }
 
 export interface HubSessionInfo {
@@ -173,10 +173,12 @@ export interface HubClientOptions {
 export class HubClient {
   private _config: HubConfig | null = null;
   private _runtimeEndpoint: string | null = null;
+  private _discoveredEndpoint: string | null = null;
   private _sessionId: string | null = null;
   private _session: HubSessionInfo | null = null;
   private _generation: string | null = null;
   private _state: HubConnectionState = 'invalid_config';
+  private _lastError: string | undefined;
   private _syncPaused = false;
 
   // Send buffer
@@ -221,15 +223,26 @@ export class HubClient {
   // ---- Configuration ----
 
   configure(config: HubConfig): void {
-    const endpoint = normalizeHubEndpoint(config.endpoint);
-    if (!endpoint || !isValidAppId(config.appId)) {
+    if (!isValidAppId(config.appId)) {
       this._state = 'invalid_config';
       this._emitStatus();
       return;
     }
+
+    const hasEndpoint = typeof config.endpoint === 'string' && config.endpoint.trim().length > 0;
+    const endpoint = hasEndpoint ? normalizeHubEndpoint(config.endpoint as string) : null;
+    if (hasEndpoint && !endpoint) {
+      this._state = 'invalid_config';
+      this._emitStatus();
+      return;
+    }
+
     this._config = { appId: config.appId, endpoint };
-    addToBlacklist(endpoint);
+    this._discoveredEndpoint = null;
     this._runtimeEndpoint = null;
+    if (endpoint) {
+      addToBlacklist(endpoint);
+    }
     this._syncPaused = !isDevRuntime();
     this._state = this._syncPaused ? 'paused' : 'connecting';
     this._emitStatus();
@@ -259,8 +272,40 @@ export class HubClient {
     }
   }
 
+  setDiscoveredEndpoint(value: string | null): void {
+    const normalized = value ? normalizeHubEndpoint(value) : null;
+    const oldEndpoint = this.getEffectiveEndpoint();
+    this._discoveredEndpoint = normalized;
+    if (normalized) {
+      addToBlacklist(normalized);
+    }
+
+    if (oldEndpoint && normalized && oldEndpoint !== normalized && this._active) {
+      this._flushAndSwitchEndpoint();
+    } else if (!normalized && oldEndpoint && !this._runtimeEndpoint && this._active) {
+      // Discovery cleared while active: keep using previous session until reconnect.
+    }
+  }
+
+  getRuntimeEndpoint(): string | null {
+    return this._runtimeEndpoint;
+  }
+
+  getConfiguredEndpoint(): string | null {
+    return this._config?.endpoint || null;
+  }
+
   getEffectiveEndpoint(): string | null {
-    return this._runtimeEndpoint || this._config?.endpoint || null;
+    return this._runtimeEndpoint || this._discoveredEndpoint || this._config?.endpoint || null;
+  }
+
+  markDiscoveryFailed(attempted: string[]): void {
+    this._discoveredEndpoint = null;
+    this._state = 'hub_unreachable';
+    this._lastError = attempted.length > 0
+      ? `No compatible Hub found. Tried: ${attempted.join(', ')}`
+      : 'No Hub candidates available';
+    this._emitStatus();
   }
 
   setOnStatusChange(fn: ((status: HubStatus) => void) | undefined): void {
@@ -338,6 +383,7 @@ export class HubClient {
     return {
       state: this._state,
       session: this._session,
+      error: this._lastError,
     };
   }
 
@@ -917,6 +963,8 @@ export class HubClient {
     this.disconnect();
     this._config = null;
     this._runtimeEndpoint = null;
+    this._discoveredEndpoint = null;
+    this._lastError = undefined;
   }
 }
 

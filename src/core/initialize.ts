@@ -78,10 +78,14 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   environment: (config) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined),
   clipboard: () => createClipboardFeature(),
   devConnect: (config) => {
-    if (!config || typeof config !== 'object' || !('appId' in config) || !('endpoint' in config)) {
+    if (!config || typeof config !== 'object' || !('appId' in config)) {
       return null;
     }
-    return createDevConnectFeature(config as DevConnectV4Config);
+    const typed = config as DevConnectV4Config;
+    if (typeof typed.appId !== 'string' || !typed.appId) {
+      return null;
+    }
+    return createDevConnectFeature(typed);
   },
   sessionHistory: (_config, runtime) => createSessionHistoryFeature(runtime),
 };

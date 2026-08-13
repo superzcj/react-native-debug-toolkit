@@ -5,9 +5,14 @@ import { DevConnectTabV4 } from '../../features/devConnect/DevConnectTabV4';
 import { createDevConnectFeature } from '../../features/devConnect';
 import { _resetHubClientForTesting, hubClient } from '../../utils/HubClient';
 
+jest.mock('../../features/devConnect/resolveAndApplyHubEndpoint', () => ({
+  resolveAndApplyHubEndpoint: jest.fn(async () => 'http://10.20.4.10:3800'),
+}));
+
 describe('createDevConnectFeature v4', () => {
   beforeEach(() => {
     _resetHubClientForTesting();
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -15,30 +20,51 @@ describe('createDevConnectFeature v4', () => {
     _resetHubClientForTesting();
   });
 
-  it('uses appId and endpoint to configure and start the shared Hub during feature setup', () => {
+  it('uses appId and endpoint to configure and start the shared Hub during feature setup', async () => {
     const configure = jest.spyOn(hubClient, 'configure').mockImplementation(() => undefined);
     const connect = jest.spyOn(hubClient, 'connect').mockImplementation(() => undefined);
+    const { resolveAndApplyHubEndpoint } = jest.requireMock(
+      '../../features/devConnect/resolveAndApplyHubEndpoint',
+    );
 
-    const createV4Feature = createDevConnectFeature as unknown as (config: {
-      appId: string;
-      endpoint: string;
-    }) => ReturnType<typeof createDevConnectFeature>;
-    const feature = createV4Feature({
+    const feature = createDevConnectFeature({
       appId: 'com.example.audit',
-      endpoint: 'http://10.20.4.10:3799',
+      endpoint: 'http://10.20.4.10:3800',
     });
 
     expect(feature.renderContent).toBe(DevConnectTabV4);
     expect(feature.getSnapshot()).toMatchObject({
       appId: 'com.example.audit',
-      canonicalEndpoint: 'http://10.20.4.10:3799',
+      canonicalEndpoint: 'http://10.20.4.10:3800',
     });
 
     feature.setup();
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(configure).toHaveBeenCalledWith({
       appId: 'com.example.audit',
-      endpoint: 'http://10.20.4.10:3799',
+      endpoint: 'http://10.20.4.10:3800',
+    });
+    expect(resolveAndApplyHubEndpoint).toHaveBeenCalled();
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows Debug setup without a configured endpoint', async () => {
+    const configure = jest.spyOn(hubClient, 'configure').mockImplementation(() => undefined);
+    const connect = jest.spyOn(hubClient, 'connect').mockImplementation(() => undefined);
+
+    const feature = createDevConnectFeature({
+      appId: 'com.example.audit',
+    });
+
+    feature.setup();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(configure).toHaveBeenCalledWith({
+      appId: 'com.example.audit',
+      endpoint: null,
     });
     expect(connect).toHaveBeenCalledTimes(1);
   });

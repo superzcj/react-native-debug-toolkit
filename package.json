@@ -20,6 +20,10 @@
     "!**/__mocks__"
   ],
   "scripts": {
+    "hub": "node bin/debug-toolkit.js hub dev",
+    "demo:ios": "npm --prefix Demo run ios",
+    "demo:android": "npm --prefix Demo run android",
+    "ai:init": "node bin/debug-toolkit.js init",
     "typecheck": "tsc --noEmit",
     "typescript": "npm run typecheck",
     "test": "jest",

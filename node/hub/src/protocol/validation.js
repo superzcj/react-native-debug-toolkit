@@ -92,7 +92,7 @@ function normalizeEndpoint(value) {
   if (!/^https?:\/\//i.test(trimmed)) {
     // Bare IPv4 or hostname
     if (/^[\d.]+$/.test(trimmed) || /^[a-zA-Z][\w.-]*$/.test(trimmed)) {
-      trimmed = `http://${trimmed}:3799`;
+      trimmed = `http://${trimmed}:3800`;
     } else if (/^[\d.]+:\d+$/.test(trimmed) || /^[a-zA-Z][\w.-]*:\d+$/.test(trimmed)) {
       trimmed = `http://${trimmed}`;
     } else {
@@ -108,7 +108,7 @@ function normalizeEndpoint(value) {
     if (url.pathname !== '/' && url.pathname !== '') return null;
     if (url.search || url.hash) return null;
 
-    const port = url.port || '3799';
+    const port = url.port || '3800';
     return `http://${url.hostname}:${port}`;
   } catch {
     return null;

@@ -4,7 +4,7 @@ const HUB_NAME = 'react-native-debug-toolkit-hub';
 const HUB_VERSION = '4.0.0';
 const PROTOCOL_VERSION = 1;
 const CANONICAL_VERSION = 1;
-const DEFAULT_PORT = 3799;
+const DEFAULT_PORT = 3800;
 const API_PREFIX = '/api/v1';
 
 const STALE_TIMEOUT_MS = 45 * 1000;

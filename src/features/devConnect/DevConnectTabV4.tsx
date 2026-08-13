@@ -19,6 +19,7 @@ import {
   type HubConnectionState,
   type HubStatus,
 } from '../../utils/HubClient';
+import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
 
 const STATE_COLORS: Record<HubConnectionState, string> = {
@@ -53,20 +54,21 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    setEndpointInput(hubClient.getEffectiveEndpoint() || canonicalEndpoint);
-  }, [canonicalEndpoint]);
+    setEndpointInput(hubClient.getEffectiveEndpoint() || canonicalEndpoint || '');
+  }, [canonicalEndpoint, status.state]);
 
   useEffect(() => {
     hubClient.setOnStatusChange(setStatus);
     return () => hubClient.setOnStatusChange(undefined);
   }, []);
 
-  const handleEndpointSubmit = useCallback(() => {
+  const handleEndpointSubmit = useCallback(async () => {
     const trimmed = endpointInput.trim();
     if (!trimmed) {
       hubClient.clearRuntimeEndpoint();
-      setEndpointInput(canonicalEndpoint);
       setInputError(null);
+      const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
+      setEndpointInput(resolved || canonicalEndpoint || '');
       return;
     }
     const normalized = normalizeHubEndpoint(trimmed);
@@ -76,6 +78,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     }
     setInputError(null);
     hubClient.setRuntimeEndpoint(normalized);
+    setEndpointInput(normalized);
   }, [canonicalEndpoint, endpointInput]);
 
   const handleSyncNow = useCallback(async () => {
@@ -91,19 +94,29 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
 
     setSyncing(true);
     try {
+      if (!hubClient.getEffectiveEndpoint()) {
+        const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
+        if (!resolved) return;
+      }
       await hubClient.syncNow();
     } finally {
       setSyncing(false);
     }
-  }, [status.state]);
+  }, [canonicalEndpoint, status.state]);
 
   const handleTogglePause = useCallback(() => {
-    if (hubClient.isSyncPaused()) {
-      hubClient.resumeSync();
-    } else {
+    void (async () => {
+      if (hubClient.isSyncPaused() || !hubClient.isActive()) {
+        if (!hubClient.getEffectiveEndpoint()) {
+          const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
+          if (!resolved) return;
+        }
+        hubClient.resumeSync();
+        return;
+      }
       hubClient.pauseSync();
-    }
-  }, []);
+    })();
+  }, [canonicalEndpoint]);
 
   const stateColor = STATE_COLORS[status.state] || Colors.textMuted;
   const isPaused = status.state === 'paused';
@@ -133,14 +146,14 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
           ]}
           value={endpointInput}
           onChangeText={(v) => { setEndpointInput(v); setInputError(null); }}
-          placeholder={canonicalEndpoint || 'http://10.20.4.10:3799'}
+          placeholder={canonicalEndpoint || 'http://127.0.0.1:3800'}
           placeholderTextColor={Colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
           returnKeyType="done"
-          onSubmitEditing={handleEndpointSubmit}
-          onBlur={handleEndpointSubmit}
+          onSubmitEditing={() => { void handleEndpointSubmit(); }}
+          onBlur={() => { void handleEndpointSubmit(); }}
         />
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
       </View>
@@ -168,17 +181,15 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
           </View>
         </TouchableOpacity>
 
-        {isConnected || isPaused ? (
-          <TouchableOpacity
-            style={styles.pauseButton}
-            onPress={handleTogglePause}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.pauseButtonText}>
-              {isPaused ? 'Start Live Logs' : 'Stop Live Logs'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
+        <TouchableOpacity
+          style={styles.pauseButton}
+          onPress={handleTogglePause}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.pauseButtonText}>
+            {isPaused || !isConnected ? 'Start Live Logs' : 'Stop Live Logs'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Connection state hint */}

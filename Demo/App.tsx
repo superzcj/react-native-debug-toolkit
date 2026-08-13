@@ -158,9 +158,7 @@ const T = {
   warning: '#C67A18',
 } as const;
 
-// All debug clients, including physical devices, use the debug Mac's fixed
-// LAN address. Port 3799 is occupied by an unrelated legacy daemon on this
-// Mac, so the v4 Demo Hub uses its dedicated port 3800.
+// Demo uses the debug Mac LAN address so simulators and devices share one Hub URL.
 const DEMO_HUB = {
   appId: 'com.reactnativedebugtoolkit.demo',
   endpoint: 'http://172.31.23.124:3800',

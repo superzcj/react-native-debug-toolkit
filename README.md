@@ -1,14 +1,56 @@
 # React Native Debug Toolkit
 
-AI-first runtime diagnostics for React Native. Apps send debug evidence to one Shared Log Hub; repository AI reads it through a checked-in Skill and CLI. The Web Console is a human aid for browsing the same evidence.
+React Native runtime logs for debugging with AI. Most people run a Hub on their own Mac while they work on an App. The App sends logs to it, AI reads them through a Skill in the repository, and the Hub web page shows the same logs. A Mac mini is optional when a team wants one Hub for several people.
 
-## What is included
+[中文说明](README.zh-CN.md)
 
-- In-app Toolkit: Console, Network, Native, Navigation, Track, Zustand, Environment, Clipboard, and custom tabs.
-- Shared Log Hub: one trusted-LAN Node service with a Web Console and 7-day / 20 GB retention.
-- AI workflow: repository Skill → `status`, `context`, `inspect`, and bounded `tail` commands. No MCP setup.
+## Pick a command
 
-## 1. Install the App package
+| Situation                                 | Run from        | Command                                                                               |
+| ----------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
+| Debug an App on your own Mac (usual)      | that App's root | `npx debug-toolkit hub dev`                                                           |
+| Work on this repository and start the Hub | repository root | `npm run hub`                                                                         |
+| Run the Demo on iOS                       | repository root | `npm run demo:ios`                                                                    |
+| Run the Demo on Android                   | repository root | `npm run demo:android`                                                                |
+| Set up AI for this repository             | repository root | `npm run ai:init`                                                                     |
+| Share one Hub with a team (optional)      | Mac mini        | `npx -y react-native-debug-toolkit@4.0.0 hub install --url http://<mac-mini-ip>:3800` |
+| Update a shared Hub                       | Mac mini        | `npx -y react-native-debug-toolkit@<version> hub update`                              |
+| Set up AI for an App repository           | that App's root | `npx debug-toolkit init`                                                              |
+
+The `npm run` commands above are scripts in this repository's `package.json`. They are only for this checkout. Use `npx debug-toolkit ...` in an App repository.
+
+## Run a Hub on your Mac
+
+This is the normal way to debug an App. Run it from the App repository:
+
+```bash
+npx debug-toolkit hub dev
+```
+
+It runs in the foreground on port `3800` and stores data in `.debug-toolkit/hub`. It prints loopback and LAN addresses. Debug Apps can discover the Hub from the Metro bundle host; `features.devConnect.endpoint` is the Release default and the Debug fallback.
+
+Stop the Hub with `Ctrl+C` when you are done. When an Android device or emulator is present, `hub dev` tries `adb reverse tcp:3800 tcp:3800` and continues even if that fails.
+
+## Test this repository
+
+Open two terminals in the repository root:
+
+```bash
+npm run hub
+```
+
+```bash
+npm run demo:ios
+# or: npm run demo:android
+```
+
+The Hub listens on port `3800` and keeps its data in `.debug-toolkit/hub`. The Demo currently sends logs to `http://172.31.23.124:3800`. Open that address in a browser, use the Demo, and check that a device and its events appear.
+
+The Demo address must be the debug Mac's LAN address. Do not use `127.0.0.1` for a physical device. If the Mac's address changes, update the Demo configuration before testing.
+
+For the exact Demo checks, see [Demo/README.md](Demo/README.md).
+
+## Add the Toolkit to an App
 
 ```bash
 npm install react-native-debug-toolkit
@@ -17,106 +59,97 @@ cd ios && pod install
 
 Expo Go cannot load the native module. Use a development build, prebuild, or bare React Native.
 
-## 2. Install the Shared Hub once
-
-Run this on the Mac mini that owns the fixed company-LAN address:
-
-```bash
-npm exec --yes --package=react-native-debug-toolkit@4.0.0 -- \
-  debug-toolkit hub install --system \
-  --bind 10.20.4.10 \
-  --advertise-url http://10.20.4.10:3800
-```
-
-The system service starts again after restart, stores data in `/Users/Shared/ReactNativeDebugToolkitHub/data`, keeps logs for seven days, and refuses new events when it reaches 20 GB. Keep it on a trusted LAN or VPN; this first version has no authentication, TLS, or redaction.
-
-Use `--dry-run` to inspect the installation without writing files:
-
-```bash
-debug-toolkit hub install --system --dry-run \
-  --bind 10.20.4.10 --advertise-url http://10.20.4.10:3800
-```
-
-For local Hub development, run it in the foreground:
-
-```bash
-debug-toolkit hub start \
-  --bind 10.20.4.10 --port 3800 \
-  --data-dir /tmp/react-native-debug-toolkit-hub
-```
-
-## 3. Configure the App
-
-Reuse `DebugView.features.devConnect`; `appId` should be the App's existing fixed identifier. Use the Mac's LAN IP for both simulators and devices. Do not use `127.0.0.1` on a device.
+Configure the App with its existing identifier. Debug builds can omit `endpoint` and auto-discover the Hub. Release or internal builds that enable Toolkit must set `endpoint`:
 
 ```tsx
-import { DebugView } from 'react-native-debug-toolkit';
+import { DebugView } from "react-native-debug-toolkit";
 
 <DebugView
-  enabled={__DEV__ || appConfig.buildChannel === 'internal'}
+  enabled={__DEV__ || appConfig.buildChannel === "internal"}
   features={{
     console: true,
     network: true,
     devConnect: {
       appId: appConfig.appId,
-      endpoint: 'http://10.20.4.10:3800',
+      endpoint: appConfig.debugLogHubUrl,
     },
   }}
 >
   <AppContent />
-</DebugView>
+</DebugView>;
 ```
 
-The Connect tab contains one Hub address input and two actions: **Upload Once** and **Start/Stop Live Logs**.
+The Connect tab has an address field, **Upload Once**, and **Start/Stop Live Logs**.
 
-- Debug builds connect and upload live logs automatically.
-- Internal/release builds that explicitly enable the Toolkit do not upload until the user chooses **Upload Once** or **Start Live Logs**.
-- Public production builds should set `enabled={false}`. They do not collect, connect, or show Toolkit UI.
+- Debug builds resolve a Hub, connect, and upload as soon as the Toolkit starts.
+- Internal or release builds upload only after the user selects **Upload Once** or **Start Live Logs**.
+- Public production builds use `enabled={false}`. They do not show the Toolkit or send logs.
 
-For bare React Native, put iOS Local Network / ATS and Android cleartext exceptions only in debug or internal build variants. The phone must be able to open the Hub address on the same LAN.
+For a bare React Native App, allow access to the internal HTTP Hub only in debug/internal configurations: iOS needs the relevant ATS and Local Network settings; Android needs its cleartext setting. A physical device must be able to reach the Hub over the LAN.
 
-## 4. Let repository AI read evidence
-
-Generate and commit the Skill from the App workspace:
+To update the package, install the version you want and rebuild the native App:
 
 ```bash
-npm exec --no --package=react-native-debug-toolkit -- debug-toolkit init-skill
+npm install react-native-debug-toolkit@<version>
+cd ios && pod install
 ```
 
-When a runtime problem is reported, the Skill finds the `DebugView` configuration, then uses `status → context → inspect`. With one active session it reads automatically; with multiple sessions it shows the device labels and asks the user to choose once.
+## Optional: run a shared Hub
 
-The AI process must run in a local shell that can reach the Hub through the company LAN or VPN.
-
-Manual read-only commands use explicit values:
+Use this only when several people need to inspect logs through one Hub. Install it once on a Mac mini with a fixed LAN address:
 
 ```bash
-debug-toolkit status --endpoint http://10.20.4.10:3800 --app-id com.example.app
-debug-toolkit context --endpoint http://10.20.4.10:3800 --app-id com.example.app --session <session-id>
-debug-toolkit inspect <entry-id> --endpoint http://10.20.4.10:3800 --app-id com.example.app
+npx -y react-native-debug-toolkit@4.0.0 hub install \
+  --url http://10.20.4.10:3800
 ```
 
-## Web Console
+The URL sets the address and port. The service starts after the Mac restarts, even with no user signed in. It stores data in `/Users/Shared/ReactNativeDebugToolkitHub/data`, keeps it for seven days, and stops accepting new events at 20 GB.
 
-Open `http://10.20.4.10:3800/console`. It supports App selection, device/session selection, type and severity filters, keyword search, event details, and live refresh. It is a human troubleshooting aid; AI should use the Skill and CLI.
+To update the Hub, choose the package version explicitly:
 
-## Native logs
+```bash
+npx -y react-native-debug-toolkit@4.1.0 hub update
+```
 
-Native logs are captured with the rest of the Toolkit evidence:
+The command does not upgrade the Hub by itself. Run it again with `hub install --url ...` if the public address changes.
 
-- Android: current app-process `logcat` entries visible to the app.
-- iOS: React Native native logs emitted through `RCTLog*`.
+This first version has no authentication, TLS, or redaction. Run it only on a trusted company LAN or VPN. Do not expose it to the public Internet.
 
-They can contain user data, tokens, URLs, or device state. Do not enable the Toolkit by default in public production builds.
+## Let AI read runtime logs
 
-## Other Toolkit options
+At the root of an App repository, run once:
 
-`DebugView` also supports navigation tracking, Zustand middleware, Track events, runtime environment switching, Clipboard, and custom debug tabs. See the TypeScript exports for the available feature factories and types.
+```bash
+npx debug-toolkit init
+```
+
+The command creates `.agents/skills/react-native-debug-toolkit/SKILL.md` and adds its discovery instruction to `AGENTS.md`. Commit both files.
+
+Then describe the problem normally, for example:
+
+```text
+Why did the login request fail just now?
+```
+
+The Skill reads the App's `devConnect` configuration, finds the session, and reads the relevant logs. If more than one device is active, AI asks which device to use. For a local Hub, run AI on the same Mac. For a shared Hub, AI needs access through the company LAN or VPN.
+
+`status`, `context`, `inspect`, and `tail` remain available when someone needs to query the Hub manually.
+
+## Hub web page
+
+Open the Hub address in a browser, for example `http://172.31.23.124:3800/` or `http://10.20.4.10:3800/`. Select the App and device, then filter or inspect the events. It is a supporting view for human debugging; the Skill is the AI entry point.
+
+## Included features
+
+- App Toolkit: Console, Network, Native, Navigation, Track, Zustand, Environment, Clipboard, and custom tabs.
+- Hub: a Node service, JSONL storage, and the web page. Logs are kept for seven days, up to 20 GB.
+- AI access: a repository Skill and read-only CLI. MCP is not required.
 
 ## Limits
 
-- Debug evidence tool, not production monitoring or a React Native DevTools replacement.
-- No default redaction.
-- Network capture observes traffic; it does not diagnose business errors or authentication automatically.
+- This is a debugging tool, not production monitoring or a React Native DevTools replacement.
+- It does not redact data by default.
+- Network capture records requests. It cannot determine a business or authentication failure on its own.
 
 ## License
 

@@ -89,9 +89,9 @@ describe('HubClient transport', () => {
   it('excludes the configured Hub origin from captured network logs', () => {
     const client = new HubClient({ fetch: jest.fn(), featureProvider: createFeatureProvider() });
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
 
-    expect(_isNetworkUrlBlacklistedForTesting('http://10.20.4.10:3799/api/v1/apps/com.example.audit/sessions'))
+    expect(_isNetworkUrlBlacklistedForTesting('http://10.20.4.10:3800/api/v1/apps/com.example.audit/sessions'))
       .toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe('HubClient transport', () => {
       }));
     const client = new HubClient({ fetch, featureProvider: createFeatureProviderWithConsoleEntry() });
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     client.connect();
     await flushPromises();
     await client.syncNow();
@@ -146,7 +146,7 @@ describe('HubClient transport', () => {
       featureProvider: createFeatureProviderWithFractionalNativeTimestamp(),
     });
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     client.connect();
     await flushPromises();
     await client.syncNow();
@@ -178,7 +178,7 @@ describe('HubClient transport', () => {
       }));
     const client = new HubClient({ fetch, featureProvider: createFeatureProviderWithConsoleEntry() });
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     await client.syncNow();
 
     const eventRequest = fetch.mock.calls.find(([url, init]) =>
@@ -201,7 +201,7 @@ describe('HubClient transport', () => {
     const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
     const internals = client as unknown as { _openSession(): Promise<void> };
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     client.connect();
     const reopenFromEvents = internals._openSession();
     const reopenFromHeartbeat = internals._openSession();
@@ -237,7 +237,7 @@ describe('HubClient transport', () => {
       _doFlush(): Promise<void>;
     };
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     client.connect();
     await flushPromises();
     internals._enqueueEvent({
@@ -279,7 +279,7 @@ describe('HubClient transport', () => {
       _doFlush(): Promise<void>;
     };
 
-    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3799' });
+    client.configure({ appId: 'com.example.audit', endpoint: 'http://10.20.4.10:3800' });
     client.connect();
     await flushPromises();
     internals._enqueueEvent({

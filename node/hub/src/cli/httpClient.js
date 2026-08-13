@@ -10,7 +10,7 @@ function request(method, urlStr, body, timeoutMs) {
     const url = new URL(urlStr);
     const options = {
       hostname: url.hostname,
-      port: url.port || 3799,
+      port: url.port || 3800,
       path: url.pathname + url.search,
       method,
       headers: { 'content-type': 'application/json', 'accept': 'application/json' },

@@ -1,6 +1,5 @@
 'use strict';
 
-const { DEFAULT_PORT } = require('../protocol/constants');
 const { normalizeEndpoint } = require('../protocol/validation');
 
 function readOption(args, name, fallback) {
@@ -21,6 +20,7 @@ function parseArgs(args) {
     command,
     subcommand,
     endpoint: readOption(args, '--endpoint', process.env.DEBUG_TOOLKIT_HUB_ENDPOINT),
+    hub: readOption(args, '--hub', undefined),
     appId: readOption(args, '--app-id', process.env.DEBUG_TOOLKIT_APP_ID),
     session: readOption(args, '--session', undefined),
     cursor: readOption(args, '--cursor', undefined),
@@ -29,7 +29,8 @@ function parseArgs(args) {
     until: readOption(args, '--until', undefined),
     allowStale: hasFlag(args, '--allow-stale'),
     follow: hasFlag(args, '--follow'),
-    bind: readOption(args, '--bind', '127.0.0.1'),
+    url: readOption(args, '--url', undefined),
+    bind: readOption(args, '--bind', undefined),
     port: portValue === undefined ? undefined : parseInt(portValue, 10),
     dataDir: readOption(args, '--data-dir', undefined),
     advertiseUrl: readOption(args, '--advertise-url', undefined),
@@ -48,16 +49,18 @@ function printHelp() {
   process.stderr.write(
     'Usage: debug-toolkit <command> [options]\n\n'
     + 'Commands:\n'
-    + '  status                    Check Hub and list sessions\n'
-    + '  context                   Read evidence snapshot\n'
-    + '  inspect <entryId>         Read full event record\n'
-    + '  tail                      Subscribe to live events (NDJSON)\n'
-    + '  hub start                 Start Hub in local foreground mode\n'
-    + '  hub install --system      Install Hub as a macOS LaunchDaemon\n'
-    + '  init-skill                Generate repo-level AI Skill\n'
+    + '  hub dev                   Run a local Hub for App development\n'
+    + '  hub install --url <url>   Install the shared macOS Hub once\n'
+    + '  hub update                Update an installed shared Hub\n'
+    + '  init                      Enable AI runtime diagnostics in this repository\n'
+    + '  status                    Check Hub and list sessions (AI/advanced)\n'
+    + '  context                   Read evidence snapshot (AI/advanced)\n'
+    + '  inspect <entryId>         Read full event record (AI/advanced)\n'
+    + '  tail                      Subscribe to live events (AI/advanced)\n'
     + '\n'
     + 'Common options:\n'
-    + '  --endpoint <url>          Hub URL (or DEBUG_TOOLKIT_HUB_ENDPOINT)\n'
+    + '  --endpoint <url>          Project default Hub URL (probed after 127.0.0.1:3800)\n'
+    + '  --hub <url>               Use this Hub URL only (user-provided override)\n'
     + '  --app-id <id>             App identifier (or DEBUG_TOOLKIT_APP_ID)\n'
     + '  --session <id>            Session ID\n'
     + '  --allow-stale             Allow reading stale sessions\n'
@@ -67,61 +70,101 @@ function printHelp() {
     + 'tail options:\n'
     + '  --cursor <cursor>         Resume from cursor\n'
     + '  --follow                  Infinite tail (human use)\n'
+  );
+}
+
+function printHubHelp() {
+  process.stderr.write(
+    'Usage: debug-toolkit hub <command>\n\n'
+    + 'Commands:\n'
+    + '  dev                       Run a local foreground Hub on port 3800\n'
+    + '  install --url <url>       Install the shared Hub as a macOS service\n'
+    + '  update                    Replace the installed Hub with this version\n'
     + '\n'
-    + 'hub start options:\n'
-    + '  --bind <ip>               Bind address (default: 127.0.0.1)\n'
-    + '  --port <port>             Port (default: 3799)\n'
-    + '  --data-dir <path>         Data directory\n'
-    + '  --advertise-url <url>     Public URL\n'
+    + 'Examples:\n'
+    + '  debug-toolkit hub dev\n'
+    + '  debug-toolkit hub install --url http://10.20.4.10:3800\n'
+    + '  debug-toolkit hub update\n'
   );
 }
 
 async function main(argv) {
   const args = argv || process.argv.slice(2);
 
-  if (args.length === 0 || hasFlag(args, '--help') || hasFlag(args, '-h')) {
+  if (args.length === 0) {
     printHelp();
     return { exitCode: 0 };
   }
 
   const parsed = parseArgs(args);
+  if (parsed.help) {
+    if (parsed.command === 'hub') printHubHelp();
+    else printHelp();
+    return { exitCode: 0 };
+  }
 
   // Handle hub subcommands
   if (parsed.command === 'hub') {
+    if (parsed.subcommand === 'dev') {
+      const { hubStartCommand, resolveDevOptions } = require('./commands/hubStart');
+      return hubStartCommand(resolveDevOptions(parsed));
+    }
     if (parsed.subcommand === 'start') {
       const { hubStartCommand } = require('./commands/hubStart');
       return hubStartCommand(parsed);
     }
     if (parsed.subcommand === 'install') {
+      if (!parsed.url && !parsed.advertiseUrl) {
+        process.stderr.write('hub install requires --url <Hub URL>\n');
+        return { ok: false, exitCode: 2 };
+      }
       const { hubInstallCommand } = require('./commands/hubInstall');
-      return hubInstallCommand(parsed);
+      return hubInstallCommand({ ...parsed, system: true });
     }
-    process.stderr.write('Unknown hub command. Use: hub start | hub install --system\n');
+    if (parsed.subcommand === 'update') {
+      const { hubUpdateCommand } = require('./commands/hubInstall');
+      return hubUpdateCommand(parsed);
+    }
+    process.stderr.write('Unknown hub command. Use: hub dev | hub install --url <url> | hub update\n');
     return { exitCode: 1 };
   }
 
-  // Handle init-skill
-  if (parsed.command === 'init-skill') {
+  // `init-skill` remains a compatibility alias.
+  if (parsed.command === 'init' || parsed.command === 'init-skill') {
     const { initSkillCommand } = require('./commands/initSkill');
     return initSkillCommand(parsed);
   }
 
-  // Commands requiring endpoint and appId
-  if (!parsed.endpoint) {
-    process.stderr.write('--endpoint is required (or set DEBUG_TOOLKIT_HUB_ENDPOINT)\n');
-    return { exitCode: 2 };
+  const hubReadCommands = new Set(['status', 'context', 'inspect', 'tail']);
+  if (!hubReadCommands.has(parsed.command)) {
+    process.stderr.write('Unknown command: ' + parsed.command + '\n');
+    printHelp();
+    return { exitCode: 1 };
   }
-  const endpoint = normalizeEndpoint(parsed.endpoint);
-  if (!endpoint) {
-    process.stderr.write('Invalid endpoint\n');
-    return { exitCode: 2 };
-  }
-  parsed.endpoint = endpoint;
+
+  // Commands requiring a Hub endpoint and appId
+  const { resolveCliHubEndpoint } = require('./resolveEndpoint');
 
   if (!parsed.appId) {
     process.stderr.write('--app-id is required (or set DEBUG_TOOLKIT_APP_ID)\n');
     return { exitCode: 2 };
   }
+
+  const resolved = await resolveCliHubEndpoint({
+    explicitEndpoint: parsed.hub,
+    projectEndpoint: parsed.endpoint,
+  });
+  if (!resolved.endpoint) {
+    const tried = resolved.attempted.length > 0
+      ? resolved.attempted.join(', ')
+      : '(no candidates)';
+    process.stderr.write(
+      `No compatible Hub found. Tried: ${tried}\n`
+      + 'Pass --hub <url> for a specific Hub, or --endpoint <url> as the project default.\n',
+    );
+    return { exitCode: 2 };
+  }
+  parsed.endpoint = normalizeEndpoint(resolved.endpoint) || resolved.endpoint;
 
   if (parsed.command === 'status') {
     const { statusCommand } = require('./commands/status');
@@ -159,4 +202,4 @@ async function main(argv) {
   return { exitCode: 1 };
 }
 
-module.exports = { main, parseArgs, printHelp };
+module.exports = { main, parseArgs, printHelp, printHubHelp };

@@ -2,6 +2,7 @@
 
 const childProcess = require('child_process');
 const fs = require('fs');
+const net = require('net');
 const os = require('os');
 const path = require('path');
 const { HUB_VERSION, DEFAULT_PORT } = require('../../protocol/constants');
@@ -25,12 +26,35 @@ function readIdentity(rootDir) {
   return { username: user.username, uid: process.getuid?.(), gid: process.getgid?.() };
 }
 
+function bindForUrl(url) {
+  const host = new URL(url).hostname;
+  return net.isIP(host) ? host : '0.0.0.0';
+}
+
+function readInstalledSettings(rootDir = ROOT_DIR) {
+  try {
+    const current = JSON.parse(fs.readFileSync(path.join(rootDir, 'install.json'), 'utf8'));
+    const advertiseUrl = normalizeEndpoint(current.advertiseUrl);
+    if (!advertiseUrl) return null;
+    return {
+      bind: current.bind || bindForUrl(advertiseUrl),
+      port: current.port || Number(new URL(advertiseUrl).port || DEFAULT_PORT),
+      advertiseUrl,
+      dataDir: current.dataDir || path.join(rootDir, 'data'),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function buildInstallPlan(options = {}) {
   const rootDir = options.rootDir || ROOT_DIR;
-  const bind = options.bind || '127.0.0.1';
   const requestedPort = options.port;
-  const advertiseUrl = normalizeEndpoint(options.advertiseUrl || `http://${bind}:${requestedPort || DEFAULT_PORT}`);
-  if (!advertiseUrl) throw new Error('Invalid --advertise-url');
+  const requestedUrl = options.url || options.advertiseUrl;
+  const fallbackBind = options.bind || '127.0.0.1';
+  const advertiseUrl = normalizeEndpoint(requestedUrl || `http://${fallbackBind}:${requestedPort || DEFAULT_PORT}`);
+  if (!advertiseUrl) throw new Error('Invalid --url');
+  const bind = options.bind || (options.url ? bindForUrl(advertiseUrl) : fallbackBind);
   const advertisedPort = Number(new URL(advertiseUrl).port || DEFAULT_PORT);
   if (requestedPort !== undefined && requestedPort !== advertisedPort) {
     throw new Error('--port must match --advertise-url');
@@ -90,7 +114,15 @@ async function hubInstallCommand(options) {
     fs.copyFileSync(process.execPath, path.join(stageRuntime, 'node'));
     fs.writeFileSync(stageLauncher, plan.launcher, { mode: 0o755 });
     fs.writeFileSync(stagePlist, plan.plist, { mode: 0o644 });
-    fs.writeFileSync(stageInstall, JSON.stringify({ ...plan.identity, installedAt: new Date().toISOString(), version: HUB_VERSION }, null, 2));
+    fs.writeFileSync(stageInstall, JSON.stringify({
+      ...plan.identity,
+      bind: plan.bind,
+      port: plan.port,
+      advertiseUrl: plan.advertiseUrl,
+      dataDir: plan.dataDir,
+      installedAt: new Date().toISOString(),
+      version: HUB_VERSION,
+    }, null, 2));
 
     runSudo(['mkdir', '-p', path.join(plan.rootDir, 'runtime'), plan.dataDir, plan.logsDir, plan.homeDir, '/usr/local/libexec']);
     runSudo(['rm', '-rf', plan.runtimeDir]);
@@ -113,4 +145,27 @@ async function hubInstallCommand(options) {
   }
 }
 
-module.exports = { hubInstallCommand, buildInstallPlan, ROOT_DIR, PLIST_PATH, LAUNCH_SHIM_PATH, LABEL };
+async function hubUpdateCommand(options = {}) {
+  const rootDir = options.rootDir || ROOT_DIR;
+  const installed = readInstalledSettings(rootDir);
+  if (!installed) {
+    process.stderr.write('Hub is not installed. Run: debug-toolkit hub install --url <Hub URL>\n');
+    return { ok: false, exitCode: 2 };
+  }
+  const hasReplacementUrl = Boolean(options.url);
+  return hubInstallCommand({
+    ...options,
+    rootDir,
+    url: options.url || installed.advertiseUrl,
+    bind: options.bind || (hasReplacementUrl ? undefined : installed.bind),
+    port: options.port || (hasReplacementUrl ? undefined : installed.port),
+    dataDir: options.dataDir || installed.dataDir,
+    system: true,
+    replace: true,
+  });
+}
+
+module.exports = {
+  hubInstallCommand, hubUpdateCommand, buildInstallPlan, readInstalledSettings,
+  ROOT_DIR, PLIST_PATH, LAUNCH_SHIM_PATH, LABEL,
+};

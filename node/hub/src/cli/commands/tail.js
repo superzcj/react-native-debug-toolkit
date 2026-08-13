@@ -36,7 +36,7 @@ async function tailCommand(options) {
 
     const reqOptions = {
       hostname: url.hostname,
-      port: url.port || 3799,
+      port: url.port || 3800,
       path: url.pathname + url.search,
       method: 'GET',
       headers: {

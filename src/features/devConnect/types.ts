@@ -2,8 +2,12 @@
 export interface DevConnectV4Config {
   /** Stable organization-wide product identifier. */
   appId: string;
-  /** Shared Hub HTTP origin, for example http://10.20.4.10:3799. */
-  endpoint: string;
+  /**
+   * Default Hub HTTP origin from the host App.
+   * Optional in Debug builds (auto-discovery can find the local Hub).
+   * Required for Release/internal builds that explicitly enable Toolkit.
+   */
+  endpoint?: string;
 }
 
 export interface DevConnectV4State {

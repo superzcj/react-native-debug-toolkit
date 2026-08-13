@@ -22,10 +22,23 @@ describe('initializeDebugToolkit', () => {
     DebugToolkit.setEnabled(true);
   });
 
-  it('does not register devConnect unless configured with appId and endpoint', async () => {
+  it('does not register devConnect unless configured with appId', async () => {
     await initializeDebugToolkit({ enabled: true });
 
     expect(DebugToolkit.features.map((feature) => feature.name)).not.toContain('devConnect');
+  });
+
+  it('registers devConnect when configured with appId only', async () => {
+    await initializeDebugToolkit({
+      enabled: true,
+      features: {
+        devConnect: {
+          appId: 'com.example.demo',
+        },
+      },
+    });
+
+    expect(DebugToolkit.features.map((feature) => feature.name)).toContain('devConnect');
   });
 
   it('registers devConnect when configured with Shared Hub settings', async () => {
