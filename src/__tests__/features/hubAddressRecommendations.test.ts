@@ -24,5 +24,12 @@ describe('Hub address recommendations', () => {
       subnetPrefix: null,
       configuredEndpoint: '',
     })).toEqual([]);
+
+    expect(buildHubAddressRecommendations({
+      subnetPrefix: null,
+      configuredEndpoint: 'http://10.20.4.10:3800',
+    })).toEqual([
+      { kind: 'configured', value: 'http://10.20.4.10:3800' },
+    ]);
   });
 });

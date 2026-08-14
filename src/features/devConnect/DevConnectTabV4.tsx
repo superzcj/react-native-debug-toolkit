@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -19,6 +19,12 @@ import {
   type HubConnectionState,
   type HubStatus,
 } from '../../utils/HubClient';
+import {
+  KEYS,
+  removePreference,
+  setPreference,
+} from '../../utils/debugPreferences';
+import { buildHubAddressRecommendations } from './hubAddressRecommendations';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
 
@@ -48,6 +54,7 @@ const STATE_LABELS: Record<HubConnectionState, string> = {
 
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
   const canonicalEndpoint = snapshot.canonicalEndpoint;
+  const inputRef = useRef<TextInput>(null);
   const [endpointInput, setEndpointInput] = useState(canonicalEndpoint);
   const [inputError, setInputError] = useState<string | null>(null);
   const [status, setStatus] = useState<HubStatus>(hubClient.getStatus());
@@ -65,10 +72,10 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   const handleEndpointSubmit = useCallback(async () => {
     const trimmed = endpointInput.trim();
     if (!trimmed) {
+      await removePreference(KEYS.hubEndpoint);
       hubClient.clearRuntimeEndpoint();
       setInputError(null);
-      const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
-      setEndpointInput(resolved || canonicalEndpoint || '');
+      setEndpointInput(snapshot.configuredEndpoint);
       return;
     }
     const normalized = normalizeHubEndpoint(trimmed);
@@ -77,9 +84,22 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       return;
     }
     setInputError(null);
+    if (normalized === snapshot.configuredEndpoint) {
+      await removePreference(KEYS.hubEndpoint);
+      hubClient.clearRuntimeEndpoint();
+      setEndpointInput(normalized);
+      return;
+    }
+    await setPreference(KEYS.hubEndpoint, normalized);
     hubClient.setRuntimeEndpoint(normalized);
     setEndpointInput(normalized);
-  }, [canonicalEndpoint, endpointInput]);
+  }, [endpointInput, snapshot.configuredEndpoint]);
+
+  const handleRecommendationPress = useCallback((value: string) => {
+    setEndpointInput(value);
+    setInputError(null);
+    inputRef.current?.focus();
+  }, []);
 
   const handleSyncNow = useCallback(async () => {
     if (status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
@@ -123,6 +143,10 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   const isConnected = status.state === 'connected' || isPaused;
   const isErrorState = status.state === 'hub_unreachable' || status.state === 'storage_full' || status.state === 'protocol_mismatch';
   const isLoading = status.state === 'connecting' || syncing;
+  const recommendations = buildHubAddressRecommendations({
+    subnetPrefix: snapshot.subnetPrefix,
+    configuredEndpoint: snapshot.configuredEndpoint,
+  });
 
   const uploadButtonText = (() => {
     if (syncing) return 'Uploading...';
@@ -140,22 +164,41 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       <View style={styles.section}>
         <Text style={styles.label}>Hub Address</Text>
         <TextInput
+          ref={inputRef}
           style={[
             styles.input,
             inputError ? styles.inputError : null,
           ]}
           value={endpointInput}
           onChangeText={(v) => { setEndpointInput(v); setInputError(null); }}
-          placeholder={canonicalEndpoint || 'http://127.0.0.1:3800'}
+          placeholder={snapshot.subnetPrefix ? `${snapshot.subnetPrefix}...` : 'http://127.0.0.1:3800'}
           placeholderTextColor={Colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="url"
+          keyboardType="numbers-and-punctuation"
           returnKeyType="done"
           onSubmitEditing={() => { void handleEndpointSubmit(); }}
           onBlur={() => { void handleEndpointSubmit(); }}
         />
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
+        {recommendations.length > 0 ? (
+          <View style={styles.recommendations}>
+            {recommendations.map((recommendation) => (
+              <TouchableOpacity
+                key={`${recommendation.kind}:${recommendation.value}`}
+                style={styles.recommendation}
+                onPress={() => handleRecommendationPress(recommendation.value)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.recommendationText}>
+                  {recommendation.kind === 'subnet'
+                    ? `Use ${recommendation.value}`
+                    : recommendation.value}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {/* Upload Once + Live Logs toggle */}
@@ -235,6 +278,18 @@ const styles = StyleSheet.create({
     fontSize: FontSize.XS,
     color: Colors.error,
     marginTop: Spacing.XXS,
+  },
+  recommendations: {
+    gap: Spacing.XXS,
+    marginTop: Spacing.XS,
+  },
+  recommendation: {
+    alignSelf: 'flex-start',
+  },
+  recommendationText: {
+    color: Colors.primary,
+    fontSize: FontSize.XS,
+    fontWeight: FontWeight.medium,
   },
   actions: {
     flexDirection: 'row',
