@@ -56,15 +56,18 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
 
         hubClient.configure({
           appId: config.appId,
-          endpoint: endpoint || null,
+          endpoint: configuredEndpoint || null,
         });
+        if (normalizedSavedEndpoint) {
+          hubClient.setRuntimeEndpoint(normalizedSavedEndpoint);
+        }
         notify();
 
         if (!isDevRuntime()) {
           return;
         }
 
-        const resolved = await resolveAndApplyHubEndpoint(endpoint || null);
+        const resolved = await resolveAndApplyHubEndpoint(configuredEndpoint || null);
         if (!resolved) {
           return;
         }

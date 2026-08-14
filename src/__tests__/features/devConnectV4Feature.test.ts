@@ -89,6 +89,7 @@ describe('createDevConnectFeature v4', () => {
 
   it('uses a saved endpoint before the configured endpoint and exposes both recommendations', async () => {
     const configure = jest.spyOn(hubClient, 'configure').mockImplementation(() => undefined);
+    const setRuntimeEndpoint = jest.spyOn(hubClient, 'setRuntimeEndpoint').mockImplementation(() => undefined);
     const connect = jest.spyOn(hubClient, 'connect').mockImplementation(() => undefined);
     const { getPreference } = jest.requireMock('../../utils/debugPreferences');
     getPreference.mockResolvedValue('http://192.168.1.123:3800');
@@ -105,8 +106,9 @@ describe('createDevConnectFeature v4', () => {
 
     expect(configure).toHaveBeenCalledWith({
       appId: 'com.example.audit',
-      endpoint: 'http://192.168.1.123:3800',
+      endpoint: 'http://192.168.1.203:3800',
     });
+    expect(setRuntimeEndpoint).toHaveBeenCalledWith('http://192.168.1.123:3800');
     expect(feature.getSnapshot()).toMatchObject({
       canonicalEndpoint: 'http://192.168.1.123:3800',
       configuredEndpoint: 'http://192.168.1.203:3800',
