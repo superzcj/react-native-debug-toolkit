@@ -83,7 +83,7 @@ Toolkit owns an isolated `react-native-debug-toolkit` MMKV store for logs,
 Toolkit UI preferences, and built-in feature state. No App storage adapter is
 required.
 
-The Connect tab has an address field, **Upload Once**, and **Start/Stop Live Logs**.
+The Connect tab has an address field, **Upload Once**, and **Start/Stop Live Logs**. On a physical device it first suggests the detected LAN prefix, such as `192.168.1.`, so you can fill only the computer IP suffix. When `endpoint` is configured it appears as the second recommendation. A valid manual address is retained by the Toolkit; clearing it returns to the configured endpoint or an empty field.
 
 - Debug builds resolve a Hub, connect, and upload as soon as the Toolkit starts.
 - Internal or release builds upload only after the user selects **Upload Once** or **Start Live Logs**.

@@ -82,7 +82,7 @@ import { DebugView } from "react-native-debug-toolkit";
 Toolkit 自己使用独立的 `react-native-debug-toolkit` MMKV 存储日志、界面偏好和
 内置 feature 状态，不需要 App 传入存储适配器。
 
-Connect 页面保留一个地址输入框、"上传一次" 和 "开启/停止实时日志"。
+Connect 页面保留一个地址输入框、"上传一次" 和 "开启/停止实时日志"。真机优先推荐当前局域网前三段，例如 `192.168.1.`，点一下后只需补电脑 IP 尾段；配置了 `endpoint` 时，它作为第二个推荐地址显示。有效的手动地址由 Toolkit 保留；清空后回到配置地址或空输入框。
 
 - Debug 包启动后会解析 Hub、连接并自动上传。
 - 内测或 Release 包即使启用了 Toolkit，也要点 "上传一次" 或 "开启实时日志" 才上传。

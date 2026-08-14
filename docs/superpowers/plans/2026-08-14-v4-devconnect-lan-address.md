@@ -150,8 +150,9 @@ await flushPromises();
 
 expect(configure).toHaveBeenCalledWith({
   appId: 'com.example.audit',
-  endpoint: 'http://192.168.1.123:3800',
+  endpoint: 'http://192.168.1.203:3800',
 });
+expect(setRuntimeEndpoint).toHaveBeenCalledWith('http://192.168.1.123:3800');
 expect(feature.getSnapshot()).toMatchObject({
   canonicalEndpoint: 'http://192.168.1.123:3800',
   configuredEndpoint: 'http://192.168.1.203:3800',
@@ -168,7 +169,7 @@ Expected: FAIL because the key and state are absent.
 
 - [ ] **Step 3: Implement explicit source precedence**
 
-In \`setup\`, load \`KEYS.hubEndpoint\` and \`getDeviceLocalIp()\` concurrently. Normalize a saved endpoint with \`normalizeHubEndpoint\`; configure \`hubClient\` with saved endpoint, otherwise the already normalized configured endpoint. Keep the configured endpoint unchanged in state for its recommendation. Derive the prefix with Task 1 and notify after state is complete. Preserve the existing Debug-only discovery and auto-connect sequence after configuration.
+In \`setup\`, load \`KEYS.hubEndpoint\` and \`getDeviceLocalIp()\` concurrently. Normalize a saved endpoint with \`normalizeHubEndpoint\`; configure \`hubClient\` with the already normalized configured endpoint, then set a valid saved endpoint as the runtime override. This keeps clear-to-configured fallback correct. Keep the configured endpoint unchanged in state for its recommendation. Derive the prefix with Task 1 and notify after state is complete. Preserve the existing Debug-only discovery and auto-connect sequence after configuration.
 
 - [ ] **Step 4: Run the persistence/setup tests**
 
