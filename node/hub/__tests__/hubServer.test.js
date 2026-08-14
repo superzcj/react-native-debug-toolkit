@@ -53,15 +53,23 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('word-break:break-word');
       expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:20px;padding:6px 0;cursor:pointer;background:none;border:0}');
       expect(consolePage.body).toContain('function renderEventDetails(event)');
-      expect(consolePage.body).toContain('function renderNetworkData(data)');
+      expect(consolePage.body).toContain('function renderNetworkData(data, event)');
       expect(consolePage.body).toContain('Raw event');
       expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection('Event metadata'");
       expect(consolePage.body).toContain("entry.classList.toggle('expanded')");
-      expect(consolePage.body).not.toContain("entry.classList.add('expanded')");
+      expect(consolePage.body).toMatch(/\.log-row'\)\.addEventListener\('click'[\s\S]*classList\.toggle\('expanded'\)/);
       expect(consolePage.body).toContain('function formatJson(');
       expect(consolePage.body).toMatch(/function statusBadge\(event\)[\s\S]*event\.type === 'network'[\s\S]*response\.status/);
       expect(consolePage.body).toContain('id="liveButton"');
       expect(consolePage.body).toContain('aria-pressed');
+      expect(consolePage.body).toContain('function formatUrlParts(');
+      expect(consolePage.body).toContain('function buildCurl(');
+      expect(consolePage.body).toContain('function copyPayload(');
+      expect(consolePage.body).toContain('function refreshLogList(');
+      expect(consolePage.body).toContain('data-copy-kind');
+      expect(consolePage.body).toContain('log-entry.is-failed');
+      expect(consolePage.body).toContain('method-get');
+      expect(consolePage.body).toMatch(/searchInput[\s\S]*addEventListener\('input'[\s\S]*refreshLogList\(/);
       const liveHandler = consolePage.body.match(
         /stream\.addEventListener\('event', message => \{([\s\S]*?)\}\); stream\.onerror/
       );
