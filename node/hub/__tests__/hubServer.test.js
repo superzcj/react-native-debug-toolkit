@@ -45,13 +45,13 @@ describe('Local Hub HTTP flow', () => {
 
       expect(consolePage.status).toBe(200);
       expect(consolePage.body).toContain('class="device-grid"');
-      expect(consolePage.body).toContain('All devices');
+      expect(consolePage.body).toContain('← Devices');
       expect(consolePage.body).toContain('Search logs...');
       expect(consolePage.body).toContain('device.manufacturer');
       expect(consolePage.body).toContain('if (session.sourceIp) parts.push(session.sourceIp)');
       expect(consolePage.body).toContain('device.appVersion');
       expect(consolePage.body).toContain('word-break:break-word');
-      expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:20px;padding:6px 0;cursor:pointer;background:none;border:0}');
+      expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:0;padding:6px 0;cursor:pointer;background:none;border:0}');
       expect(consolePage.body).toContain('function renderEventDetails(event)');
       expect(consolePage.body).toContain('function renderNetworkData(data, event)');
       expect(consolePage.body).toContain('Raw event');
@@ -70,6 +70,15 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('log-entry.is-failed');
       expect(consolePage.body).toContain('method-get');
       expect(consolePage.body).toMatch(/searchInput[\s\S]*addEventListener\('input'[\s\S]*refreshLogList\(/);
+      expect(consolePage.body).toContain('function readHash(');
+      expect(consolePage.body).toContain('function writeHash(');
+      expect(consolePage.body).toContain('function sessionStatus(');
+      expect(consolePage.body).toContain('didAutoOpen');
+      expect(consolePage.body).toContain('detail-chrome');
+      expect(consolePage.body).toContain('position:sticky;top:56px');
+      expect(consolePage.body).toContain('formatAge(session.lastSeenAt)');
+      expect(consolePage.body).toContain('ackThrough');
+      expect(consolePage.body).toContain("label: 'online'");
       const liveHandler = consolePage.body.match(
         /stream\.addEventListener\('event', message => \{([\s\S]*?)\}\); stream\.onerror/
       );
