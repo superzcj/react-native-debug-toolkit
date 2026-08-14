@@ -1,8 +1,10 @@
 import {
   buildHubAddressRecommendations,
+  composeHubAddressInput,
   extractIpv4SubnetPrefix,
   hubEndpointHost,
   resolveHubAddressSubmission,
+  splitHubAddressFields,
   splitLanHost,
 } from '../../features/devConnect/hubAddressRecommendations';
 
@@ -102,6 +104,37 @@ describe('Hub address recommendations', () => {
     expect(splitLanHost('172.31.23.203', '192.168.1.')).toEqual({
       prefix: null,
       octet: '172.31.23.203',
+    });
+  });
+
+  it('splits and composes prefix, last octet, and port as three fields', () => {
+    expect(splitHubAddressFields('http://192.168.1.45:3800', null)).toEqual({
+      prefix: '192.168.1',
+      octet: '45',
+      port: '3800',
+    });
+    expect(splitHubAddressFields('http://172.31.23.203:3801', '192.168.1.')).toEqual({
+      prefix: '172.31.23',
+      octet: '203',
+      port: '3801',
+    });
+    expect(splitHubAddressFields('', '192.168.1.')).toEqual({
+      prefix: '192.168.1',
+      octet: '',
+      port: '3800',
+    });
+    expect(composeHubAddressInput({ prefix: '192.168.1', octet: '45', port: '3800' })).toBe(
+      '192.168.1.45:3800',
+    );
+    expect(composeHubAddressInput({ prefix: '192.168.1', octet: '45', port: '3801' })).toBe(
+      '192.168.1.45:3801',
+    );
+    expect(composeHubAddressInput({ prefix: '192.168.1', octet: '', port: '3800' })).toBe(
+      '192.168.1',
+    );
+    expect(resolveHubAddressSubmission('192.168.1.45:3801', '')).toEqual({
+      kind: 'save',
+      endpoint: 'http://192.168.1.45:3801',
     });
   });
 });

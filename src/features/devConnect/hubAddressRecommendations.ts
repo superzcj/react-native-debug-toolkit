@@ -59,6 +59,72 @@ export function splitLanHost(
   return { prefix: null, octet: host };
 }
 
+export const DEFAULT_HUB_PORT = '3800';
+
+export type HubAddressFields = {
+  prefix: string;
+  octet: string;
+  port: string;
+};
+
+export function hubEndpointPort(value: string): string {
+  const normalized = normalizeHubEndpoint(value);
+  if (normalized) {
+    try {
+      return new URL(normalized).port || DEFAULT_HUB_PORT;
+    } catch {
+      // Fall through and parse a raw value.
+    }
+  }
+  const match = value.trim().match(/:(\d+)$/);
+  return match?.[1] ?? DEFAULT_HUB_PORT;
+}
+
+function stripTrailingDot(value: string): string {
+  return value.endsWith('.') ? value.slice(0, -1) : value;
+}
+
+export function splitHubAddressFields(
+  value: string,
+  fallbackPrefix: string | null,
+): HubAddressFields {
+  const host = hubEndpointHost(value);
+  const port = hubEndpointPort(value);
+  const parts = stripTrailingDot(host).split('.');
+  if (parts.length === 4 && parts.every((part) => part === '' || /^\d{1,3}$/.test(part))) {
+    const [first = '', second = '', third = '', fourth = ''] = parts;
+    return {
+      prefix: `${first}.${second}.${third}`,
+      octet: fourth,
+      port,
+    };
+  }
+  if (parts.length === 3 && parts.every(isValidIpv4Segment)) {
+    return { prefix: parts.join('.'), octet: '', port };
+  }
+  if (!host) {
+    return {
+      prefix: fallbackPrefix ? stripTrailingDot(fallbackPrefix) : '',
+      octet: '',
+      port: DEFAULT_HUB_PORT,
+    };
+  }
+  return { prefix: host, octet: '', port };
+}
+
+export function composeHubAddressInput(fields: HubAddressFields): string {
+  const prefix = stripTrailingDot(fields.prefix.trim());
+  const octet = fields.octet.trim();
+  const port = fields.port.trim() || DEFAULT_HUB_PORT;
+  if (!prefix && !octet) {
+    return '';
+  }
+  if (!octet) {
+    return prefix;
+  }
+  return `${prefix}.${octet}:${port}`;
+}
+
 function isIncompleteIpv4Prefix(value: string): boolean {
   const trimmed = value.endsWith('.') ? value.slice(0, -1) : value;
   const parts = trimmed.split('.');

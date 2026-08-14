@@ -25,9 +25,12 @@ import {
 } from '../../utils/debugPreferences';
 import {
   buildHubAddressRecommendations,
+  composeHubAddressInput,
+  DEFAULT_HUB_PORT,
   hubEndpointHost,
   resolveHubAddressSubmission,
-  splitLanHost,
+  splitHubAddressFields,
+  type HubAddressFields,
 } from './hubAddressRecommendations';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
@@ -58,27 +61,33 @@ const STATE_LABELS: Record<HubConnectionState, string> = {
 
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
   const canonicalEndpoint = snapshot.canonicalEndpoint;
-  const inputRef = useRef<TextInput>(null);
+  const octetRef = useRef<TextInput>(null);
+  const portRef = useRef<TextInput>(null);
   const focusedRef = useRef(false);
   const skipBlurRef = useRef(false);
-  const endpointInputRef = useRef(canonicalEndpoint);
-  const [endpointInput, setEndpointInput] = useState(
-    hubEndpointHost(canonicalEndpoint || ''),
+  const [fields, setFields] = useState<HubAddressFields>(() =>
+    splitHubAddressFields(canonicalEndpoint || '', snapshot.subnetPrefix),
   );
-  endpointInputRef.current = endpointInput;
-  const [editFullHost, setEditFullHost] = useState(false);
+  const fieldsRef = useRef(fields);
+  fieldsRef.current = fields;
   const [inputError, setInputError] = useState<string | null>(null);
   const [status, setStatus] = useState<HubStatus>(hubClient.getStatus());
   const [syncing, setSyncing] = useState(false);
+
+  const replaceFields = useCallback((next: HubAddressFields) => {
+    fieldsRef.current = next;
+    setFields(next);
+  }, []);
 
   useEffect(() => {
     if (focusedRef.current) {
       return;
     }
-    setEndpointInput(
-      hubEndpointHost(hubClient.getEffectiveEndpoint() || canonicalEndpoint || ''),
-    );
-  }, [canonicalEndpoint, status.state]);
+    replaceFields(splitHubAddressFields(
+      hubClient.getEffectiveEndpoint() || canonicalEndpoint || '',
+      snapshot.subnetPrefix,
+    ));
+  }, [canonicalEndpoint, replaceFields, snapshot.subnetPrefix, status.state]);
 
   useEffect(() => {
     hubClient.setOnStatusChange(setStatus);
@@ -95,7 +104,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       await removePreference(KEYS.hubEndpoint);
       hubClient.clearRuntimeEndpoint();
       setInputError(null);
-      setEndpointInput(hubEndpointHost(submission.fallbackEndpoint));
+      replaceFields(splitHubAddressFields(submission.fallbackEndpoint, snapshot.subnetPrefix));
       return;
     }
     if (submission.kind === 'incomplete') {
@@ -109,21 +118,24 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     setInputError(null);
     await setPreference(KEYS.hubEndpoint, submission.endpoint);
     hubClient.setRuntimeEndpoint(submission.endpoint);
-    setEndpointInput(hubEndpointHost(submission.endpoint));
-  }, [snapshot.configuredEndpoint, snapshot.subnetPrefix]);
+    replaceFields(splitHubAddressFields(submission.endpoint, snapshot.subnetPrefix));
+  }, [replaceFields, snapshot.configuredEndpoint, snapshot.subnetPrefix]);
 
   const handleEndpointSubmit = useCallback(() => {
-    void applyRawInput(endpointInput);
-  }, [applyRawInput, endpointInput]);
+    void applyRawInput(composeHubAddressInput(fieldsRef.current));
+  }, [applyRawInput]);
 
   const handleInputBlur = useCallback(() => {
     focusedRef.current = false;
     setTimeout(() => {
+      if (focusedRef.current) {
+        return;
+      }
       if (skipBlurRef.current) {
         skipBlurRef.current = false;
         return;
       }
-      void applyRawInput(endpointInputRef.current);
+      void applyRawInput(composeHubAddressInput(fieldsRef.current));
     }, 50);
   }, [applyRawInput]);
 
@@ -133,14 +145,16 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     skipBlurRef.current = true;
     setInputError(null);
     if (recommendation.kind === 'configured') {
-      setEditFullHost(false);
       void applyRawInput(recommendation.value);
       return;
     }
-    setEditFullHost(false);
-    setEndpointInput(recommendation.value);
-    inputRef.current?.focus();
-  }, [applyRawInput]);
+    replaceFields({
+      prefix: recommendation.value.replace(/\.$/, ''),
+      octet: '',
+      port: fieldsRef.current.port || DEFAULT_HUB_PORT,
+    });
+    octetRef.current?.focus();
+  }, [applyRawInput, replaceFields]);
 
   const handleSyncNow = useCallback(async () => {
     if (status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
@@ -188,9 +202,13 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     subnetPrefix: snapshot.subnetPrefix,
     configuredEndpoint: snapshot.configuredEndpoint,
   });
-  const host = hubEndpointHost(endpointInput);
-  const lan = splitLanHost(host, snapshot.subnetPrefix);
-  const octetMode = !editFullHost && lan.prefix != null;
+
+  const updateField = (key: keyof HubAddressFields, value: string) => {
+    const next = { ...fieldsRef.current, [key]: value };
+    fieldsRef.current = next;
+    setFields(next);
+    setInputError(null);
+  };
 
   const uploadButtonText = (() => {
     if (syncing) return 'Uploading...';
@@ -209,64 +227,66 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
         <Text style={styles.label}>Hub Address</Text>
         <View style={[styles.inputShell, inputError ? styles.inputError : null]}>
           <Text style={styles.affix}>http://</Text>
-          {octetMode ? (
-            <>
-              <TouchableOpacity
-                onPress={() => {
-                  skipBlurRef.current = true;
-                  setEditFullHost(true);
-                  setEndpointInput(lan.prefix ? `${lan.prefix}${lan.octet}` : host);
-                  requestAnimationFrame(() => inputRef.current?.focus());
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.prefix}>{lan.prefix}</Text>
-              </TouchableOpacity>
-              <TextInput
-                ref={inputRef}
-                style={styles.octetInput}
-                value={lan.octet}
-                onChangeText={(octet) => {
-                  if (octet !== '' && !/^\d{1,3}$/.test(octet)) {
-                    return;
-                  }
-                  if (octet !== '' && Number(octet) > 255) {
-                    return;
-                  }
-                  setEndpointInput(`${lan.prefix}${octet}`);
-                  setInputError(null);
-                }}
-                placeholder="x"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="number-pad"
-                maxLength={3}
-                returnKeyType="done"
-                onFocus={() => { focusedRef.current = true; }}
-                onSubmitEditing={handleEndpointSubmit}
-                onBlur={handleInputBlur}
-              />
-            </>
-          ) : (
-            <TextInput
-              ref={inputRef}
-              style={styles.hostInput}
-              value={host}
-              onChangeText={(value) => {
-                setEndpointInput(value);
-                setInputError(null);
-              }}
-              placeholder={snapshot.subnetPrefix ? `${snapshot.subnetPrefix}x` : '192.168.1.10'}
-              placeholderTextColor={Colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="done"
-              onFocus={() => { focusedRef.current = true; }}
-              onSubmitEditing={handleEndpointSubmit}
-              onBlur={handleInputBlur}
-            />
-          )}
-          <Text style={styles.affix}>:3800</Text>
+          <TextInput
+            style={styles.prefixInput}
+            value={fields.prefix}
+            onChangeText={(prefix) => updateField('prefix', prefix.replace(/[^\d.]/g, ''))}
+            placeholder={snapshot.subnetPrefix ? snapshot.subnetPrefix.replace(/\.$/, '') : '192.168.1'}
+            placeholderTextColor={Colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="numbers-and-punctuation"
+            returnKeyType="next"
+            onFocus={() => { focusedRef.current = true; }}
+            onSubmitEditing={() => octetRef.current?.focus()}
+            onBlur={handleInputBlur}
+          />
+          <Text style={styles.affix}>.</Text>
+          <TextInput
+            ref={octetRef}
+            style={styles.octetInput}
+            value={fields.octet}
+            onChangeText={(octet) => {
+              if (octet !== '' && !/^\d{1,3}$/.test(octet)) {
+                return;
+              }
+              if (octet !== '' && Number(octet) > 255) {
+                return;
+              }
+              updateField('octet', octet);
+            }}
+            placeholder="x"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="number-pad"
+            maxLength={3}
+            returnKeyType="next"
+            onFocus={() => { focusedRef.current = true; }}
+            onSubmitEditing={() => portRef.current?.focus()}
+            onBlur={handleInputBlur}
+          />
+          <Text style={styles.affix}>:</Text>
+          <TextInput
+            ref={portRef}
+            style={styles.portInput}
+            value={fields.port}
+            onChangeText={(port) => {
+              if (port !== '' && !/^\d{1,5}$/.test(port)) {
+                return;
+              }
+              if (port !== '' && Number(port) > 65535) {
+                return;
+              }
+              updateField('port', port);
+            }}
+            placeholder={DEFAULT_HUB_PORT}
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="number-pad"
+            maxLength={5}
+            returnKeyType="done"
+            onFocus={() => { focusedRef.current = true; }}
+            onSubmitEditing={handleEndpointSubmit}
+            onBlur={handleInputBlur}
+          />
         </View>
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
         {recommendations.length > 0 ? (
@@ -370,26 +390,26 @@ const styles = StyleSheet.create({
     fontSize: FontSize.MD,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  prefix: {
-    color: Colors.text,
+  prefixInput: {
+    flex: 1,
+    paddingVertical: Spacing.SM,
+    paddingHorizontal: Spacing.XXS,
     fontSize: FontSize.MD,
+    color: Colors.text,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   octetInput: {
-    flexGrow: 0,
-    flexShrink: 0,
-    minWidth: 40,
-    maxWidth: 52,
+    width: 40,
     paddingVertical: Spacing.SM,
     paddingHorizontal: 0,
     fontSize: FontSize.MD,
     color: Colors.text,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  hostInput: {
-    flex: 1,
+  portInput: {
+    width: 52,
     paddingVertical: Spacing.SM,
-    paddingHorizontal: Spacing.XXS,
+    paddingHorizontal: 0,
     fontSize: FontSize.MD,
     color: Colors.text,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
