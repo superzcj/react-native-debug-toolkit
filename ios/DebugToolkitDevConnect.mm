@@ -3,6 +3,10 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <React/RCTBridgeModule.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <string.h>
 
 @interface DebugToolkitDevConnect : NSObject <RCTBridgeModule>
 @end
@@ -48,6 +52,40 @@ RCT_EXPORT_METHOD(isDebugBuild:(RCTPromiseResolveBlock)resolve
 #else
   resolve(@NO);
 #endif
+}
+
+RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  struct ifaddrs *interfaces = NULL;
+  if (getifaddrs(&interfaces) != 0) {
+    resolve([NSNull null]);
+    return;
+  }
+
+  NSString *fallback = nil;
+  for (struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next) {
+    if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET || (iface->ifa_flags & IFF_LOOPBACK)) {
+      continue;
+    }
+    char addressBuffer[INET_ADDRSTRLEN];
+    struct sockaddr_in *address = (struct sockaddr_in *)iface->ifa_addr;
+    if (inet_ntop(AF_INET, &address->sin_addr, addressBuffer, sizeof(addressBuffer)) == NULL) {
+      continue;
+    }
+    NSString *ip = [NSString stringWithUTF8String:addressBuffer];
+    if (strcmp(iface->ifa_name, "en0") == 0) {
+      freeifaddrs(interfaces);
+      resolve(ip);
+      return;
+    }
+    if (fallback == nil) {
+      fallback = ip;
+    }
+  }
+
+  freeifaddrs(interfaces);
+  resolve(fallback ?: [NSNull null]);
 }
 
 RCT_EXPORT_METHOD(getAppInfo:(RCTPromiseResolveBlock)resolve

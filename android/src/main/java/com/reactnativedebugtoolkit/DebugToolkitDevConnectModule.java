@@ -16,6 +16,10 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 
 public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   private static final String MODULE_NAME = "DebugToolkitDevConnect";
@@ -49,6 +53,35 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void isDebugBuild(Promise promise) {
     promise.resolve("debug".equals(BuildConfig.BUILD_TYPE));
+  }
+
+  @ReactMethod
+  public void getLocalIp(Promise promise) {
+    try {
+      Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+      String fallback = null;
+      while (interfaces != null && interfaces.hasMoreElements()) {
+        NetworkInterface iface = interfaces.nextElement();
+        if (iface.isLoopback() || !iface.isUp()) continue;
+        String name = iface.getName();
+        Enumeration<InetAddress> addresses = iface.getInetAddresses();
+        while (addresses.hasMoreElements()) {
+          InetAddress address = addresses.nextElement();
+          if (!(address instanceof Inet4Address) || address.isLoopbackAddress()) continue;
+          String ip = address.getHostAddress();
+          if (name != null && (name.startsWith("wlan") || name.startsWith("eth"))) {
+            promise.resolve(ip);
+            return;
+          }
+          if (fallback == null) {
+            fallback = ip;
+          }
+        }
+      }
+      promise.resolve(fallback);
+    } catch (Exception e) {
+      promise.resolve(null);
+    }
   }
 
   @ReactMethod

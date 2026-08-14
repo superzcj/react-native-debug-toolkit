@@ -13,6 +13,8 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('getPreference');
     expect(source).toContain('setPreference');
     expect(source).toContain('isDebugBuild');
+    expect(source).toContain('getLocalIp');
+    expect(source).toContain('NetworkInterface');
   });
 
   it('exposes preference and device APIs on iOS', () => {
@@ -20,6 +22,8 @@ describe('native DevConnect source contracts', () => {
 
     expect(source).toContain('isDebugBuild');
     expect(source).toContain('getPreference');
+    expect(source).toContain('getLocalIp');
+    expect(source).toContain('getifaddrs');
   });
 
   it('exposes the public C API header', () => {
