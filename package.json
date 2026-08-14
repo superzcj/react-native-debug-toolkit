@@ -1,6 +1,6 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "4.0.4",
+  "version": "4.0.5",
   "description": "AI-first local runtime log Hub for React Native — debug with CLI and Web Console",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
