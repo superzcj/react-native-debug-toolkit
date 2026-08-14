@@ -112,7 +112,7 @@ Expected: FAIL because the bridge method is absent.
 
 - [ ] **Step 3: Port the bounded v3 implementation**
 
-Add \`getLocalIp\` to the JS native-module type and return a string only when the native method resolves one. Port the prior native search: Android enumerates active non-loopback \`Inet4Address\` values and prefers interface names beginning \`wlan\` or \`eth\`; iOS uses \`getifaddrs\`, prefers \`en0\`, then another non-loopback \`AF_INET\` address. Both implementations resolve \`null\` for every error path and request no permission.
+Add \`getLocalIp\` to the JS native-module type and return a string only when the native method resolves one. Port the prior native search: Android enumerates active non-loopback \`Inet4Address\` values and prefers interface names beginning \`wlan\` or \`eth\`; iOS uses \`getifaddrs\`, first checks every \`ifa_addr\` for null, prefers \`en0\`, then another non-loopback \`AF_INET\` address. Both implementations resolve \`null\` for every error path and request no permission.
 
 - [ ] **Step 4: Run the native tests**
 
@@ -259,4 +259,3 @@ Expected: all Toolkit tests, typecheck, build, and touched-source lint pass.
 git add README.md README.zh-CN.md
 git commit -m "docs: explain DevConnect LAN address suggestions"
 \`\`\`
-
