@@ -8,21 +8,21 @@
 
 | 要做什么                        | 在哪里执行 | 命令                         |
 | ------------------------------- | ---------- | ---------------------------- |
-| 在自己的 Mac 上调试 App（常用） | App 根目录 | `npx debug-toolkit hub dev`  |
+| 在自己的 Mac 上调试 App（常用） | App 根目录 | `npx --package=react-native-debug-toolkit debug-toolkit hub dev` |
 | 开发本仓库，启动 Hub            | 仓库根目录 | `npm run hub`                |
 | 跑 iOS Demo                     | 仓库根目录 | `npm run demo:ios`           |
 | 跑 Android Demo                 | 仓库根目录 | `npm run demo:android`       |
 | 为本仓库生成 AI Skill           | 仓库根目录 | `npm run ai:init`            |
-| 为业务 App 生成 AI Skill        | App 根目录 | `npx debug-toolkit init`     |
+| 为业务 App 生成 AI Skill        | App 根目录 | `npx --package=react-native-debug-toolkit debug-toolkit init` |
 
-`npm run hub`、`npm run demo:ios`、`npm run demo:android` 和 `npm run ai:init` 都写在本仓库根目录的 `package.json`。业务 App 不会有这些脚本，请用 `npx debug-toolkit ...`。
+`npm run hub`、`npm run demo:ios`、`npm run demo:android` 和 `npm run ai:init` 都写在本仓库根目录的 `package.json`。`react-native-debug-toolkit` 是 npm 包名，`debug-toolkit` 是 bin 名；业务 App 请用 `npx --package=react-native-debug-toolkit debug-toolkit ...`。
 
 ## 在本机启动 Hub
 
 这是调试业务 App 的默认方式。在 App 根目录执行：
 
 ```bash
-npx debug-toolkit hub dev
+npx --package=react-native-debug-toolkit debug-toolkit hub dev
 ```
 
 Hub 会以前台方式运行在 `3800` 端口，数据放在 `.debug-toolkit/hub`，并输出 loopback 和局域网地址。Debug 包可以从 Metro bundle host 自动发现 Hub；`features.devConnect.endpoint` 可选，用作 Release 默认值，也是 Debug 自动发现失败后的回退地址。
@@ -99,7 +99,7 @@ cd ios && pod install
 在业务 App 的根目录执行一次：
 
 ```bash
-npx debug-toolkit init
+npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
 它会创建 `.agents/skills/react-native-debug-toolkit/SKILL.md`，并在 `AGENTS.md` 写入一条发现指令。把这两个文件提交到仓库。

@@ -8,21 +8,21 @@ React Native runtime logs for debugging with AI. Run a Hub on your Mac, let the 
 
 | Situation                                 | Run from        | Command                         |
 | ----------------------------------------- | --------------- | ------------------------------- |
-| Debug an App on your own Mac (usual)      | that App's root | `npx debug-toolkit hub dev`     |
+| Debug an App on your own Mac (usual)      | that App's root | `npx --package=react-native-debug-toolkit debug-toolkit hub dev` |
 | Work on this repository and start the Hub | repository root | `npm run hub`                   |
 | Run the Demo on iOS                       | repository root | `npm run demo:ios`              |
 | Run the Demo on Android                   | repository root | `npm run demo:android`          |
 | Set up AI for this repository             | repository root | `npm run ai:init`               |
-| Set up AI for an App repository           | that App's root | `npx debug-toolkit init`        |
+| Set up AI for an App repository           | that App's root | `npx --package=react-native-debug-toolkit debug-toolkit init` |
 
-The `npm run` commands above are scripts in this repository's `package.json`. They are only for this checkout. Use `npx debug-toolkit ...` in an App repository.
+The `npm run` commands above are scripts in this repository's `package.json`. They are only for this checkout. `react-native-debug-toolkit` is the npm package and `debug-toolkit` is its bin, so use `npx --package=react-native-debug-toolkit debug-toolkit ...` in an App repository.
 
 ## Run a Hub on your Mac
 
 This is the normal way to debug an App. Run it from the App repository:
 
 ```bash
-npx debug-toolkit hub dev
+npx --package=react-native-debug-toolkit debug-toolkit hub dev
 ```
 
 It runs in the foreground on port `3800` and stores data in `.debug-toolkit/hub`. It prints loopback and LAN addresses. Debug Apps can discover the Hub from the Metro bundle host; `features.devConnect.endpoint` is optional — used as the Release default and the Debug fallback when auto-discovery fails.
@@ -99,7 +99,7 @@ cd ios && pod install
 At the root of an App repository, run once:
 
 ```bash
-npx debug-toolkit init
+npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
 The command creates `.agents/skills/react-native-debug-toolkit/SKILL.md` and adds its discovery instruction to `AGENTS.md`. Commit both files.

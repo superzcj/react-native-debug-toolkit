@@ -35,33 +35,33 @@ Search the project for \`features.devConnect\` or \`DebugView\`. Read:
 1. Choose the Hub:
    - If the user gives a Hub URL, use it only:
      \`\`\`bash
-     npx debug-toolkit status --hub <url> --app-id <appId>
+     npx --no-install debug-toolkit status --hub <url> --app-id <appId>
      \`\`\`
    - Otherwise pass the project default endpoint (CLI tries \`http://127.0.0.1:3800\` first, then this fallback):
      \`\`\`bash
-     npx debug-toolkit status --endpoint <endpoint> --app-id <appId>
+     npx --no-install debug-toolkit status --endpoint <endpoint> --app-id <appId>
      \`\`\`
    - If neither address works, the CLI lists the URLs it tried. Ask the user for the Hub address and retry with \`--hub\`.
 
 2. Choose the Session:
-   - No Sessions: ask the user to confirm the Hub is running (\`npx debug-toolkit hub dev\`) and that the App has auto-uploaded (Debug), used "Upload Once", or enabled "Start Live Logs".
+   - No Sessions: ask the user to confirm the Hub is running (\`npx --no-install debug-toolkit hub dev\`) and that the App has auto-uploaded (Debug), used "Upload Once", or enabled "Start Live Logs".
    - One recent Session: use it.
    - Several recent Sessions: show the device labels and ask the user to pick one.
    - Crash investigation: include stale Sessions.
 
 3. Read context:
    \`\`\`bash
-   npx debug-toolkit context --endpoint <endpoint> --app-id <appId> --session <sessionId>
+   npx --no-install debug-toolkit context --endpoint <endpoint> --app-id <appId> --session <sessionId>
    \`\`\`
 
 4. Read a full record only when the context needs it:
    \`\`\`bash
-   npx debug-toolkit inspect <entryId> --endpoint <endpoint> --app-id <appId>
+   npx --no-install debug-toolkit inspect <entryId> --endpoint <endpoint> --app-id <appId>
    \`\`\`
 
 5. Use live tail only while the user is reproducing the problem:
    \`\`\`bash
-   npx debug-toolkit tail --endpoint <endpoint> --app-id <appId> --session <sessionId>
+   npx --no-install debug-toolkit tail --endpoint <endpoint> --app-id <appId> --session <sessionId>
    \`\`\`
 
 ## Report back

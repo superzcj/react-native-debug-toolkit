@@ -256,7 +256,7 @@ GET  /api/v1/apps/:appId/sessions/:sessionId/stream
 唯一面向用户的启动方式：
 
 ```bash
-npx debug-toolkit hub dev
+npx --package=react-native-debug-toolkit debug-toolkit hub dev
 ```
 
 它在前台通过 `0.0.0.0:3800` 接收本机和局域网设备，数据放在当前项目的 `.debug-toolkit/hub`，并输出 loopback 和局域网地址。检测到 Android 设备时尽力执行 `adb reverse tcp:3800 tcp:3800`；失败只提示，不影响 Hub 启动。按 `Ctrl+C` 停止。

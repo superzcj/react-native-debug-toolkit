@@ -38,7 +38,7 @@ describe('Hub development and AI setup', () => {
       expect(second).toMatchObject({ ok: true, created: false });
       const skill = fs.readFileSync(skillPath, 'utf8');
       expect(skill).toContain('Runtime Diagnostics');
-      expect(skill).toContain('npx debug-toolkit status');
+      expect(skill).toContain('npx --no-install debug-toolkit status');
       expect(skill).toContain('127.0.0.1:3800');
       expect(skill).toContain('--hub');
       expect(fs.readFileSync(agentsPath, 'utf8')).toContain('.agents/skills/react-native-debug-toolkit/SKILL.md');
