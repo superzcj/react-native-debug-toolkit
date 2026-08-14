@@ -36,6 +36,8 @@ describe('createDevConnectFeature v4', () => {
   });
 
   afterEach(() => {
+    // @ts-expect-error __DEV__ is a React Native global
+    global.__DEV__ = true;
     jest.restoreAllMocks();
     _resetHubClientForTesting();
   });
@@ -115,5 +117,52 @@ describe('createDevConnectFeature v4', () => {
       subnetPrefix: '192.168.1.',
     });
     expect(connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not configure or reconnect after cleanup while preferences are loading', async () => {
+    const configure = jest.spyOn(hubClient, 'configure').mockImplementation(() => undefined);
+    const connect = jest.spyOn(hubClient, 'connect').mockImplementation(() => undefined);
+    let resolvePreference!: (value: string | null) => void;
+    const { getPreference } = jest.requireMock('../../utils/debugPreferences');
+    getPreference.mockReturnValue(new Promise((resolve) => {
+      resolvePreference = resolve;
+    }));
+
+    const feature = createDevConnectFeature({ appId: 'com.example.audit' });
+    feature.setup();
+    feature.cleanup();
+    resolvePreference('http://192.168.1.123:3800');
+    await flushPromises();
+
+    expect(configure).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('restores a saved endpoint in a release build without starting live logs', async () => {
+    // @ts-expect-error __DEV__ is a React Native global
+    global.__DEV__ = false;
+    const configure = jest.spyOn(hubClient, 'configure').mockImplementation(() => undefined);
+    const setRuntimeEndpoint = jest.spyOn(hubClient, 'setRuntimeEndpoint').mockImplementation(() => undefined);
+    const connect = jest.spyOn(hubClient, 'connect').mockImplementation(() => undefined);
+    const { resolveAndApplyHubEndpoint } = jest.requireMock(
+      '../../features/devConnect/resolveAndApplyHubEndpoint',
+    );
+    const { getPreference } = jest.requireMock('../../utils/debugPreferences');
+    getPreference.mockResolvedValue('http://192.168.1.123:3800');
+
+    const feature = createDevConnectFeature({
+      appId: 'com.example.audit',
+      endpoint: 'http://192.168.1.203:3800',
+    });
+    feature.setup();
+    await flushPromises();
+
+    expect(configure).toHaveBeenCalledWith({
+      appId: 'com.example.audit',
+      endpoint: 'http://192.168.1.203:3800',
+    });
+    expect(setRuntimeEndpoint).toHaveBeenCalledWith('http://192.168.1.123:3800');
+    expect(resolveAndApplyHubEndpoint).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
   });
 });

@@ -24,6 +24,7 @@ describe('native DevConnect source contracts', () => {
     expect(source).toContain('getPreference');
     expect(source).toContain('getLocalIp');
     expect(source).toContain('getifaddrs');
+    expect(source).toContain('IFF_UP');
   });
 
   it('exposes the public C API header', () => {

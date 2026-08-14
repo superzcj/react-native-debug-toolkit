@@ -1,6 +1,7 @@
 import {
   buildHubAddressRecommendations,
   extractIpv4SubnetPrefix,
+  resolveHubAddressSubmission,
 } from '../../features/devConnect/hubAddressRecommendations';
 
 describe('Hub address recommendations', () => {
@@ -31,5 +32,19 @@ describe('Hub address recommendations', () => {
     })).toEqual([
       { kind: 'configured', value: 'http://10.20.4.10:3800' },
     ]);
+  });
+
+  it('distinguishes valid manual input from clear and invalid input', () => {
+    expect(resolveHubAddressSubmission('', 'http://192.168.1.203:3800')).toEqual({
+      kind: 'clear',
+      fallbackEndpoint: 'http://192.168.1.203:3800',
+    });
+    expect(resolveHubAddressSubmission('192.168.1.123', 'http://192.168.1.203:3800')).toEqual({
+      kind: 'save',
+      endpoint: 'http://192.168.1.123:3800',
+    });
+    expect(resolveHubAddressSubmission('https://192.168.1.123', '')).toEqual({
+      kind: 'invalid',
+    });
   });
 });

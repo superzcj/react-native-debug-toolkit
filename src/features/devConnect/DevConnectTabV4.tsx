@@ -15,7 +15,6 @@ import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import {
   hubClient,
-  normalizeHubEndpoint,
   type HubConnectionState,
   type HubStatus,
 } from '../../utils/HubClient';
@@ -24,7 +23,10 @@ import {
   removePreference,
   setPreference,
 } from '../../utils/debugPreferences';
-import { buildHubAddressRecommendations } from './hubAddressRecommendations';
+import {
+  buildHubAddressRecommendations,
+  resolveHubAddressSubmission,
+} from './hubAddressRecommendations';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
 
@@ -70,29 +72,25 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   }, []);
 
   const handleEndpointSubmit = useCallback(async () => {
-    const trimmed = endpointInput.trim();
-    if (!trimmed) {
+    const submission = resolveHubAddressSubmission(
+      endpointInput,
+      snapshot.configuredEndpoint,
+    );
+    if (submission.kind === 'clear') {
       await removePreference(KEYS.hubEndpoint);
       hubClient.clearRuntimeEndpoint();
       setInputError(null);
-      setEndpointInput(snapshot.configuredEndpoint);
+      setEndpointInput(submission.fallbackEndpoint);
       return;
     }
-    const normalized = normalizeHubEndpoint(trimmed);
-    if (!normalized) {
+    if (submission.kind === 'invalid') {
       setInputError('Invalid Hub address');
       return;
     }
     setInputError(null);
-    if (normalized === snapshot.configuredEndpoint) {
-      await removePreference(KEYS.hubEndpoint);
-      hubClient.clearRuntimeEndpoint();
-      setEndpointInput(normalized);
-      return;
-    }
-    await setPreference(KEYS.hubEndpoint, normalized);
-    hubClient.setRuntimeEndpoint(normalized);
-    setEndpointInput(normalized);
+    await setPreference(KEYS.hubEndpoint, submission.endpoint);
+    hubClient.setRuntimeEndpoint(submission.endpoint);
+    setEndpointInput(submission.endpoint);
   }, [endpointInput, snapshot.configuredEndpoint]);
 
   const handleRecommendationPress = useCallback((value: string) => {

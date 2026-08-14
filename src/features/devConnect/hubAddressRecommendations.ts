@@ -1,6 +1,13 @@
+import { normalizeHubEndpoint } from '../../utils/HubClient';
+
 export type HubAddressRecommendation =
   | { kind: 'subnet'; value: string }
   | { kind: 'configured'; value: string };
+
+export type HubAddressSubmission =
+  | { kind: 'clear'; fallbackEndpoint: string }
+  | { kind: 'invalid' }
+  | { kind: 'save'; endpoint: string };
 
 function isValidIpv4Segment(value: string): boolean {
   if (!/^\d{1,3}$/.test(value)) {
@@ -30,4 +37,16 @@ export function buildHubAddressRecommendations(input: {
       ? [{ kind: 'configured' as const, value: input.configuredEndpoint }]
       : []),
   ];
+}
+
+export function resolveHubAddressSubmission(
+  input: string,
+  configuredEndpoint: string,
+): HubAddressSubmission {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return { kind: 'clear', fallbackEndpoint: configuredEndpoint };
+  }
+  const endpoint = normalizeHubEndpoint(trimmed);
+  return endpoint ? { kind: 'save', endpoint } : { kind: 'invalid' };
 }

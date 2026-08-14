@@ -20,6 +20,7 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
     ? (normalizeHubEndpoint(config.endpoint) || config.endpoint)
     : '';
   const listeners = new Set<DebugFeatureListener>();
+  let setupGeneration = 0;
   const state: DevConnectV4State = {
     appId: config.appId,
     canonicalEndpoint: configuredEndpoint,
@@ -42,11 +43,15 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
     label: 'DevConnect',
     renderContent: DevConnectTabV4,
     setup() {
+      const generation = ++setupGeneration;
       void (async () => {
         const [savedEndpoint, localIp] = await Promise.all([
           getPreference(KEYS.hubEndpoint),
           getDeviceLocalIp(),
         ]);
+        if (generation !== setupGeneration) {
+          return;
+        }
         const normalizedSavedEndpoint = savedEndpoint
           ? normalizeHubEndpoint(savedEndpoint)
           : null;
@@ -68,6 +73,9 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
         }
 
         const resolved = await resolveAndApplyHubEndpoint(configuredEndpoint || null);
+        if (generation !== setupGeneration) {
+          return;
+        }
         if (!resolved) {
           return;
         }
@@ -83,6 +91,7 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
       canonicalEndpoint: hubClient.getEffectiveEndpoint() || state.canonicalEndpoint,
     }),
     cleanup() {
+      setupGeneration += 1;
       hubClient.disconnect();
       listeners.clear();
     },

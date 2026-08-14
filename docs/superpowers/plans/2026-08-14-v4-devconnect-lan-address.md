@@ -159,6 +159,14 @@ expect(feature.getSnapshot()).toMatchObject({
   subnetPrefix: '192.168.1.',
 });
 expect(KEYS.hubEndpoint).toBe('@react_native_debug_toolkit/hub_endpoint');
+
+let resolvePreference!: (value: string | null) => void;
+getPreference.mockReturnValue(new Promise((resolve) => { resolvePreference = resolve; }));
+feature.setup();
+feature.cleanup();
+resolvePreference('http://192.168.1.123:3800');
+await flushPromises();
+expect(configure).not.toHaveBeenCalled();
 \`\`\`
 
 - [ ] **Step 2: Run the persistence/setup tests before implementation**
@@ -169,7 +177,7 @@ Expected: FAIL because the key and state are absent.
 
 - [ ] **Step 3: Implement explicit source precedence**
 
-In \`setup\`, load \`KEYS.hubEndpoint\` and \`getDeviceLocalIp()\` concurrently. Normalize a saved endpoint with \`normalizeHubEndpoint\`; configure \`hubClient\` with the already normalized configured endpoint, then set a valid saved endpoint as the runtime override. This keeps clear-to-configured fallback correct. Keep the configured endpoint unchanged in state for its recommendation. Derive the prefix with Task 1 and notify after state is complete. Preserve the existing Debug-only discovery and auto-connect sequence after configuration.
+In \`setup\`, load \`KEYS.hubEndpoint\` and \`getDeviceLocalIp()\` concurrently. Guard this work with a monotonically increasing setup generation and return after each await when cleanup invalidates it. Normalize a saved endpoint with \`normalizeHubEndpoint\`; configure \`hubClient\` with the already normalized configured endpoint, then set a valid saved endpoint as the runtime override. This keeps clear-to-configured fallback correct. Keep the configured endpoint unchanged in state for its recommendation. Derive the prefix with Task 1 and notify after state is complete. Preserve the existing Debug-only discovery and auto-connect sequence after configuration.
 
 - [ ] **Step 4: Run the persistence/setup tests**
 

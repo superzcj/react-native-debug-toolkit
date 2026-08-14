@@ -65,7 +65,7 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
 
   NSString *fallback = nil;
   for (struct ifaddrs *iface = interfaces; iface != NULL; iface = iface->ifa_next) {
-    if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET || (iface->ifa_flags & IFF_LOOPBACK)) {
+    if (iface->ifa_addr == NULL || iface->ifa_addr->sa_family != AF_INET || !(iface->ifa_flags & IFF_UP) || (iface->ifa_flags & IFF_LOOPBACK)) {
       continue;
     }
     char addressBuffer[INET_ADDRSTRLEN];
@@ -74,7 +74,7 @@ RCT_EXPORT_METHOD(getLocalIp:(RCTPromiseResolveBlock)resolve
       continue;
     }
     NSString *ip = [NSString stringWithUTF8String:addressBuffer];
-    if (strcmp(iface->ifa_name, "en0") == 0) {
+    if (iface->ifa_name != NULL && strcmp(iface->ifa_name, "en0") == 0) {
       freeifaddrs(interfaces);
       resolve(ip);
       return;
