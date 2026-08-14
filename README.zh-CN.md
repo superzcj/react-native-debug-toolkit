@@ -79,6 +79,21 @@ import { DebugView } from "react-native-debug-toolkit";
 </DebugView>;
 ```
 
+如果 App 已经拥有持久化存储，向 Toolkit 传入同一个 `StorageAdapter` 用于日志和
+界面偏好。这样无需仅为 Toolkit 安装可选存储 peer：
+
+```tsx
+const debugStorage = {
+  getItem: (key: string) => appStorage.getString(key) ?? null,
+  setItem: (key: string, value: string) => appStorage.set(key, value),
+  removeItem: (key: string) => appStorage.remove(key),
+};
+
+<DebugView logStorage={debugStorage} preferenceStorage={debugStorage}>
+  <AppContent />
+</DebugView>;
+```
+
 Connect 页面保留一个地址输入框、"上传一次" 和 "开启/停止实时日志"。
 
 - Debug 包启动后会解析 Hub、连接并自动上传。

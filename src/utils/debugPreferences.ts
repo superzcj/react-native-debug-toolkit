@@ -1,26 +1,15 @@
-type AsyncStorageLike = {
-  getItem: (k: string) => Promise<string | null>;
-  setItem: (k: string, v: string) => Promise<void>;
-  removeItem?: (k: string) => Promise<void>;
-};
+import type { StorageAdapter } from './StorageAdapter';
+
 type NativePreferencesLike = {
   getPreference: (k: string) => Promise<string | null>;
   setPreference: (k: string, v: string) => Promise<void>;
 };
 
 const memoryStore = new Map<string, string>();
+let hostPreferenceStorage: StorageAdapter | null = null;
 
-function loadAsyncStorage(): AsyncStorageLike | null {
-  try {
-    const mod = require('@react-native-async-storage/async-storage');
-    const storage = mod?.default && typeof mod.default.getItem === 'function' ? mod.default : mod;
-    if (storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function') {
-      return storage;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+export function setPreferenceStorage(storage?: StorageAdapter): void {
+  hostPreferenceStorage = storage ?? null;
 }
 
 function loadNativePreferences(): NativePreferencesLike | null {
@@ -42,13 +31,12 @@ function loadNativePreferences(): NativePreferencesLike | null {
 
 export async function setPreference(key: string, value: string): Promise<void> {
   memoryStore.set(key, value);
-  const AsyncStorage = loadAsyncStorage();
-  if (AsyncStorage) {
+  if (hostPreferenceStorage) {
     try {
-      await AsyncStorage.setItem(key, value);
+      await hostPreferenceStorage.setItem(key, value);
       return;
     } catch {
-      // degrade to memory only
+      // fall through to native preferences
     }
   }
 
@@ -63,15 +51,11 @@ export async function setPreference(key: string, value: string): Promise<void> {
 }
 
 export async function getPreference(key: string): Promise<string | null> {
-  const AsyncStorage = loadAsyncStorage();
-  if (AsyncStorage) {
+  if (hostPreferenceStorage) {
     try {
-      const val = await AsyncStorage.getItem(key);
-      if (val !== null) {
-        return val;
-      }
+      return await hostPreferenceStorage.getItem(key);
     } catch {
-      // fall through to memory
+      // fall through to native preferences
     }
   }
 
@@ -92,17 +76,12 @@ export async function getPreference(key: string): Promise<string | null> {
 
 export async function removePreference(key: string): Promise<void> {
   memoryStore.delete(key);
-  const AsyncStorage = loadAsyncStorage();
-  if (AsyncStorage) {
+  if (hostPreferenceStorage) {
     try {
-      if (typeof AsyncStorage.removeItem === 'function') {
-        await AsyncStorage.removeItem(key);
-      } else {
-        await AsyncStorage.setItem(key, '');
-      }
+      await hostPreferenceStorage.removeItem(key);
       return;
     } catch {
-      // degrade to memory only
+      // fall through to native preferences
     }
   }
 

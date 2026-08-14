@@ -4,6 +4,8 @@ global.__DEV__ = true;
 import { DebugToolkit } from '../../core/DebugToolkit';
 import { initializeDebugToolkit } from '../../core/initialize';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
+import { KEYS, setPreferenceStorage } from '../../utils/debugPreferences';
+import type { EnvironmentFeatureAPI } from '../../features/environment';
 import type { DebugFeature } from '../../types';
 
 jest.mock('../../features/devConnect/nativeDevConnect', () => ({
@@ -13,11 +15,13 @@ jest.mock('../../features/devConnect/nativeDevConnect', () => ({
 
 describe('initializeDebugToolkit', () => {
   beforeEach(async () => {
+    setPreferenceStorage();
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
   });
 
   afterEach(() => {
+    setPreferenceStorage();
     DebugToolkit.destroy();
     DebugToolkit.setEnabled(true);
   });
@@ -168,6 +172,38 @@ describe('initializeDebugToolkit', () => {
     });
 
     expect(DebugToolkit.features.map((feature) => feature.name)).toEqual(['track']);
+  });
+
+  it('persists environment selection in host-provided preference storage', async () => {
+    const preferenceStorage = new MemoryStorageAdapter();
+    const options = {
+      enabled: true,
+      preferenceStorage,
+      features: {
+        environment: {
+          defaultId: 'prod',
+          items: [
+            { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
+            { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
+          ],
+        },
+      },
+    };
+
+    await initializeDebugToolkit(options);
+
+    const environmentFeature = DebugToolkit.features.find(
+      (feature) => feature.name === 'environment',
+    ) as EnvironmentFeatureAPI | undefined;
+    if (!environmentFeature) {
+      throw new Error('environment feature was not registered');
+    }
+
+    await environmentFeature.switchEnvironment('qa');
+
+    await expect(
+      Promise.resolve(preferenceStorage.getItem(KEYS.environmentId)),
+    ).resolves.toBe('qa');
   });
 
   it('accepts object-form environment config', async () => {

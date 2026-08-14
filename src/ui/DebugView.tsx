@@ -4,6 +4,7 @@ import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
 import { useNavigationLogger } from '../features/navigation/useNavigationLogger';
 import type { AnyDebugFeature, DebugEnvironmentInput, NavigationContainerRef } from '../types';
+import type { StorageAdapter } from '../utils/StorageAdapter';
 
 // --- Types ---
 
@@ -22,6 +23,10 @@ export interface DebugViewProps {
   environments?: DebugEnvironmentInput;
   /** Force enable/disable (default: `__DEV__`). */
   enabled?: boolean;
+  /** Host-owned storage for persisted logs and sessions. */
+  logStorage?: StorageAdapter;
+  /** Host-owned storage for Toolkit UI preferences. */
+  preferenceStorage?: StorageAdapter;
 }
 
 // --- Inner component for navigation hook (satisfies rules of hooks) ---
@@ -44,6 +49,8 @@ export function DebugView({
   navigationRef,
   environments,
   enabled,
+  logStorage,
+  preferenceStorage,
 }: DebugViewProps) {
   const destroyRef = useRef<(() => void) | null>(null);
 
@@ -72,6 +79,8 @@ export function DebugView({
       features: resolvedFeatures,
       customFeatures,
       enabled,
+      logStorage,
+      preferenceStorage,
     }).then((toolkit) => {
       if (!cancelled) {
         destroyRef.current = () => toolkit.destroy();

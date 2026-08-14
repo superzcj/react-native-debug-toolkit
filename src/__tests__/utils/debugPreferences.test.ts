@@ -1,7 +1,19 @@
-import { setPreference, getPreference, removePreference, KEYS } from '../../utils/debugPreferences';
+import {
+  setPreference,
+  getPreference,
+  removePreference,
+  KEYS,
+  setPreferenceStorage,
+} from '../../utils/debugPreferences';
 import { NativeModules } from 'react-native';
+import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 
 describe('debugPreferences', () => {
+  afterEach(() => {
+    setPreferenceStorage();
+    delete NativeModules.DebugToolkitDevConnect;
+  });
+
   it('stores and retrieves values (memory fallback)', async () => {
     await setPreference(KEYS.fabPosition, '{"x":10,"y":20}');
     const val = await getPreference(KEYS.fabPosition);
@@ -27,7 +39,22 @@ describe('debugPreferences', () => {
       'saved-value',
     );
 
-    delete NativeModules.DebugToolkitDevConnect;
+  });
+
+  it('treats host preference storage as the authoritative source', async () => {
+    const storage = new MemoryStorageAdapter();
+    NativeModules.DebugToolkitDevConnect = {
+      getPreference: jest.fn(async () => 'stale-native-value'),
+      setPreference: jest.fn(async () => undefined),
+    };
+    setPreferenceStorage(storage);
+
+    await setPreference('@react_native_debug_toolkit/host_test', 'host-value');
+
+    await expect(getPreference('@react_native_debug_toolkit/host_test')).resolves.toBe('host-value');
+    await expect(getPreference('@react_native_debug_toolkit/host_missing')).resolves.toBeNull();
+    expect(NativeModules.DebugToolkitDevConnect.setPreference).not.toHaveBeenCalled();
+    expect(NativeModules.DebugToolkitDevConnect.getPreference).not.toHaveBeenCalled();
   });
 
   it('removes values from preference storage', async () => {

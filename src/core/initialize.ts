@@ -21,6 +21,7 @@ import { createNativeLogsFeature } from '../features/nativeLogs';
 import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
 import type { StorageAdapter } from '../utils/StorageAdapter';
+import { setPreferenceStorage } from '../utils/debugPreferences';
 import {
   createLogRuntime,
   setDefaultLogRuntime,
@@ -48,6 +49,7 @@ export interface InitializeOptions {
   customFeatures?: AnyDebugFeature[];
   enabled?: boolean;
   logStorage?: StorageAdapter;
+  preferenceStorage?: StorageAdapter;
   maxLogSessions?: number;
 }
 
@@ -194,10 +196,12 @@ export async function initializeDebugToolkit(
     DebugToolkit.setEnabled(enabled);
 
     if (!enabled) {
+      setPreferenceStorage();
       DebugToolkit.reset();
       return DebugToolkit;
     }
 
+    setPreferenceStorage(options?.preferenceStorage);
     const runtime = createLogRuntime({
       logStorage: options?.logStorage,
       maxSessions: options?.maxLogSessions,
