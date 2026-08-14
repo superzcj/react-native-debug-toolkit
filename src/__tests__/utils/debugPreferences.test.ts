@@ -32,6 +32,7 @@ describe('debugPreferences', () => {
   it('exposes expected key constants', () => {
     expect(KEYS.fabPosition).toContain('fab_position');
     expect(KEYS.lastTab).toContain('last_tab');
+    expect(KEYS.hubEndpoint).toBe('@react_native_debug_toolkit/hub_endpoint');
     expect('consoleLogs' in KEYS).toBe(false);
     expect('networkLogs' in KEYS).toBe(false);
     expect('trackLogs' in KEYS).toBe(false);

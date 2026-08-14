@@ -16,4 +16,5 @@ export const KEYS = {
   fabPosition: '@react_native_debug_toolkit/fab_position',
   lastTab: '@react_native_debug_toolkit/last_tab',
   environmentId: '@react_native_debug_toolkit/environment_id',
+  hubEndpoint: '@react_native_debug_toolkit/hub_endpoint',
 } as const;

@@ -1,5 +1,8 @@
 import { DevConnectTabV4 } from './DevConnectTabV4';
+import { extractIpv4SubnetPrefix } from './hubAddressRecommendations';
 import { hubClient, normalizeHubEndpoint } from '../../utils/HubClient';
+import { getPreference, KEYS } from '../../utils/debugPreferences';
+import { getDeviceLocalIp } from './nativeDevConnect';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
 import type { DevConnectV4Config, DevConnectV4State } from './types';
@@ -20,6 +23,8 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
   const state: DevConnectV4State = {
     appId: config.appId,
     canonicalEndpoint: configuredEndpoint,
+    configuredEndpoint,
+    subnetPrefix: null,
   };
 
   const notify = () => {
@@ -37,22 +42,33 @@ function createSharedHubFeature(config: DevConnectV4Config): DebugFeature<DevCon
     label: 'DevConnect',
     renderContent: DevConnectTabV4,
     setup() {
-      hubClient.configure({
-        appId: config.appId,
-        endpoint: configuredEndpoint || null,
-      });
-
-      if (!isDevRuntime()) {
-        return;
-      }
-
       void (async () => {
-        const endpoint = await resolveAndApplyHubEndpoint(configuredEndpoint || null);
-        if (!endpoint) {
-          notify();
+        const [savedEndpoint, localIp] = await Promise.all([
+          getPreference(KEYS.hubEndpoint),
+          getDeviceLocalIp(),
+        ]);
+        const normalizedSavedEndpoint = savedEndpoint
+          ? normalizeHubEndpoint(savedEndpoint)
+          : null;
+        const endpoint = normalizedSavedEndpoint || configuredEndpoint;
+        state.canonicalEndpoint = endpoint;
+        state.subnetPrefix = localIp ? extractIpv4SubnetPrefix(localIp) : null;
+
+        hubClient.configure({
+          appId: config.appId,
+          endpoint: endpoint || null,
+        });
+        notify();
+
+        if (!isDevRuntime()) {
           return;
         }
-        state.canonicalEndpoint = configuredEndpoint || endpoint;
+
+        const resolved = await resolveAndApplyHubEndpoint(endpoint || null);
+        if (!resolved) {
+          return;
+        }
+        state.canonicalEndpoint = endpoint || resolved;
         notify();
         if (!hubClient.isActive()) {
           hubClient.connect({ live: true });

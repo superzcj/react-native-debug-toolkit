@@ -13,4 +13,6 @@ export interface DevConnectV4Config {
 export interface DevConnectV4State {
   appId: string;
   canonicalEndpoint: string;
+  configuredEndpoint: string;
+  subnetPrefix: string | null;
 }
