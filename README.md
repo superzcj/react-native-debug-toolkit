@@ -79,21 +79,9 @@ import { DebugView } from "react-native-debug-toolkit";
 </DebugView>;
 ```
 
-If the App already owns persistent storage, pass a `StorageAdapter` for both
-logs and Toolkit UI preferences. This avoids adding optional storage peers just
-for the Toolkit:
-
-```tsx
-const debugStorage = {
-  getItem: (key: string) => appStorage.getString(key) ?? null,
-  setItem: (key: string, value: string) => appStorage.set(key, value),
-  removeItem: (key: string) => appStorage.remove(key),
-};
-
-<DebugView logStorage={debugStorage} preferenceStorage={debugStorage}>
-  <AppContent />
-</DebugView>;
-```
+Toolkit owns an isolated `react-native-debug-toolkit` MMKV store for logs,
+Toolkit UI preferences, and built-in feature state. No App storage adapter is
+required.
 
 The Connect tab has an address field, **Upload Once**, and **Start/Stop Live Logs**.
 

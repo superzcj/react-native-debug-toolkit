@@ -8,5 +8,6 @@ module.exports = {
   // Mock React Native imports
   moduleNameMapper: {
     '^react-native$': '<rootDir>/src/__tests__/helpers/react-native.mock.js',
+    '^react-native-mmkv$': '<rootDir>/src/__tests__/helpers/react-native-mmkv.mock.ts',
   },
 };

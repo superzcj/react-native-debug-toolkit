@@ -1,68 +1,32 @@
+const mockCreateMMKV = jest.fn();
+
+jest.mock('react-native-mmkv', () => ({
+  createMMKV: (options: unknown) => mockCreateMMKV(options),
+}));
+
 import {
   setPreference,
   getPreference,
   removePreference,
   KEYS,
-  setPreferenceStorage,
 } from '../../utils/debugPreferences';
-import { NativeModules } from 'react-native';
-import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 
 describe('debugPreferences', () => {
-  afterEach(() => {
-    setPreferenceStorage();
-    delete NativeModules.DebugToolkitDevConnect;
-  });
+  it('persists preferences in the Toolkit MMKV store', async () => {
+    const values = new Map<string, string>();
+    const getString = jest.fn((key: string) => values.get(key));
+    const set = jest.fn((key: string, value: string) => values.set(key, value));
+    const remove = jest.fn((key: string) => values.delete(key));
+    mockCreateMMKV.mockReturnValue({ getString, set, remove });
 
-  it('stores and retrieves values (memory fallback)', async () => {
     await setPreference(KEYS.fabPosition, '{"x":10,"y":20}');
-    const val = await getPreference(KEYS.fabPosition);
-    expect(val).toBe('{"x":10,"y":20}');
-  });
 
-  it('returns null for missing keys', async () => {
-    const val = await getPreference('nonexistent');
-    expect(val).toBeNull();
-  });
-
-  it('uses native preference storage when native module is installed', async () => {
-    NativeModules.DebugToolkitDevConnect = {
-      getPreference: jest.fn(async () => 'native-value'),
-      setPreference: jest.fn(async () => undefined),
-    };
-
-    await setPreference('@react_native_debug_toolkit/native_test', 'saved-value');
-    await expect(getPreference('@react_native_debug_toolkit/native_test_read')).resolves.toBe('native-value');
-
-    expect(NativeModules.DebugToolkitDevConnect.setPreference).toHaveBeenCalledWith(
-      '@react_native_debug_toolkit/native_test',
-      'saved-value',
-    );
-
-  });
-
-  it('treats host preference storage as the authoritative source', async () => {
-    const storage = new MemoryStorageAdapter();
-    NativeModules.DebugToolkitDevConnect = {
-      getPreference: jest.fn(async () => 'stale-native-value'),
-      setPreference: jest.fn(async () => undefined),
-    };
-    setPreferenceStorage(storage);
-
-    await setPreference('@react_native_debug_toolkit/host_test', 'host-value');
-
-    await expect(getPreference('@react_native_debug_toolkit/host_test')).resolves.toBe('host-value');
-    await expect(getPreference('@react_native_debug_toolkit/host_missing')).resolves.toBeNull();
-    expect(NativeModules.DebugToolkitDevConnect.setPreference).not.toHaveBeenCalled();
-    expect(NativeModules.DebugToolkitDevConnect.getPreference).not.toHaveBeenCalled();
-  });
-
-  it('removes values from preference storage', async () => {
-    await setPreference('@react_native_debug_toolkit/remove_test', 'saved-value');
-
-    await removePreference('@react_native_debug_toolkit/remove_test');
-
-    await expect(getPreference('@react_native_debug_toolkit/remove_test')).resolves.toBeNull();
+    await expect(getPreference(KEYS.fabPosition)).resolves.toBe('{"x":10,"y":20}');
+    await removePreference(KEYS.fabPosition);
+    await expect(getPreference(KEYS.fabPosition)).resolves.toBeNull();
+    expect(mockCreateMMKV).toHaveBeenCalledWith({ id: 'react-native-debug-toolkit' });
+    expect(set).toHaveBeenCalledWith(KEYS.fabPosition, '{"x":10,"y":20}');
+    expect(remove).toHaveBeenCalledWith(KEYS.fabPosition);
   });
 
   it('exposes expected key constants', () => {
