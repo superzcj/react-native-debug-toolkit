@@ -1,7 +1,9 @@
 import {
   buildHubAddressRecommendations,
   extractIpv4SubnetPrefix,
+  hubEndpointHost,
   resolveHubAddressSubmission,
+  splitLanHost,
 } from '../../features/devConnect/hubAddressRecommendations';
 
 describe('Hub address recommendations', () => {
@@ -32,6 +34,14 @@ describe('Hub address recommendations', () => {
     })).toEqual([
       { kind: 'configured', value: 'http://10.20.4.10:3800' },
     ]);
+
+    expect(buildHubAddressRecommendations({
+      subnetPrefix: '192.168.1.',
+      configuredEndpoint: 'http://172.31.23.203:3800',
+    })).toEqual([
+      { kind: 'subnet', value: '192.168.1.' },
+      { kind: 'configured', value: 'http://172.31.23.203:3800' },
+    ]);
   });
 
   it('distinguishes valid manual input from clear and invalid input', () => {
@@ -52,6 +62,46 @@ describe('Hub address recommendations', () => {
     });
     expect(resolveHubAddressSubmission('https://192.168.1.123', '')).toEqual({
       kind: 'invalid',
+    });
+  });
+
+  it('completes a last octet or bare IP with http and port 3800', () => {
+    expect(resolveHubAddressSubmission('45', 'http://172.31.23.203:3800', '192.168.1.')).toEqual({
+      kind: 'save',
+      endpoint: 'http://192.168.1.45:3800',
+    });
+    expect(resolveHubAddressSubmission('172.31.23.203', '')).toEqual({
+      kind: 'save',
+      endpoint: 'http://172.31.23.203:3800',
+    });
+    expect(resolveHubAddressSubmission('192.168.1.', '', '192.168.1.')).toEqual({
+      kind: 'incomplete',
+    });
+    expect(resolveHubAddressSubmission('192.168.1', '')).toEqual({
+      kind: 'incomplete',
+    });
+  });
+
+  it('extracts the host from a configured endpoint for the env chip', () => {
+    expect(hubEndpointHost('http://172.31.23.203:3800')).toBe('172.31.23.203');
+    expect(hubEndpointHost('10.20.4.10')).toBe('10.20.4.10');
+  });
+
+  it('keeps LAN hosts in last-octet mode and leaves other hosts whole', () => {
+    expect(splitLanHost('', '192.168.1.')).toEqual({ prefix: '192.168.1.', octet: '' });
+    expect(splitLanHost('192.168.1.', '192.168.1.')).toEqual({ prefix: '192.168.1.', octet: '' });
+    expect(splitLanHost('192.168.1.45', '192.168.1.')).toEqual({ prefix: '192.168.1.', octet: '45' });
+    expect(splitLanHost('http://192.168.1.45:3800', '192.168.1.')).toEqual({
+      prefix: null,
+      octet: 'http://192.168.1.45:3800',
+    });
+    expect(splitLanHost(hubEndpointHost('http://192.168.1.45:3800'), '192.168.1.')).toEqual({
+      prefix: '192.168.1.',
+      octet: '45',
+    });
+    expect(splitLanHost('172.31.23.203', '192.168.1.')).toEqual({
+      prefix: null,
+      octet: '172.31.23.203',
     });
   });
 });

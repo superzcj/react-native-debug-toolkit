@@ -25,7 +25,9 @@ import {
 } from '../../utils/debugPreferences';
 import {
   buildHubAddressRecommendations,
+  hubEndpointHost,
   resolveHubAddressSubmission,
+  splitLanHost,
 } from './hubAddressRecommendations';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
@@ -57,13 +59,25 @@ const STATE_LABELS: Record<HubConnectionState, string> = {
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
   const canonicalEndpoint = snapshot.canonicalEndpoint;
   const inputRef = useRef<TextInput>(null);
-  const [endpointInput, setEndpointInput] = useState(canonicalEndpoint);
+  const focusedRef = useRef(false);
+  const skipBlurRef = useRef(false);
+  const endpointInputRef = useRef(canonicalEndpoint);
+  const [endpointInput, setEndpointInput] = useState(
+    hubEndpointHost(canonicalEndpoint || ''),
+  );
+  endpointInputRef.current = endpointInput;
+  const [editFullHost, setEditFullHost] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const [status, setStatus] = useState<HubStatus>(hubClient.getStatus());
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    setEndpointInput(hubClient.getEffectiveEndpoint() || canonicalEndpoint || '');
+    if (focusedRef.current) {
+      return;
+    }
+    setEndpointInput(
+      hubEndpointHost(hubClient.getEffectiveEndpoint() || canonicalEndpoint || ''),
+    );
   }, [canonicalEndpoint, status.state]);
 
   useEffect(() => {
@@ -71,16 +85,21 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     return () => hubClient.setOnStatusChange(undefined);
   }, []);
 
-  const handleEndpointSubmit = useCallback(async () => {
+  const applyRawInput = useCallback(async (raw: string) => {
     const submission = resolveHubAddressSubmission(
-      endpointInput,
+      raw,
       snapshot.configuredEndpoint,
+      snapshot.subnetPrefix,
     );
     if (submission.kind === 'clear') {
       await removePreference(KEYS.hubEndpoint);
       hubClient.clearRuntimeEndpoint();
       setInputError(null);
-      setEndpointInput(submission.fallbackEndpoint);
+      setEndpointInput(hubEndpointHost(submission.fallbackEndpoint));
+      return;
+    }
+    if (submission.kind === 'incomplete') {
+      setInputError(null);
       return;
     }
     if (submission.kind === 'invalid') {
@@ -90,14 +109,38 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     setInputError(null);
     await setPreference(KEYS.hubEndpoint, submission.endpoint);
     hubClient.setRuntimeEndpoint(submission.endpoint);
-    setEndpointInput(submission.endpoint);
-  }, [endpointInput, snapshot.configuredEndpoint]);
+    setEndpointInput(hubEndpointHost(submission.endpoint));
+  }, [snapshot.configuredEndpoint, snapshot.subnetPrefix]);
 
-  const handleRecommendationPress = useCallback((value: string) => {
-    setEndpointInput(value);
+  const handleEndpointSubmit = useCallback(() => {
+    void applyRawInput(endpointInput);
+  }, [applyRawInput, endpointInput]);
+
+  const handleInputBlur = useCallback(() => {
+    focusedRef.current = false;
+    setTimeout(() => {
+      if (skipBlurRef.current) {
+        skipBlurRef.current = false;
+        return;
+      }
+      void applyRawInput(endpointInputRef.current);
+    }, 50);
+  }, [applyRawInput]);
+
+  const handleRecommendationPress = useCallback((
+    recommendation: { kind: 'subnet' | 'configured'; value: string },
+  ) => {
+    skipBlurRef.current = true;
     setInputError(null);
+    if (recommendation.kind === 'configured') {
+      setEditFullHost(false);
+      void applyRawInput(recommendation.value);
+      return;
+    }
+    setEditFullHost(false);
+    setEndpointInput(recommendation.value);
     inputRef.current?.focus();
-  }, []);
+  }, [applyRawInput]);
 
   const handleSyncNow = useCallback(async () => {
     if (status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
@@ -145,6 +188,9 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     subnetPrefix: snapshot.subnetPrefix,
     configuredEndpoint: snapshot.configuredEndpoint,
   });
+  const host = hubEndpointHost(endpointInput);
+  const lan = splitLanHost(host, snapshot.subnetPrefix);
+  const octetMode = !editFullHost && lan.prefix != null;
 
   const uploadButtonText = (() => {
     if (syncing) return 'Uploading...';
@@ -161,23 +207,67 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       {/* Hub Endpoint Input */}
       <View style={styles.section}>
         <Text style={styles.label}>Hub Address</Text>
-        <TextInput
-          ref={inputRef}
-          style={[
-            styles.input,
-            inputError ? styles.inputError : null,
-          ]}
-          value={endpointInput}
-          onChangeText={(v) => { setEndpointInput(v); setInputError(null); }}
-          placeholder={snapshot.subnetPrefix ? `${snapshot.subnetPrefix}...` : 'http://127.0.0.1:3800'}
-          placeholderTextColor={Colors.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="numbers-and-punctuation"
-          returnKeyType="done"
-          onSubmitEditing={() => { void handleEndpointSubmit(); }}
-          onBlur={() => { void handleEndpointSubmit(); }}
-        />
+        <View style={[styles.inputShell, inputError ? styles.inputError : null]}>
+          <Text style={styles.affix}>http://</Text>
+          {octetMode ? (
+            <>
+              <TouchableOpacity
+                onPress={() => {
+                  skipBlurRef.current = true;
+                  setEditFullHost(true);
+                  setEndpointInput(lan.prefix ? `${lan.prefix}${lan.octet}` : host);
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.prefix}>{lan.prefix}</Text>
+              </TouchableOpacity>
+              <TextInput
+                ref={inputRef}
+                style={styles.octetInput}
+                value={lan.octet}
+                onChangeText={(octet) => {
+                  if (octet !== '' && !/^\d{1,3}$/.test(octet)) {
+                    return;
+                  }
+                  if (octet !== '' && Number(octet) > 255) {
+                    return;
+                  }
+                  setEndpointInput(`${lan.prefix}${octet}`);
+                  setInputError(null);
+                }}
+                placeholder="x"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+                maxLength={3}
+                returnKeyType="done"
+                onFocus={() => { focusedRef.current = true; }}
+                onSubmitEditing={handleEndpointSubmit}
+                onBlur={handleInputBlur}
+              />
+            </>
+          ) : (
+            <TextInput
+              ref={inputRef}
+              style={styles.hostInput}
+              value={host}
+              onChangeText={(value) => {
+                setEndpointInput(value);
+                setInputError(null);
+              }}
+              placeholder={snapshot.subnetPrefix ? `${snapshot.subnetPrefix}x` : '192.168.1.10'}
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="numbers-and-punctuation"
+              returnKeyType="done"
+              onFocus={() => { focusedRef.current = true; }}
+              onSubmitEditing={handleEndpointSubmit}
+              onBlur={handleInputBlur}
+            />
+          )}
+          <Text style={styles.affix}>:3800</Text>
+        </View>
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
         {recommendations.length > 0 ? (
           <View style={styles.recommendations}>
@@ -185,13 +275,17 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
               <TouchableOpacity
                 key={`${recommendation.kind}:${recommendation.value}`}
                 style={styles.recommendation}
-                onPress={() => handleRecommendationPress(recommendation.value)}
+                onPressIn={() => { skipBlurRef.current = true; }}
+                onPress={() => handleRecommendationPress(recommendation)}
                 activeOpacity={0.7}
               >
+                <Text style={styles.recommendationLabel}>
+                  {recommendation.kind === 'subnet' ? 'LAN' : 'Env'}
+                </Text>
                 <Text style={styles.recommendationText}>
                   {recommendation.kind === 'subnet'
-                    ? `Use ${recommendation.value}`
-                    : recommendation.value}
+                    ? recommendation.value
+                    : hubEndpointHost(recommendation.value)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -258,19 +352,47 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.XXS,
   },
-  input: {
+  inputShell: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Radius.MD,
-    paddingHorizontal: Spacing.MD,
+    paddingHorizontal: Spacing.SM,
+    minHeight: 40,
+  },
+  inputError: {
+    borderColor: Colors.error,
+  },
+  affix: {
+    color: Colors.textMuted,
+    fontSize: FontSize.MD,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  prefix: {
+    color: Colors.text,
+    fontSize: FontSize.MD,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  octetInput: {
+    flexGrow: 0,
+    flexShrink: 0,
+    minWidth: 40,
+    maxWidth: 52,
     paddingVertical: Spacing.SM,
+    paddingHorizontal: 0,
     fontSize: FontSize.MD,
     color: Colors.text,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  inputError: {
-    borderColor: Colors.error,
+  hostInput: {
+    flex: 1,
+    paddingVertical: Spacing.SM,
+    paddingHorizontal: Spacing.XXS,
+    fontSize: FontSize.MD,
+    color: Colors.text,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   errorText: {
     fontSize: FontSize.XS,
@@ -278,16 +400,34 @@ const styles = StyleSheet.create({
     marginTop: Spacing.XXS,
   },
   recommendations: {
-    gap: Spacing.XXS,
-    marginTop: Spacing.XS,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.XS,
+    marginTop: Spacing.SM,
   },
   recommendation: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.XS,
+    paddingHorizontal: Spacing.SM,
+    paddingVertical: Spacing.XS,
+    borderRadius: Radius.Pill,
+    backgroundColor: Colors.primaryGhost,
+    borderWidth: 1,
+    borderColor: Colors.primaryDim,
+  },
+  recommendationLabel: {
+    color: Colors.primaryLight,
+    fontSize: FontSize.XXS,
+    fontWeight: FontWeight.semibold,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   recommendationText: {
     color: Colors.primary,
-    fontSize: FontSize.XS,
+    fontSize: FontSize.SM,
     fontWeight: FontWeight.medium,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   actions: {
     flexDirection: 'row',
