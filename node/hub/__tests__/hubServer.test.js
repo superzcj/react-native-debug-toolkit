@@ -56,7 +56,12 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('function renderNetworkData(data)');
       expect(consolePage.body).toContain('Raw event');
       expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection('Event metadata'");
-      expect(consolePage.body).toContain("entry.classList.add('expanded')");
+      expect(consolePage.body).toContain("entry.classList.toggle('expanded')");
+      expect(consolePage.body).not.toContain("entry.classList.add('expanded')");
+      expect(consolePage.body).toContain('function formatJson(');
+      expect(consolePage.body).toMatch(/function statusBadge\(event\)[\s\S]*event\.type === 'network'[\s\S]*response\.status/);
+      expect(consolePage.body).toContain('id="liveButton"');
+      expect(consolePage.body).toContain('aria-pressed');
       const liveHandler = consolePage.body.match(
         /stream\.addEventListener\('event', message => \{([\s\S]*?)\}\); stream\.onerror/
       );
