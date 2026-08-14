@@ -43,6 +43,13 @@ describe('Hub address recommendations', () => {
       kind: 'save',
       endpoint: 'http://192.168.1.123:3800',
     });
+    expect(resolveHubAddressSubmission(
+      'http://192.168.1.203:3800',
+      'http://192.168.1.203:3800',
+    )).toEqual({
+      kind: 'save',
+      endpoint: 'http://192.168.1.203:3800',
+    });
     expect(resolveHubAddressSubmission('https://192.168.1.123', '')).toEqual({
       kind: 'invalid',
     });
