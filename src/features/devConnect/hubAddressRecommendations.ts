@@ -3,7 +3,9 @@ export type HubAddressRecommendation =
   | { kind: 'configured'; value: string };
 
 function isValidIpv4Segment(value: string): boolean {
-  if (!/^\d{1,3}$/.test(value)) return false;
+  if (!/^\d{1,3}$/.test(value)) {
+    return false;
+  }
   const parsed = Number(value);
   return parsed >= 0 && parsed <= 255 && String(parsed) === value;
 }
