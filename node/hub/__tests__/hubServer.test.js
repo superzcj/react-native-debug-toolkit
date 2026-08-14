@@ -57,6 +57,13 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('Raw event');
       expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection('Event metadata'");
       expect(consolePage.body).toContain("entry.classList.add('expanded')");
+      const liveHandler = consolePage.body.match(
+        /stream\.addEventListener\('event', message => \{([\s\S]*?)\}\); stream\.onerror/
+      );
+      expect(consolePage.body).toContain('function appendLiveEvent(event)');
+      expect(liveHandler?.[1]).toContain('appendLiveEvent(event)');
+      expect(liveHandler?.[1]).not.toContain('renderDetail()');
+      expect(consolePage.body).toContain('window.scrollBy(0, entry.offsetHeight)');
     } finally {
       await server.stop();
       fs.rmSync(dataDir, { recursive: true, force: true });
