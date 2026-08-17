@@ -149,7 +149,7 @@ debug-toolkit diagnose \
 | `action_required` | `ALLOW_STALE` | `agent-capable` | `action.actor/reasonCode/attempt/maxAttempts/retryArgs` | 0 | 意图允许历史证据时同轮重试，否则交给用户确认 |
 | `action_required` | `CONFIRM_TIME` | `user-required` | `action.actor/reasonCode/attempt/maxAttempts/retryArgs/candidates` | 0 | 只问一个时间问题，等待回复后重试 |
 | `action_required` | `CONFIRM_TARGET` | `user-required` | `action.actor/reasonCode/attempt/maxAttempts/retryArgs/facets/examples` | 0 | 候选超预算时只问一次设备/App/时间描述；不展开全量候选 |
-| `action_required` | `CONNECT_HUB` | `user-required` | `action.actor/reasonCode/attempt/maxAttempts/retryArgs/attempted` | 0 | 报告已尝试地址，只给一个连通 Hub 的动作并暂停 |
+| `action_required` | `CONNECT_HUB` | `user-required` | `action.actor/reasonCode/attempt/maxAttempts/retryArgs/attempted` | 0 | 报告已尝试地址，只给一个连通 Hub 的动作并暂停；兼容候选 Hub 的 Session 快照失败时不得假装目标全集完整 |
 | `unavailable` | `INVALID_ARGUMENT` | — | `error.message/attempted` | 2 | 调用方错误；读取 help 后最多修正并重试一次 |
 | `unavailable` | `NO_EVIDENCE` | — | `error.message/attempted` | 3 | 有限采集步骤已完成仍无事件，终态报告采集阻塞 |
 | `unavailable` | `TARGET_AMBIGUOUS` | — | `error.message/attempted` | 3 | 一次目标收窄后仍不唯一，终态报告选择阻塞，不继续追问 |
@@ -158,9 +158,11 @@ debug-toolkit diagnose \
 | `unavailable` | `PROTOCOL_MISMATCH` | — | `error.message/attempted` | 4 | 当前环境无法诊断，终态报告版本阻塞 |
 | `unavailable` | `INVALID_RESPONSE` | — | `error.message/attempted` | 5 | 工具契约异常，终态报告，不猜测结果 |
 
-`action.reasonCode` 也是封闭 enum，并按 code 限定：`LOCAL_HUB_NOT_RUNNING → no_usable_implicit_hub`；`CAPTURE_LOGS → no_app | no_session | empty_session | paused_empty`；`ALLOW_STALE → only_stale`；`CONFIRM_TIME → no_time_overlap`；`CONFIRM_TARGET → candidate_budget_exceeded`；`CONNECT_HUB → explicit_hub_unreachable | hub_not_ready`。`CAPTURE_LOGS.captureStep` 只能取 `open_app | upload_once | start_live | reproduce_issue`。`unavailable` 不携带 `retryArgs`，也不代表等待用户的可恢复状态；需要用户改变外部条件且之后可原样续跑的情况必须归一化为 `action_required`。
+`action.reasonCode` 也是封闭 enum，并按 code 限定：`LOCAL_HUB_NOT_RUNNING → no_usable_implicit_hub`；`CAPTURE_LOGS → no_app | no_session | empty_session | paused_empty`；`ALLOW_STALE → only_stale`；`CONFIRM_TIME → no_time_overlap`；`CONFIRM_TARGET → candidate_budget_exceeded`；`CONNECT_HUB → explicit_hub_unreachable | candidate_hub_unreachable | hub_not_ready`。其中 `candidate_hub_unreachable` 只表示 `/ready` 已确认协议兼容且存在潜在目标 App、但后续 Session 快照发生 transport failure，导致最终 target 集合不完整；HTTP 503 仍使用 `hub_not_ready`。`CAPTURE_LOGS.captureStep` 只能取 `open_app | upload_once | start_live | reproduce_issue`。`unavailable` 不携带 `retryArgs`，也不代表等待用户的可恢复状态；需要用户改变外部条件且之后可原样续跑的情况必须归一化为 `action_required`。
 
-所有 `retryArgs` 和候选 `resumeArgs` 都由 trusted control 字段构造，并携带 CLI 生成的单一 opaque `--resume-token`。token 经 runtime schema 校验，记录原始发现条件、已选 control ID、时间/stale 条件和动作历史；进入任何 state 或切换 Hub/App/Session 都必须派生而不是重建 token。Skill 永不解析或手写 token，只原样执行 args，并仅在 schema 允许的确认分支追加用户回答形成的更窄时间或 `--target-match`。冲突的 Hub/App/Session、放宽时间范围、未知 token 版本或损坏内容都返回 `INVALID_ARGUMENT`。
+所有 `retryArgs` 和候选 `resumeArgs` 都由 trusted control 字段构造，并携带 CLI 生成的单一 opaque `--resume-token`。token 经 runtime schema 校验，记录原始发现条件、已选 control ID、时间/stale 条件和动作历史；进入任何 state 或切换 Hub/App/Session 都必须派生而不是重建 token。runtime schema 还要校验固定命令前缀、封闭 flag、唯一末尾 token，以及所有可见 Hub/App/Session/时间/stale 字段与 token 投影一致；内部拼装错误不能仅因“每项是字符串”而通过。Skill 永不解析或手写 token，只原样执行 args，并仅在 schema 允许的确认/遗漏分支追加用户回答形成的时间或 `--target-match`。冲突的 Hub/App/Session、非法放宽、未知 token 版本或损坏内容都返回 `INVALID_ARGUMENT`。
+
+`evidence_ready.target.control.resumeArgs` 是专用缩窗基线：CLI 先把实际查询窗口绑定进 token，再省略可见时间 flag；Skill 发现 `omitted>0` 时只能追加该窗口的严格子区间。选中 Session 在 context 读取前消失时，CLI 可通过受控内部转移只释放 Session、保留 Hub/App 与全部历史，使 App 重连后的新 UUID 可被重新选择；用户 argv 不能触发该释放或任意改选。
 
 每个 action 的 `attempt` 都单调递增。`CAPTURE_LOGS.maxAttempts=4`；其他 action 的 `maxAttempts=1`。达到上限仍出现同一外部事实时必须转为终态：采集对应 `NO_EVIDENCE`，目标对应 `TARGET_AMBIGUOUS`，时间对应 `TIME_UNRESOLVED`，Hub 对应 `HUB_UNREACHABLE`；`ALLOW_STALE` 重试后仍要求允许 stale 属于 `INVALID_RESPONSE`。任何跨 state 转移都不能重置 attempt。
 
@@ -212,6 +214,7 @@ type FinalTargetCandidate = {
    - 唯一 Hub/App 组合自动选择；
    - 多个组合继续展开 Session，不立即询问；
    - 所有兼容 Hub 都没有 App 才返回 `action_required/CAPTURE_LOGS`，`reasonCode=no_app`。
+   - 若 `/ready.apps` 已表明某个兼容 Hub 含潜在目标 App，但其后续 Session 快照失败，则候选全集未知：transport failure 返回 `CONNECT_HUB/candidate_hub_unreachable`，HTTP 503 返回 `CONNECT_HUB/hub_not_ready`；不得从其余成功 Hub 自动宣称唯一目标或 `no_app/no_session`。
 6. `diagnose` 必须通过 Hub Session cursor 取完每个候选 App 的全部 Session，再进行排序；不能把现有单页上限当成全集。
 7. 同一 App 同时出现在多个 Hub 时：
    - 有 `--at` 或 `--since/--until` 时，先保留拥有时间相关 Session 的 Hub；
@@ -249,7 +252,7 @@ CLI 在内部取完 Hub Session cursor 并完成上述过滤，但进入模型�
 
 - 1 个候选自动选择；2–20 个候选全部进入 `selection_required`，每个都带可直接续跑的 `resumeArgs`。
 - 超过 20 个时不输出全量或要求 Skill 翻页，而是返回 `CONFIRM_TARGET`。`facets` 每个维度最多 8 个值，只包含 App、平台、机型、版本、来源 IP 和 15 分钟时间桶的计数；`examples` 最多 5 个最近候选。App/device 派生的 facet 与 example label 保持 `untrusted` 并转义显示。
-- `CONFIRM_TARGET.retryArgs` 带绑定原发现条件的 `--resume-token`；该分支只允许追加 `--target-match` 和更窄时间条件，改变 Hub/App 或放宽原范围视为 `INVALID_ARGUMENT`。Skill 只问一次“目标 App/设备（机型或 IP）和大概时间”，把设备/App/IP 描述作为单个 argv 值传给 `--target-match`，可解析的时间仍用 `--at` 或 `--since/--until`。
+- `CONFIRM_TARGET.retryArgs` 带绑定原发现条件的 `--resume-token`，并省略可见时间 flag；该分支只允许追加一次 `--target-match` 和时间条件。原来已有显式时间时，新时间必须是其子集；原来没有显式时间时，允许这一次回答用 offset-bearing `--at` 或 range 定位历史。改变 Hub/App 或再次回答视为 `INVALID_ARGUMENT`。Skill 只问一次“目标 App/设备（机型或 IP）和大概时间”，把设备/App/IP 描述作为单个 argv 值传给 `--target-match`，可解析的时间仍用 `--at` 或 `--since/--until`。
 - CLI 将 `--target-match` 按 Unicode 空白和标点切成 literal token，大小写无关地在标准化字段间做 AND 匹配，不执行文本、不使用正则。匹配后唯一则继续；仍有多个或零个则返回终态 `TARGET_AMBIGUOUS`，不再发起第二轮追问。
 
 每个候选的 `resumeArgs` 包含完整 `--hub --app-id --session` 和派生的 `--resume-token`，并保留时间、stale 条件与当前 capture continuation。Session ID、来源 IP、连接/同步状态和最近接收时间属于 trusted control；平台、系统、机型和 App 版本由 App 提供，保持 `untrusted`。日志和设备文本都不参与命令构造。
@@ -278,7 +281,9 @@ context 选择器按选定时间基准扫描窗口内全部匹配事件，只保
 2. 每个锚点前后最多 3 条相邻事件，按 sequence 去重。
 3. 剩余预算使用窗口内最新事件补齐。
 
-扫描实现使用固定大小的优先锚点集合、前序 ring buffer 和后序计数，不因窗口事件总数线性增长内存。`completeness` 必须暴露 `matched`、`selected`、`omitted`、`previewed`、`observedTypes`、`totalByType`、`syncState`、Session 状态和 warnings。`observedTypes` 只表示窗口中实际出现的类型，不代表 App capability。Skill 发现遗漏时先缩窄时间窗；只有关键字段被 preview 截断时才调用 `inspect`。
+扫描实现使用固定大小的优先锚点集合、前序 ring buffer 和后序计数，不因窗口事件总数线性增长内存。事件时间必须是正安全整数、处于 JavaScript TimeClip/ISO 可转换范围；越界值不进入 diagnose 事件时间证据，并产生有界 warning，不能让 ISO 转换异常逃逸。`completeness` 必须暴露 `matched`、`selected`、`omitted`、`previewed`、`observedTypes`、`totalByType`、`syncState`、Session 状态和 warnings。`observedTypes` 只表示窗口中实际出现的类型，不代表 App capability。Skill 发现遗漏时先缩窄时间窗；只有关键字段被 preview 截断时才调用 `inspect`。
+
+preview 判断属于 Hub trusted control。Hub 可为兼容性保留 data 内的 `{_preview,_entryId}`，但 diagnose 必须另行投影 `preview:{contentTrust:'trusted-control',isPreview,entryId}`；Skill 只看这个字段。App 原始 payload 中伪造的同名 key 始终是 untrusted data，不能触发 inspect 或改变动作分支。
 
 这项改动保证错误优先是在全部 matched 事件上执行，而不是先截断再排序；失败之后即使又产生 200 条噪声，错误锚点仍能进入上下文。
 
@@ -376,6 +381,7 @@ tail 契约：
 - 已存在且未指定 `--update` 时不覆盖，输出当前模板版本与可用更新。
 - `--check` 同时比较版本标记、SHA-256 和完整文件字节。
 - `--update` 明确覆盖 managed artifact；检测到本地正文修改时先写非覆盖备份（依次选择 `SKILL.md.bak`、`SKILL.md.bak.1`……），再复制包内真源。
+- 所有 managed/backup 路径先以 `lstat`/realpath 验证仍位于目标仓库；拒绝 symlink 和非普通文件。备份使用 exclusive/no-follow 创建，替换使用同目录临时文件与原子 rename；任何竞态都以 `invalid/2` 失败，不读写仓库外目标。
 
 模板版本独立于 protocol 和 npm version。`init --check --json` 返回以下状态；不传 `--json` 时输出等价的一行人类可读消息：
 
@@ -414,6 +420,7 @@ App 当前没有上报缓冲丢弃计数或 Feature capability。本次不修改
 - `diagnose` 自动选择唯一 Hub/App/Session。
 - 本机存在无关 Hub 时继续尝试包含目标 App 的 endpoint。
 - 本机 Hub 不存在但项目 endpoint 可用且包含目标 App 时直接选择 endpoint，不返回 `LOCAL_HUB_NOT_RUNNING`；只有全部隐式候选不可用时才建议启动本地 Hub。
+- compatible Hub 已声明潜在目标 App、但 Session 快照 transport/503 失败时分别返回 `candidate_hub_unreachable/hub_not_ready`；目标全集不完整时不得从另一 Hub 自动宣称唯一或无目标。
 - 显式 `--hub` 全流程 sticky。
 - 多 Hub、多 App、多 Session 被展开成一次可续跑的最终 target 候选；2–20 个全部返回，超过 20 个只返回有界 facets/examples 和 `CONFIRM_TARGET`。
 - `--target-match` 唯一命中时继续，零或多个命中时终态 `TARGET_AMBIGUOUS`；任何响应都不向模型输出超过 20 个候选、8 个/维度 facet 或 5 个 examples。
