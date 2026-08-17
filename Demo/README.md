@@ -37,13 +37,15 @@ curl http://127.0.0.1:3800/ready
 
 ## AI 验证
 
-在仓库根目录执行一次：
+先启动 Hub，再跑 Demo，然后在仓库根目录执行一次：
 
 ```bash
 npm run ai:init
 ```
 
-然后直接对 AI 说："看刚才 Demo 的日志"。只有一个活跃 Demo Session 时，AI 会直接读取；有多台设备时，它会让你选一台。
+直接对 AI 说「看刚才 Demo 的日志」，不必提供 appId 或 Session。多台设备同时在线时，AI 会让你选一台。
+
+`init --check` 确认 Skill 是否最新；`init --update` 更新托管副本。Hub 只应出现在本机或局域网，不要暴露到公网。`tail --duration-ms` 限制时长；`--follow` 只取消时间上限，仍受 200 条 / 2 MiB 限制。
 
 ## 自动测试
 

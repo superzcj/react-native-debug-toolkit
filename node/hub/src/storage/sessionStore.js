@@ -321,12 +321,41 @@ class SessionStore {
   }
 
   queryEvents(options) {
-    const { since, until, type, severity, text, cursor: fromSequence, limit } = options || {};
+    const {
+      since,
+      until,
+      type,
+      severity,
+      text,
+      cursor: fromSequence,
+      limit,
+      timeBasis = 'received',
+    } = options || {};
     const maxLimit = Math.min(limit || 200, 200);
     let allEvents = this._events.slice();
 
-    if (since) allEvents = allEvents.filter(e => e.receivedAt >= since);
-    if (until) allEvents = allEvents.filter(e => e.receivedAt <= until);
+    if (timeBasis === 'event') {
+      const { parseIsoInstant } = require('../protocol/time');
+      const { eventTimeMs } = require('./contextSelector');
+      const sinceMs = since ? parseIsoInstant(since) : null;
+      const untilMs = until ? parseIsoInstant(until) : null;
+      allEvents = allEvents.filter((event) => {
+        const time = eventTimeMs(event, 'event');
+        if (!Number.isFinite(time)) {
+          return false;
+        }
+        if (sinceMs != null && time < sinceMs) {
+          return false;
+        }
+        if (untilMs != null && time > untilMs) {
+          return false;
+        }
+        return true;
+      });
+    } else {
+      if (since) allEvents = allEvents.filter(e => e.receivedAt >= since);
+      if (until) allEvents = allEvents.filter(e => e.receivedAt <= until);
+    }
     if (type) allEvents = allEvents.filter(e => e.type === type);
     if (severity) allEvents = allEvents.filter(e => e.severity === severity);
     if (text) {
@@ -345,6 +374,81 @@ class SessionStore {
       nextSequence: selected.length > 0 ? selected[selected.length - 1].sequence : fromSequence,
       total: allEvents.length,
     };
+  }
+
+  getEventWindowSummary({
+    sinceMs = -Infinity,
+    untilMs = Infinity,
+    timeBasis = 'event',
+    throughSequence = this._ackThrough,
+  } = {}) {
+    const { isValidTimestampMs, parseIsoInstant, toIsoInstant } = require('../protocol/time');
+    const { eventMatchesWindow } = require('./contextSelector');
+
+    let matchedEventCount = 0;
+    let minEvent = Infinity;
+    let maxEvent = -Infinity;
+    let minReceived = Infinity;
+    let maxReceived = -Infinity;
+    let nearestTimestamp = null;
+    let nearestDistance = Infinity;
+    let hasRetained = false;
+
+    for (const event of this._events) {
+      if (event.sequence > throughSequence) {
+        continue;
+      }
+      hasRetained = true;
+
+      if (isValidTimestampMs(event.timestamp)) {
+        minEvent = Math.min(minEvent, event.timestamp);
+        maxEvent = Math.max(maxEvent, event.timestamp);
+        let distance = 0;
+        if (Number.isFinite(sinceMs) && event.timestamp < sinceMs) {
+          distance = sinceMs - event.timestamp;
+        } else if (Number.isFinite(untilMs) && event.timestamp > untilMs) {
+          distance = event.timestamp - untilMs;
+        }
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestTimestamp = event.timestamp;
+        }
+      }
+
+      const receivedMs = parseIsoInstant(event.receivedAt);
+      if (receivedMs != null) {
+        minReceived = Math.min(minReceived, receivedMs);
+        maxReceived = Math.max(maxReceived, receivedMs);
+      }
+
+      if (eventMatchesWindow(event, { sinceMs, untilMs, timeBasis, throughSequence })) {
+        matchedEventCount += 1;
+      }
+    }
+
+    const toRange = (min, max) => {
+      if (!hasRetained || !Number.isFinite(min) || !Number.isFinite(max)) {
+        return null;
+      }
+      const since = toIsoInstant(min);
+      const until = toIsoInstant(max);
+      return since && until ? { since, until } : null;
+    };
+
+    return {
+      matchedEventCount,
+      eventTimeRange: toRange(minEvent, maxEvent),
+      receivedTimeRange: toRange(minReceived, maxReceived),
+      nearestEventTimestamp: nearestTimestamp == null ? null : toIsoInstant(nearestTimestamp),
+    };
+  }
+
+  selectContext(options = {}) {
+    const { selectContextFromEvents } = require('./contextSelector');
+    return selectContextFromEvents(this._events, {
+      ...options,
+      session: this.getSessionInfo(),
+    });
   }
 
   getEvent(sequence) {

@@ -98,25 +98,29 @@ npm install react-native-debug-toolkit@<version>
 cd ios && pod install
 ```
 
-## Let AI read runtime logs
+## Debug with AI
 
-At the root of an App repository, run once:
+The usual path is three steps. You do not need to look up `appId` or a Session ID.
+
+1. Start the Hub from the App repository: `npx --package=react-native-debug-toolkit debug-toolkit hub dev`
+2. Run the App and reproduce the problem.
+3. Tell the AI what happened, for example `Why did the login request fail just now?`
+
+Set up the repository Skill once:
 
 ```bash
 npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
-The command creates `.agents/skills/react-native-debug-toolkit/SKILL.md` and adds its discovery instruction to `AGENTS.md`. Commit both files.
+That writes `.agents/skills/react-native-debug-toolkit/SKILL.md` and a managed section in `AGENTS.md`. Commit both files. Later, `debug-toolkit init --check` reports whether the Skill is current, missing, outdated, or modified; `debug-toolkit init --update` replaces a managed copy and keeps a non-overwriting `.bak`. If git ignores those files, the command warns; it does not edit ignore rules.
 
-Then describe the problem normally, for example:
+The Hub must stay on a trusted local or LAN network. Do not expose it on the public Internet.
 
-```text
-Why did the login request fail just now?
-```
+`diagnose` matches targets by occurrence time (`event.timestamp`). Hub ingestion time (`receivedAt`) is reported for coverage and is the default clock only for older `status` / `context` / `inspect` / `tail` queries unless `timeBasis=event` is set.
 
-The Skill reads the App's `devConnect` configuration, finds the session, and reads the relevant logs. If more than one device is active, AI asks which device to use. Run AI on the same Mac as the local Hub (it prefers `http://127.0.0.1:3800`).
+### Advanced manual queries
 
-`status`, `context`, `inspect`, and `tail` remain available when someone needs to query the Hub manually.
+`status`, `context`, `inspect`, and `tail` remain available when you need to query the Hub yourself. `tail --duration-ms` accepts integers from 1000 through 300000 (default 60000). `--follow` removes the time limit; the 200-event and 2 MiB limits still apply.
 
 ## Hub web page
 

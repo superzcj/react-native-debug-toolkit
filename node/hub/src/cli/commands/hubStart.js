@@ -5,6 +5,7 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { DEFAULT_PORT } = require('../../protocol/constants');
 const { createHubServer } = require('../../server/hubServer');
+const { isLoopback } = require('../../protocol/validation');
 
 function findLanAddress() {
   const interfaces = os.networkInterfaces();
@@ -17,6 +18,29 @@ function findLanAddress() {
 }
 
 function resolveDevOptions(options = {}, cwd = process.cwd()) {
+  if (options.localHubEndpoint) {
+    let parsed;
+    try {
+      parsed = new URL(options.localHubEndpoint);
+    } catch (err) {
+      const error = new Error('DEBUG_TOOLKIT_LOCAL_HUB_ENDPOINT is invalid');
+      error.code = 'INVALID_ARGUMENT';
+      throw error;
+    }
+    if (!isLoopback(parsed.hostname)) {
+      const error = new Error('DEBUG_TOOLKIT_LOCAL_HUB_ENDPOINT must be a loopback URL');
+      error.code = 'INVALID_ARGUMENT';
+      throw error;
+    }
+    const port = Number(parsed.port || DEFAULT_PORT);
+    return {
+      ...options,
+      bind: '127.0.0.1',
+      port,
+      dataDir: options.dataDir || path.join(cwd, '.debug-toolkit', 'hub'),
+      advertiseUrl: `http://127.0.0.1:${port}`,
+    };
+  }
   const url = options.url || options.advertiseUrl;
   const port = options.port || (url ? Number(new URL(url).port || DEFAULT_PORT) : DEFAULT_PORT);
   return {

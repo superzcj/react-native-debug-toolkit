@@ -1,21 +1,27 @@
 'use strict';
 
-const { hubGet, apiPath } = require('../httpClient');
+const { hubGet, apiPath, HubReadError, toHubReadError } = require('../httpClient');
 const { getExitCode } = require('../../protocol/errors');
 
-async function contextCommand(options) {
-  const { endpoint, appId, session: sessionId, allowStale, through, since, until } = options;
+async function readContext(options) {
+  const {
+    endpoint,
+    appId,
+    session: sessionId,
+    through,
+    since,
+    until,
+    timeBasis,
+    allowStale,
+  } = options;
 
-  // Resolve session
-  const resolvedSession = await resolveSession(endpoint, appId, sessionId, allowStale);
-  if (!resolvedSession.ok) return resolvedSession;
-
-  const sid = resolvedSession.sessionId;
-  let queryPath = apiPath(appId, 'sessions', sid, 'context');
+  let queryPath = apiPath(appId, 'sessions', sessionId, 'context');
   const params = new URLSearchParams();
   if (through) params.set('through', through);
   if (since) params.set('since', since);
   if (until) params.set('until', until);
+  if (timeBasis) params.set('timeBasis', timeBasis);
+  if (allowStale) params.set('allowStale', '1');
   const qs = params.toString();
   if (qs) queryPath += `?${qs}`;
 
@@ -23,20 +29,63 @@ async function contextCommand(options) {
   try {
     result = await hubGet(endpoint, queryPath, 30000);
   } catch (err) {
-    return { ok: false, code: 'HUB_UNREACHABLE', message: err.message, exitCode: getExitCode('HUB_UNREACHABLE') };
-  }
-
-  if (!result.body?.ok) {
-    const code = result.body?.error?.code || 'INTERNAL_ERROR';
+    if (err instanceof HubReadError) {
+      return {
+        ok: false,
+        code: err.code,
+        message: err.message,
+        endpoint: err.endpoint,
+        path: err.path,
+        httpStatus: err.httpStatus,
+      };
+    }
     return {
       ok: false,
-      code,
-      message: result.body?.error?.message || 'Context query failed',
-      exitCode: getExitCode(code),
+      code: 'HUB_UNREACHABLE',
+      message: err.message,
+      endpoint,
+      path: queryPath,
+      httpStatus: null,
     };
   }
 
-  return { ok: true, ...result.body, exitCode: 0 };
+  if (!result.body || result.body.ok !== true) {
+    const mapped = toHubReadError(endpoint, queryPath, result);
+    return {
+      ok: false,
+      code: mapped.code,
+      message: mapped.message,
+      endpoint,
+      path: queryPath,
+      httpStatus: mapped.httpStatus,
+    };
+  }
+
+  return { ok: true, ...result.body };
+}
+
+async function contextCommand(options) {
+  const { endpoint, appId, session: sessionId, allowStale } = options;
+
+  const resolvedSession = await resolveSession(endpoint, appId, sessionId, allowStale);
+  if (!resolvedSession.ok) return resolvedSession;
+
+  const result = await readContext({
+    ...options,
+    session: resolvedSession.sessionId,
+  });
+  if (!result.ok) {
+    return {
+      ...result,
+      exitCode: getExitCode(result.code),
+    };
+  }
+  return {
+    ok: true,
+    ...result,
+    warnings: resolvedSession.warnings,
+    exitCode: 0,
+  };
 }
 
 async function resolveSession(endpoint, appId, sessionId, allowStale) {
@@ -113,4 +162,4 @@ async function resolveSession(endpoint, appId, sessionId, allowStale) {
   return { ok: true, sessionId: sessions[0].sessionId };
 }
 
-module.exports = { contextCommand, resolveSession };
+module.exports = { contextCommand, resolveSession, readContext };

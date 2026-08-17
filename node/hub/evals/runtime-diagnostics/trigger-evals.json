@@ -1,0 +1,19 @@
+{
+  "skill_name": "react-native-debug-toolkit",
+  "bridges": [true, false],
+  "queries": [
+    {"id": "runtime-white-screen", "phase": "initial", "prompt": "安卓真机白屏，帮我看运行日志", "should_trigger": true},
+    {"id": "runtime-crash", "phase": "initial", "prompt": "App 刚闪退，查一下", "should_trigger": true},
+    {"id": "runtime-request", "phase": "initial", "prompt": "刚才登录请求为什么失败", "should_trigger": true},
+    {"id": "runtime-freeze", "phase": "initial", "prompt": "页面卡死，看看设备日志", "should_trigger": true},
+    {"id": "runtime-recent-log", "phase": "initial", "prompt": "读取刚才的 Debug Toolkit 日志", "should_trigger": true},
+    {"id": "continue-capture", "phase": "continuation", "prompt": "好了，已经点了 Upload Once", "priorFixture": "capture_action", "should_trigger": true},
+    {"id": "continue-time", "phase": "continuation", "prompt": "10:32 左右", "priorFixture": "confirm_time", "should_trigger": true},
+    {"id": "continue-target", "phase": "continuation", "prompt": "iPhone 15 那台", "priorFixture": "confirm_target", "should_trigger": true},
+    {"id": "compile", "phase": "initial", "prompt": "iOS 编译失败", "should_trigger": false},
+    {"id": "typecheck", "phase": "initial", "prompt": "修这个 TypeScript 类型错误", "should_trigger": false},
+    {"id": "unit-test", "phase": "initial", "prompt": "这个 Jest 单测失败了", "should_trigger": false},
+    {"id": "build-config", "phase": "initial", "prompt": "检查 Android 构建配置", "should_trigger": false},
+    {"id": "static-review", "phase": "initial", "prompt": "只做静态代码评审", "should_trigger": false}
+  ]
+}

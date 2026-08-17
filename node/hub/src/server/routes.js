@@ -11,6 +11,24 @@ const {
   isValidSequence, validateWireEvent,
 } = require('../protocol/validation');
 const { sendJson, readJsonBody, sendError, getSourceIp } = require('./httpUtils');
+const { parseIsoInstant, toIsoInstant } = require('../protocol/time');
+
+function parseTimeBasis(url, fallback = 'received') {
+  const value = url.searchParams.get('timeBasis') || fallback;
+  return value === 'event' || value === 'received' ? value : null;
+}
+
+function parseOptionalIso(url, name) {
+  const raw = url.searchParams.get(name);
+  if (raw == null || raw === '') {
+    return { ok: true, value: null, raw: null };
+  }
+  const parsed = parseIsoInstant(raw);
+  if (parsed == null) {
+    return { ok: false, field: name };
+  }
+  return { ok: true, value: parsed, raw };
+}
 
 function handleHealth(req, res) {
   sendJson(res, 200, { ok: true, name: HUB_NAME, version: HUB_VERSION });
@@ -167,12 +185,48 @@ function handleSessionsList(req, res, hub, appId) {
 
   const url = new URL(req.url || '/', 'http://localhost');
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 50);
-  const result = hub.listSessions(appId, { limit });
+  const order = url.searchParams.get('order') || 'activity';
+  const cursor = url.searchParams.get('cursor');
+  const includeEventSummary = url.searchParams.get('includeEventSummary') === '1';
+  const timeBasis = parseTimeBasis(url, 'event');
+  if (includeEventSummary && !timeBasis) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid timeBasis');
+  }
+  const since = parseOptionalIso(url, 'since');
+  const until = parseOptionalIso(url, 'until');
+  if (!since.ok || !until.ok) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid since/until');
+  }
+  if (since.value != null && until.value != null && since.value > until.value) {
+    return sendError(res, 'INVALID_ARGUMENT', 'since must be <= until');
+  }
 
-  sendJson(res, 200, {
-    ok: true,
-    ...result,
-  });
+  let eventWindow = null;
+  if (includeEventSummary) {
+    eventWindow = {
+      sinceMs: since.value == null ? -Infinity : since.value,
+      untilMs: until.value == null ? Infinity : until.value,
+      timeBasis: timeBasis || 'event',
+    };
+  }
+
+  try {
+    const result = hub.listSessions(appId, {
+      limit,
+      cursor,
+      order,
+      eventWindow,
+    });
+    sendJson(res, 200, {
+      ok: true,
+      ...result,
+    });
+  } catch (err) {
+    if (err && err.code === 'CURSOR_INVALID') {
+      return sendError(res, 'CURSOR_INVALID', err.message || 'Invalid session cursor');
+    }
+    throw err;
+  }
 }
 
 function parseThroughSequence(url, defaultThrough) {
@@ -194,68 +248,35 @@ function handleContext(req, res, hub, appId, sessionId) {
   if (info.appId !== appId) return sendError(res, 'INVALID_ARGUMENT', 'Session does not belong to this appId');
 
   const url = new URL(req.url || '/', 'http://localhost');
-  const sinceParam = url.searchParams.get('since');
-  const untilParam = url.searchParams.get('until');
+  const timeBasis = parseTimeBasis(url, 'received');
+  if (!timeBasis) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid timeBasis');
+  }
+  const since = parseOptionalIso(url, 'since');
+  const until = parseOptionalIso(url, 'until');
+  if (!since.ok || !until.ok) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid since/until');
+  }
+  if (since.value != null && until.value != null && since.value > until.value) {
+    return sendError(res, 'INVALID_ARGUMENT', 'since must be <= until');
+  }
+
   const throughSequence = parseThroughSequence(url, info.ackThrough);
   const capturedAt = new Date().toISOString();
   const capturedAtMs = new Date(capturedAt).getTime();
   const windowMs = 10 * 60 * 1000;
-  const sinceMs = sinceParam ? new Date(sinceParam).getTime() : capturedAtMs - windowMs;
-  const untilMs = untilParam ? new Date(untilParam).getTime() : capturedAtMs;
+  const sinceMs = since.value != null ? since.value : capturedAtMs - windowMs;
+  const untilMs = until.value != null ? until.value : capturedAtMs;
 
-  const allEvents = session.queryEvents({
-    since: new Date(sinceMs).toISOString(),
-    until: new Date(untilMs).toISOString(),
+  const selected = session.selectContext({
+    sinceMs,
+    untilMs,
+    timeBasis,
+    throughSequence,
+    maxEvents: 200,
+    errorLimit: 50,
+    adjacent: 3,
   });
-
-  let events = allEvents.events.filter(e => e.sequence <= throughSequence);
-
-  const errors = events.filter(e =>
-    e.severity === 'error' || e.severity === 'fatal' ||
-    (e.type === 'network' && (e.data?.error || (e.data?.response?.status >= 400)))
-  ).slice(-50);
-
-  const errorSequences = new Set(errors.map(e => e.sequence));
-  const adjacentSequences = new Set();
-  for (const seq of errorSequences) {
-    for (let i = seq - 3; i <= seq + 3; i++) {
-      if (i > 0 && !errorSequences.has(i)) adjacentSequences.add(i);
-    }
-  }
-
-  const adjacentEvents = events.filter(e => adjacentSequences.has(e.sequence));
-  const selectedSet = new Set([...errors.map(e => e.sequence), ...adjacentEvents.map(e => e.sequence)]);
-
-  const remainingBudget = 200 - selectedSet.size;
-  const otherEvents = events
-    .filter(e => !selectedSet.has(e.sequence))
-    .slice(-Math.max(0, remainingBudget));
-
-  const selected = [...errors, ...adjacentEvents, ...otherEvents]
-    .filter((e, i, arr) => arr.findIndex(x => x.sequence === e.sequence) === i)
-    .sort((a, b) => a.sequence - b.sequence)
-    .slice(0, 200);
-
-  const contextEvents = selected.map(e => {
-    const preview = { ...e };
-    if (preview.data) {
-      const dataStr = JSON.stringify(preview.data);
-      if (dataStr.length > 1024) {
-        preview.data = { _preview: dataStr.slice(0, 512) + '...', _entryId: preview.entryId };
-      }
-    }
-    return preview;
-  });
-
-  const typeCounts = {};
-  for (const e of events) {
-    typeCounts[e.type] = (typeCounts[e.type] || 0) + 1;
-  }
-
-  const selectedTypeCounts = {};
-  for (const e of selected) {
-    selectedTypeCounts[e.type] = (selectedTypeCounts[e.type] || 0) + 1;
-  }
 
   sendJson(res, 200, {
     ok: true,
@@ -266,14 +287,30 @@ function handleContext(req, res, hub, appId, sessionId) {
     truncated: info.truncated,
     throughSequence,
     capturedAt,
-    window: { since: new Date(sinceMs).toISOString(), until: new Date(untilMs).toISOString() },
-    events: contextEvents,
+    window: {
+      since: toIsoInstant(sinceMs) || new Date(sinceMs).toISOString(),
+      until: toIsoInstant(untilMs) || new Date(untilMs).toISOString(),
+      timeBasis,
+    },
+    events: selected.events,
+    ranges: selected.completeness.ranges,
+    completeness: {
+      matched: selected.completeness.matched,
+      selected: selected.completeness.selected,
+      omitted: selected.completeness.omitted,
+      previewed: selected.completeness.previewed,
+      observedTypes: selected.completeness.observedTypes,
+      totalByType: selected.completeness.totalByType,
+      syncState: selected.completeness.syncState,
+      connectionState: selected.completeness.connectionState,
+      warnings: selected.completeness.warnings,
+    },
     selection: {
-      total: events.length,
-      selected: selected.length,
-      omitted: events.length - selected.length,
-      byType: selectedTypeCounts,
-      totalByType: typeCounts,
+      total: selected.completeness.matched,
+      selected: selected.completeness.selected,
+      omitted: selected.completeness.omitted,
+      byType: selected.selectedByType,
+      totalByType: selected.completeness.totalByType,
     },
   });
 }
@@ -328,6 +365,18 @@ function handleQueryEvents(req, res, hub, appId, sessionId) {
 
   const url = new URL(req.url || '/', 'http://localhost');
   const fromSequence = parseSinceSequence(url, req.headers);
+  const timeBasis = parseTimeBasis(url, 'received');
+  if (!timeBasis) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid timeBasis');
+  }
+  const since = parseOptionalIso(url, 'since');
+  const until = parseOptionalIso(url, 'until');
+  if (!since.ok || !until.ok) {
+    return sendError(res, 'INVALID_ARGUMENT', 'Invalid since/until');
+  }
+  if (since.value != null && until.value != null && since.value > until.value) {
+    return sendError(res, 'INVALID_ARGUMENT', 'since must be <= until');
+  }
 
   const result = session.queryEvents({
     since: url.searchParams.get('since'),
@@ -337,6 +386,7 @@ function handleQueryEvents(req, res, hub, appId, sessionId) {
     text: url.searchParams.get('text'),
     limit: parseInt(url.searchParams.get('limit') || '200', 10),
     cursor: fromSequence,
+    timeBasis,
   });
 
   sendJson(res, 200, {

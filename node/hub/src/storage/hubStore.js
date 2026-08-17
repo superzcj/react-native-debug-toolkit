@@ -12,6 +12,41 @@ function safeAppDir(appId) {
   return appId.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 128);
 }
 
+function encodeSessionCursor(value) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function decodeSessionCursor(value) {
+  return JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+}
+
+function decodeSessionCursorStrict(cursor, appId, order) {
+  let decoded;
+  try {
+    decoded = decodeSessionCursor(cursor);
+  } catch (_err) {
+    const err = new Error('malformed session cursor');
+    err.code = 'CURSOR_INVALID';
+    throw err;
+  }
+  if (!decoded || decoded.version !== 1 || decoded.order !== order) {
+    const err = new Error('session cursor conflict');
+    err.code = 'CURSOR_INVALID';
+    throw err;
+  }
+  if (appId && decoded.appId !== appId) {
+    const err = new Error('session cursor app mismatch');
+    err.code = 'CURSOR_INVALID';
+    throw err;
+  }
+  if (typeof decoded.afterSessionId !== 'string') {
+    const err = new Error('session cursor missing afterSessionId');
+    err.code = 'CURSOR_INVALID';
+    throw err;
+  }
+  return decoded;
+}
+
 class HubStore {
   constructor(dataDir) {
     this._dataDir = dataDir;
@@ -102,28 +137,79 @@ class HubStore {
   }
 
   listSessions(appId, options) {
-    const { limit, activeFirst } = options || {};
+    const {
+      limit,
+      cursor = null,
+      order = 'activity',
+      eventWindow = null,
+      activeFirst,
+    } = options || {};
     const maxLimit = Math.min(limit || 50, 50);
 
     const sessions = [];
+    const storesById = new Map();
     for (const [, store] of this._sessions) {
       const info = store.getSessionInfo();
       if (appId && info.appId !== appId) continue;
       sessions.push(info);
+      storesById.set(info.sessionId, store);
     }
 
-    sessions.sort((a, b) => {
-      if (activeFirst !== false) {
-        if (a.connectionState === 'active' && b.connectionState !== 'active') return -1;
-        if (b.connectionState === 'active' && a.connectionState !== 'active') return 1;
+    const total = sessions.length;
+    let sorted;
+
+    if (order === 'sessionId') {
+      sorted = sessions.slice().sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+      if (cursor) {
+        const decoded = decodeSessionCursorStrict(cursor, appId, order);
+        sorted = sorted.filter((info) => info.sessionId > decoded.afterSessionId);
       }
-      return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || '');
+    } else {
+      if (cursor) {
+        const err = new Error('activity order does not support cursors');
+        err.code = 'CURSOR_INVALID';
+        throw err;
+      }
+      sorted = sessions.slice().sort((a, b) => {
+        if (activeFirst !== false) {
+          if (a.connectionState === 'active' && b.connectionState !== 'active') return -1;
+          if (b.connectionState === 'active' && a.connectionState !== 'active') return 1;
+        }
+        return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || '');
+      });
+    }
+
+    const remaining = sorted;
+    const page = remaining.slice(0, maxLimit);
+    const omitted = Math.max(0, remaining.length - page.length);
+    const hasMore = omitted > 0;
+    const last = page[page.length - 1];
+    const nextCursor = hasMore && order === 'sessionId' && last
+      ? encodeSessionCursor({
+        version: 1,
+        appId: appId || last.appId,
+        order,
+        afterSessionId: last.sessionId,
+      })
+      : null;
+
+    const mapped = page.map((info) => {
+      if (!eventWindow) {
+        return info;
+      }
+      const store = storesById.get(info.sessionId);
+      return {
+        ...info,
+        observation: store.getEventWindowSummary(eventWindow),
+      };
     });
 
     return {
-      sessions: sessions.slice(0, maxLimit),
-      total: sessions.length,
-      omitted: Math.max(0, sessions.length - maxLimit),
+      sessions: mapped,
+      total,
+      omitted,
+      hasMore,
+      nextCursor,
     };
   }
 
@@ -168,4 +254,4 @@ class HubStore {
   }
 }
 
-module.exports = { HubStore, safeAppDir };
+module.exports = { HubStore, safeAppDir, encodeSessionCursor, decodeSessionCursor };

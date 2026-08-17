@@ -2,7 +2,7 @@
 
 const http = require('http');
 const { URL } = require('url');
-const { apiPath, hubGet } = require('../httpClient');
+const { apiPath, hubGet, listAllSessions, HubReadError } = require('../httpClient');
 const { getExitCode } = require('../../protocol/errors');
 const { resolveSession } = require('./context');
 
@@ -12,11 +12,47 @@ const MAX_BYTES = 2 * 1024 * 1024;
 const TRAILER_RESERVE = 8 * 1024;
 const SESSION_CHECK_INTERVAL_MS = 2000;
 
+async function resolveTailSession(options) {
+  const { endpoint, appId, session: sessionId, allowStale } = options;
+  if (!sessionId) {
+    return resolveSession(endpoint, appId, sessionId, allowStale);
+  }
+  try {
+    const listed = await listAllSessions(endpoint, appId);
+    const session = (listed.sessions || []).find((item) => item.sessionId === sessionId);
+    if (!session) {
+      return {
+        ok: false,
+        code: 'NO_SESSION',
+        message: 'Session not found for this app.',
+        exitCode: getExitCode('NO_SESSION'),
+      };
+    }
+    if (session.connectionState !== 'active' && !allowStale) {
+      return {
+        ok: false,
+        code: 'STALE_SESSION',
+        message: 'Session is stale. Pass --allow-stale to read it.',
+        exitCode: getExitCode('STALE_SESSION'),
+      };
+    }
+    return { ok: true, sessionId };
+  } catch (err) {
+    const code = err instanceof HubReadError ? err.code : 'HUB_UNREACHABLE';
+    return {
+      ok: false,
+      code,
+      message: err.message,
+      exitCode: getExitCode(code),
+    };
+  }
+}
+
 async function tailCommand(options) {
-  const { endpoint, appId, session: sessionId, sinceSequence, follow, duration, allowStale } = options;
+  const { endpoint, appId, session: sessionId, sinceSequence, follow, durationMs, allowStale } = options;
   const output = options.output || process.stdout;
 
-  const resolved = await resolveSession(endpoint, appId, sessionId, allowStale);
+  const resolved = await resolveTailSession({ endpoint, appId, session: sessionId, allowStale });
   if (!resolved.ok) {
     writeNdjson(output, { kind: 'error', contentTrust: 'trusted-control', error: resolved });
     writeNdjson(output, { kind: 'end', contentTrust: 'trusted-control', reason: 'error', sequences: [] });
@@ -24,7 +60,7 @@ async function tailCommand(options) {
   }
 
   const sid = resolved.sessionId;
-  const durationMs = follow ? Infinity : (duration || DEFAULT_DURATION_MS);
+  const limitMs = follow ? Infinity : (durationMs ?? DEFAULT_DURATION_MS);
   let eventCount = 0;
   let totalBytes = 0;
   let lastSequence = sinceSequence != null ? Number(sinceSequence) : null;
@@ -95,8 +131,8 @@ async function tailCommand(options) {
     req.end();
 
     let durationTimer;
-    if (durationMs !== Infinity) {
-      durationTimer = setTimeout(() => finish('duration'), durationMs);
+    if (limitMs !== Infinity) {
+      durationTimer = setTimeout(() => finish('duration'), limitMs);
     }
 
     const sessionCheckTimer = setInterval(async () => {
@@ -198,4 +234,4 @@ function writeNdjson(output, record) {
   try { output.write(JSON.stringify(record) + '\n'); } catch { /* ignore */ }
 }
 
-module.exports = { tailCommand };
+module.exports = { tailCommand, resolveTailSession };

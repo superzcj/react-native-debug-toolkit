@@ -130,3 +130,127 @@ describe('Local Hub HTTP flow', () => {
     fs.rmSync(dataDir, { recursive: true, force: true });
   });
 });
+
+describe('diagnostic Hub HTTP context and pagination', () => {
+  it('selects by event time independently of receivedAt and rejects invalid timeBasis', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-dualclock-'));
+    const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
+    const started = await server.start();
+    const port = started.address.port;
+    const device = { platform: 'ios', osVersion: '18', nativeApplicationId: appId };
+    await request(port, 'POST', `/api/v1/apps/${appId}/sessions`, {
+      protocolVersion: 1, canonicalVersion: 1, sessionId, startedAt: Date.now(), clientAckThrough: 0, device,
+    });
+    await request(port, 'POST', `/api/v1/apps/${appId}/sessions/${sessionId}/events`, {
+      firstSequence: 1,
+      events: [{
+        sequence: 1,
+        timestamp: Date.parse('2026-08-17T02:32:00.000Z'),
+        type: 'console',
+        severity: 'error',
+        data: { message: 'crash' },
+      }],
+    });
+
+    const eventsPath = path.join(dataDir, appId, sessionId, 'events.jsonl');
+    const stored = JSON.parse(fs.readFileSync(eventsPath, 'utf8').trim().split('\n')[0]);
+    stored.receivedAt = '2026-08-17T02:40:00.000Z';
+    fs.writeFileSync(eventsPath, `${JSON.stringify(stored)}\n`);
+
+    await server.stop();
+    const restarted = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
+    const again = await restarted.start();
+    const p2 = again.address.port;
+
+    try {
+      const eventHit = await request(
+        p2,
+        'GET',
+        `/api/v1/apps/${appId}/sessions/${sessionId}/context?timeBasis=event&since=2026-08-17T02:31:00.000Z&until=2026-08-17T02:33:00.000Z`,
+      );
+      expect(eventHit.body.events.some((event) => event.data?.message === 'crash')).toBe(true);
+      expect(eventHit.body.window.timeBasis).toBe('event');
+      expect(eventHit.body.completeness).toMatchObject({
+        matched: 1,
+        selected: 1,
+        omitted: 0,
+      });
+      expect(eventHit.body.selection).toMatchObject({ total: 1, selected: 1, omitted: 0 });
+      expect(eventHit.body.ranges.event).toEqual({
+        since: '2026-08-17T02:32:00.000Z',
+        until: '2026-08-17T02:32:00.000Z',
+      });
+
+      const defaultMiss = await request(
+        p2,
+        'GET',
+        `/api/v1/apps/${appId}/sessions/${sessionId}/context?since=2026-08-17T02:31:00.000Z&until=2026-08-17T02:33:00.000Z`,
+      );
+      expect(defaultMiss.body.events).toHaveLength(0);
+
+      const receivedHit = await request(
+        p2,
+        'GET',
+        `/api/v1/apps/${appId}/sessions/${sessionId}/context?since=2026-08-17T02:39:00.000Z&until=2026-08-17T02:41:00.000Z`,
+      );
+      expect(receivedHit.body.events.some((event) => event.data?.message === 'crash')).toBe(true);
+
+      const invalid = await request(
+        p2,
+        'GET',
+        `/api/v1/apps/${appId}/sessions/${sessionId}/context?timeBasis=banana`,
+      );
+      expect(invalid.status).toBe(400);
+      expect(invalid.body.error.code).toBe('INVALID_ARGUMENT');
+
+      const locale = await request(
+        p2,
+        'GET',
+        `/api/v1/apps/${appId}/sessions/${sessionId}/context?since=08/17/2026`,
+      );
+      expect(locale.status).toBe(400);
+    } finally {
+      await restarted.stop();
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('pages 55 Sessions over HTTP without duplicates', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'debug-toolkit-pages-'));
+    const server = createHubServer({ dataDir, bindAddress: '127.0.0.1', port: 0 });
+    const started = await server.start();
+    const port = started.address.port;
+    const device = { platform: 'ios', osVersion: '18', nativeApplicationId: appId };
+    try {
+      for (let i = 1; i <= 55; i += 1) {
+        const id = `123e4567-e89b-42d3-a456-42661417${String(4000 + i).padStart(4, '0')}`;
+        const opened = await request(port, 'POST', `/api/v1/apps/${appId}/sessions`, {
+          protocolVersion: 1, canonicalVersion: 1, sessionId: id, startedAt: Date.now(), clientAckThrough: 0, device,
+        });
+        expect(opened.status).toBe(201);
+      }
+
+      const { listAllSessions } = require('../src/cli/httpClient');
+      const all = await listAllSessions(`http://127.0.0.1:${port}`, appId);
+      expect(all.sessions).toHaveLength(55);
+      expect(all.pages).toBeGreaterThanOrEqual(2);
+      expect(new Set(all.sessions.map((session) => session.sessionId)).size).toBe(55);
+    } finally {
+      await server.stop();
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('maps Hub read errors without leaking response bodies', () => {
+    const { toHubReadError } = require('../src/cli/httpClient');
+    const mapped = toHubReadError('http://127.0.0.1:3800', '/ready', {
+      status: 503,
+      body: { ok: false, error: { code: 'HUB_NOT_READY', message: 'secret-body' } },
+      raw: 'secret-body',
+    });
+    expect(mapped.code).toBe('HUB_NOT_READY');
+    expect(mapped.httpStatus).toBe(503);
+    expect(mapped.message).not.toContain('secret-body');
+    expect(mapped).not.toHaveProperty('raw');
+  });
+});

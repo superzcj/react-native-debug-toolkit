@@ -51,4 +51,111 @@ function apiPath(appId, ...rest) {
   return parts.join('/');
 }
 
-module.exports = { request, hubGet, hubPost, apiPath };
+class HubReadError extends Error {
+  constructor({ code, message, endpoint, path, httpStatus = null }) {
+    super(message);
+    this.name = 'HubReadError';
+    this.code = code;
+    this.endpoint = endpoint;
+    this.path = path;
+    this.httpStatus = httpStatus;
+  }
+}
+
+const PRESERVED_READ_CODES = Object.freeze({
+  HUB_NOT_READY: 503,
+  NO_SESSION: 404,
+  PROTOCOL_MISMATCH: 426,
+});
+
+const FIXED_READ_MESSAGES = Object.freeze({
+  HUB_UNREACHABLE: 'Hub is unreachable',
+  HUB_NOT_READY: 'Hub is not ready',
+  NO_SESSION: 'Session not found',
+  PROTOCOL_MISMATCH: 'Hub protocol mismatch',
+  INVALID_RESPONSE: 'Hub returned an invalid response',
+});
+
+function toHubReadError(endpoint, requestPath, response) {
+  const httpStatus = response && typeof response.status === 'number' ? response.status : null;
+  const body = response && response.body;
+  const codeFromBody = body && typeof body === 'object' ? body.error?.code : null;
+  let code = 'INVALID_RESPONSE';
+  if (codeFromBody && PRESERVED_READ_CODES[codeFromBody] === httpStatus) {
+    code = codeFromBody;
+  }
+  return new HubReadError({
+    code,
+    message: FIXED_READ_MESSAGES[code] || FIXED_READ_MESSAGES.INVALID_RESPONSE,
+    endpoint,
+    path: requestPath,
+    httpStatus,
+  });
+}
+
+async function listAllSessions(endpoint, appId, query = {}) {
+  const sessions = [];
+  const seen = new Set();
+  let cursor = null;
+  let pages = 0;
+  do {
+    const params = new URLSearchParams({ limit: '50', order: 'sessionId', ...query });
+    if (cursor) {
+      params.set('cursor', cursor);
+    }
+    const requestPath = `${apiPath(appId, 'sessions')}?${params}`;
+    let response;
+    try {
+      response = await hubGet(endpoint, requestPath, 10000);
+    } catch (cause) {
+      throw new HubReadError({
+        code: 'HUB_UNREACHABLE',
+        message: FIXED_READ_MESSAGES.HUB_UNREACHABLE,
+        endpoint,
+        path: requestPath,
+      });
+    }
+    if (!response.body || response.body.ok !== true || !Array.isArray(response.body.sessions)) {
+      throw toHubReadError(endpoint, requestPath, response);
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw toHubReadError(endpoint, requestPath, response);
+    }
+    sessions.push(...response.body.sessions);
+    pages += 1;
+    cursor = response.body.nextCursor ?? null;
+    if (cursor != null && typeof cursor !== 'string') {
+      throw new HubReadError({
+        code: 'INVALID_RESPONSE',
+        message: FIXED_READ_MESSAGES.INVALID_RESPONSE,
+        endpoint,
+        path: requestPath,
+        httpStatus: response.status,
+      });
+    }
+    if (cursor && seen.has(cursor)) {
+      throw new HubReadError({
+        code: 'INVALID_RESPONSE',
+        message: 'Hub repeated a Session cursor',
+        endpoint,
+        path: requestPath,
+        httpStatus: response.status,
+      });
+    }
+    if (cursor) {
+      seen.add(cursor);
+    }
+  } while (cursor);
+  return { sessions, pages };
+}
+
+module.exports = {
+  request,
+  hubGet,
+  hubPost,
+  apiPath,
+  HubReadError,
+  toHubReadError,
+  listAllSessions,
+};
+

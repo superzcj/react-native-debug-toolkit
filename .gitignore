@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 lib/
+!node/hub/evals/runtime-diagnostics/lib/
+!node/hub/evals/runtime-diagnostics/lib/**
 
 # IDE
 .idea/
@@ -58,7 +60,6 @@ Demo/yarn-error.log
 .claude/
 .superset/
 .debug-toolkit/
-AGENTS.md
 
 # Misc
 *.log

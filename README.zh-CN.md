@@ -99,23 +99,27 @@ cd ios && pod install
 
 ## 让 AI 看日志
 
-在业务 App 的根目录执行一次：
+常用路径就三步，不必自己去查 `appId` 或 Session ID。
+
+1. 在 App 根目录启动 Hub：`npx --package=react-native-debug-toolkit debug-toolkit hub dev`
+2. 打开 App 并复现问题。
+3. 直接对 AI 描述现象，例如 `看一下刚才登录为什么失败`。
+
+Skill 只需安装一次：
 
 ```bash
 npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
-它会创建 `.agents/skills/react-native-debug-toolkit/SKILL.md`，并在 `AGENTS.md` 写入一条发现指令。把这两个文件提交到仓库。
+它会写入 `.agents/skills/react-native-debug-toolkit/SKILL.md`，并在 `AGENTS.md` 加入一段托管说明。把这两个文件提交到仓库。之后可用 `debug-toolkit init --check` 查看 current / missing / outdated / modified；`debug-toolkit init --update` 会换成官方副本并留下不覆盖的 `.bak`。如果 git ignore 了这些文件，命令只会警告，不会改 ignore 规则。
 
-之后直接描述问题，例如：
+Hub 只能放在可信的本机或局域网，不能暴露到公网。
 
-```text
-看一下刚才登录为什么失败
-```
+`diagnose` 按发生时间（`event.timestamp`）匹配目标。Hub 入库时间（`receivedAt`）出现在覆盖信息里；旧的 `status` / `context` / `inspect` / `tail` 默认仍用 `receivedAt`，除非显式 `timeBasis=event`。
 
-Skill 会读取 `devConnect` 配置，找到对应 Session，再查看相关日志。多台设备同时在线时，AI 会问你要看哪一台。本机排查时，在同一台 Mac 上运行 AI（优先探测 `http://127.0.0.1:3800`）。
+### 高级手工查询
 
-需要手工查询时，仍可以使用 `status`、`context`、`inspect` 和 `tail`。
+需要自己查 Hub 时，仍可用 `status`、`context`、`inspect` 和 `tail`。`tail --duration-ms` 只接受 1000 到 300000 的整数（默认 60000）。`--follow` 只取消时间上限，200 条事件和 2 MiB 限制仍然有效。
 
 ## Hub 网页
 

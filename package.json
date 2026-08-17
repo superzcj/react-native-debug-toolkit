@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "typescript": "npm run typecheck",
     "test": "jest",
+    "eval:runtime-skill": "node node/hub/evals/runtime-diagnostics/run.js --model gpt-5.5 --reasoning high --runs 5",
     "build": "bob build",
     "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"node/**/*.js\" \"bin/**/*.js\"",
     "prepare": "bob build"
