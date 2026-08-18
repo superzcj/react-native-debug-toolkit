@@ -103,4 +103,7 @@ module.exports = {
   PanResponder: {
     create: () => ({ panHandlers: {} }),
   },
+  Linking: {
+    openSettings: jest.fn(async () => undefined),
+  },
 };

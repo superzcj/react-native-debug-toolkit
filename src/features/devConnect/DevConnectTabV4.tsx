@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -158,14 +157,6 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
 
   const handleSyncNow = useCallback(async () => {
     if (status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
-
-    if (status.state === 'hub_unreachable' || status.state === 'hub_not_ready') {
-      // If iOS Local Network permission denied, open Settings
-      if (Platform.OS === 'ios') {
-        try { await Linking.openSettings(); } catch {}
-        return;
-      }
-    }
 
     setSyncing(true);
     try {
