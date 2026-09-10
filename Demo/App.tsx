@@ -892,7 +892,7 @@ function App(): React.JSX.Element {
       customFeatures={customFeatures}
       environments={[
         { id: 'dev', label: 'Development', host: `${DEMO_HOST}:3801`, color: '#34C759' },
-        // Add your own reachable staging host to try Environment switching.
+        { id: 'staging', label: 'Staging', host: `${DEMO_HOST}:3802`, color: '#FF9500' },
       ]}
     >
       <SafeAreaView style={[styles.safeArea, { backgroundColor: T.background }]}>

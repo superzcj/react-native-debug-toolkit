@@ -39,7 +39,7 @@ export const useCart = create<CartState>(
 
 调用 `useCart.getState().add()`，在 **State** 查看动作和前后状态。中间件观察包装后的 `set`；其他状态方案可显式调用 `addZustandLog`。
 
-记录业务事件，在 **Track** 中查看：
+记录埋点，在 **Track** 中核对名称、属性和触发时间：
 
 ```tsx
 import { addTrackLog } from 'react-native-debug-toolkit';
@@ -83,12 +83,40 @@ export function App() {
 
 feature 定义一次即可；`name` 保持唯一，`subscribe` 返回取消订阅函数。自定义 React Tab 显示在 App 内。
 
+## 环境切换
+
+```tsx
+<DebugView environments={[
+  { id: 'dev', label: 'Development', host: 'dev.example.com' },
+  { id: 'staging', label: 'Staging', host: 'staging.example.com' },
+]}>
+  <AppContent />
+</DebugView>
+```
+
+将 host 换成自己的可访问服务，支持端口、不带协议或路径。在 Env 选择后，后续匹配请求会替换 host，原协议和路径保留；选择会持久化。对象配置还支持多组 URL 前缀与 `onChange`，托管模式按界面提示重启 App。[配置类型](../src/types/environment.ts)
+
+## 手机 → Mac 文本传递
+
+在 **Clip** 输入或粘贴文本后点 **Copy**，也可调用：
+
+```tsx
+import { copyToComputer } from 'react-native-debug-toolkit';
+
+copyToComputer('Checkout reproduced on staging.', { label: 'Diagnostic note' });
+```
+
+默认写入 Console，连接 Hub 后在 Mac 浏览器的 Console 中查看、复制。安装并链接可选 `@react-native-clipboard/clipboard` 时，也会写入手机剪贴板。此入口是手机向电脑传文本；`silent: true` 只写剪贴板，不进入日志同步。
+
+## 日志同步
+
+配置 `features.devConnect.appId` 并启动 Hub。Debug 自动同步；内测/Release 显式启用 Toolkit 后，在 **Connect** 点 **Upload Once** 上传一次，或用 **Start/Stop Live Logs** 控制持续同步。Hub 可按设备、日志类型和关键词筛选。它同步 Network、Console、Native、State、Navigation、Track 等运行记录；自定义 React 面板仍显示在 App 内。
+
 ## 其他接入
 
 | 功能 | 接入方式 |
 | --- | --- |
 | 导航 | `DebugView` 与 React Navigation 共用 `navigationRef`，或调用 `addNavigationLog` |
-| 环境切换 | 提供 `environments`，后续请求按配置替换 host 或 URL 前缀。[类型](../src/types/environment.ts) |
 | 测试账号 | 将 `useQuickAccountsFeature` 返回值加入 `customFeatures`，业务 `onSwitch` 负责认证。[API](../src/index.ts) |
 | 历史会话 | 独立 MMKV 保留 Network、Console、Native、Track，默认最多五个会话 |
 

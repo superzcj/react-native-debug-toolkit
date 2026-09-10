@@ -20,3 +20,12 @@ test('demo checkout exposes an inspectable conflict and supports a successful re
   const invalid = await fetch(`${base}/checkout`, { method: 'POST', body: '{' });
   assert.equal(invalid.status, 400);
 });
+
+test('staging serves the same fixture with a distinct environment header', async (t) => {
+  const server = createDemoServer({ environment: 'staging' });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-demo-environment'), 'staging');
+});

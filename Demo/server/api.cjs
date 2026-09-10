@@ -1,11 +1,11 @@
 // Deliberately synthetic shop data. Requests still travel through the real RN network stack.
 const http = require('node:http');
 
-function createDemoServer() {
+function createDemoServer({ environment = 'development' } = {}) {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const reply = (status, data) => {
-      res.writeHead(status, { 'Content-Type': 'application/json', 'X-Demo-API': 'atelier', 'Cache-Control': 'no-store' });
+      res.writeHead(status, { 'Content-Type': 'application/json', 'X-Demo-API': 'atelier', 'X-Demo-Environment': environment, 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(data));
     };
     let body = '';
@@ -50,8 +50,10 @@ function createDemoServer() {
 }
 
 if (require.main === module) {
-  const server = createDemoServer();
-  server.listen(3801, '0.0.0.0', () => console.log('Atelier demo API: http://localhost:3801'));
-  server.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
+  for (const [port, environment] of [[3801, 'development'], [3802, 'staging']]) {
+    const server = createDemoServer({ environment });
+    server.listen(port, '0.0.0.0', () => console.log(`Atelier ${environment} API: http://localhost:${port}`));
+    server.on('error', (error) => { console.error(error.message); process.exitCode = 1; });
+  }
 }
 module.exports = { createDemoServer };

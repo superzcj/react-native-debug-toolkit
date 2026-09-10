@@ -39,7 +39,7 @@ export const useCart = create<CartState>(
 
 Call `useCart.getState().add()` and open **State** to see the action and before/after values. The middleware observes its wrapped `set`; for other state systems, call `addZustandLog` explicitly.
 
-Record business events and inspect them in **Track**:
+Instrument analytics events and inspect their names, properties and timestamps in **Track**:
 
 ```tsx
 import { addTrackLog } from 'react-native-debug-toolkit';
@@ -83,12 +83,40 @@ export function App() {
 
 Define the feature once. `name` must be unique; `subscribe` returns an unsubscribe callback. Custom React tabs are displayed inside the app.
 
+## Environment switching
+
+```tsx
+<DebugView environments={[
+  { id: 'dev', label: 'Development', host: 'dev.example.com' },
+  { id: 'staging', label: 'Staging', host: 'staging.example.com' },
+]}>
+  <AppContent />
+</DebugView>
+```
+
+Replace the hosts with reachable services. A host may include a port, without a scheme or path. Choose in Env to rewrite matching hosts on subsequent requests while preserving the scheme/path; the selection is persisted. Object configuration supports named URL prefixes and `onChange`; managed mode prompts for an app restart. [Types](../src/types/environment.ts)
+
+## Phone → Mac text sharing
+
+Enter or paste text in **Clip** and tap **Copy**, or call:
+
+```tsx
+import { copyToComputer } from 'react-native-debug-toolkit';
+
+copyToComputer('Checkout reproduced on staging.', { label: 'Diagnostic note' });
+```
+
+Text is logged to Console by default. With Hub connected, view and copy it in the Mac browser Console. Installing/linking optional `@react-native-clipboard/clipboard` also writes to the device clipboard. This sends text from the phone to the computer; `silent: true` only writes the clipboard and skips log sync.
+
+## Log sync
+
+Configure `features.devConnect.appId` and start the Hub. Debug syncs automatically. In an explicitly enabled internal/Release build, use **Upload Once** or **Start/Stop Live Logs** in Connect. Filter by device, log type and keyword in the Hub. Network, Console, Native, State, Navigation and Track records are synchronized; custom React panels remain in the app.
+
 ## Other integrations
 
 | Feature | Integration |
 | --- | --- |
 | Navigation | Pass the same `navigationRef` to `DebugView` and React Navigation, or call `addNavigationLog` |
-| Environment | Supply `environments`; configured hosts or URL prefixes are rewritten on subsequent requests. [Types](../src/types/environment.ts) |
 | Test accounts | Add the feature returned by `useQuickAccountsFeature` to `customFeatures`; your `onSwitch` owns authentication. [API](../src/index.ts) |
 | Sessions | Retains Network, Console, Native and Track in Toolkit-owned MMKV; default five sessions |
 

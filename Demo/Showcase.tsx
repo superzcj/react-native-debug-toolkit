@@ -59,7 +59,7 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
       </View>
       {result && <View accessibilityLiveRegion="polite" style={[s.result, result.failed && s.failure]}>
         <Text style={s.resultText}>{result.text}</Text>
-        <Text style={s.resultHint}>Open Net for the response, State for the cart, or Track for the event.</Text>
+        <Text style={s.resultHint}>Open Net for the response, State for the cart, or Track for analytics events.</Text>
       </View>}
       <Text style={s.footnote}>Real HTTP traffic · Synthetic shop data · No account</Text>
     </View>
