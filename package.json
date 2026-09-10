@@ -1,6 +1,6 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "4.0.6",
+  "version": "4.0.8",
   "description": "AI-first local runtime log Hub for React Native — debug with CLI and Web Console",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -17,7 +17,10 @@
     "LICENSE",
     "!**/__tests__",
     "!**/__fixtures__",
-    "!**/__mocks__"
+    "!**/__mocks__",
+    "!**/.gradle/**",
+    "!android/build/**",
+    "!android/.cxx/**"
   ],
   "scripts": {
     "hub": "node bin/debug-toolkit.js hub dev",
@@ -30,7 +33,8 @@
     "eval:runtime-skill": "node node/hub/evals/runtime-diagnostics/run.js --model gpt-5.5 --reasoning high --runs 5",
     "build": "bob build",
     "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"node/**/*.js\" \"bin/**/*.js\"",
-    "prepare": "bob build"
+    "prepare": "bob build",
+    "demo:api": "npm --prefix Demo run demo:api"
   },
   "bin": {
     "debug-toolkit": "bin/debug-toolkit.js"

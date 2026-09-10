@@ -1,144 +1,66 @@
 # React Native Debug Toolkit
 
-React Native runtime logs for debugging with AI. Run a Hub on your Mac, let the App send logs to it, and let AI read them through a Skill in the repository. The Hub web page is a supporting view for humans.
+**Debug in your app. Inspect in your browser. Give your AI the runtime evidence.**
 
-[中文说明](README.zh-CN.md)
+[中文](README.zh-CN.md) · [Demo](Demo/README.md) · [Setup](docs/setup.md) · [Feature examples](docs/usage.md)
 
-## Pick a command
+- **In-app inspector:** requests, logs and state changes in a floating panel.
+- **Local Hub:** live device logs, search and request details in your browser.
+- **AI workflow:** a repository Skill lets your coding assistant read runtime evidence and trace it to code. No MCP setup.
 
-| Situation                                 | Run from        | Command                         |
-| ----------------------------------------- | --------------- | ------------------------------- |
-| Debug an App on your own Mac (usual)      | that App's root | `npx --package=react-native-debug-toolkit debug-toolkit hub dev` |
-| Work on this repository and start the Hub | repository root | `npm run hub`                   |
-| Run the Demo on iOS                       | repository root | `npm run demo:ios`              |
-| Run the Demo on Android                   | repository root | `npm run demo:android`          |
-| Set up AI for this repository             | repository root | `npm run ai:init`               |
-| Set up AI for an App repository           | that App's root | `npx --package=react-native-debug-toolkit debug-toolkit init` |
+<p align="center"><img src="demo.gif" width="360" alt="Trigger a failed checkout and inspect its HTTP 409 response." /></p>
 
-The `npm run` commands above are scripts in this repository's `package.json`. They are only for this checkout. `react-native-debug-toolkit` is the npm package and `debug-toolkit` is its bin, so use `npx --package=react-native-debug-toolkit debug-toolkit ...` in an App repository.
+## Quick start
 
-## Run a Hub on your Mac
+Install, then rebuild your native app:
 
-This is the normal way to debug an App. Run it from the App repository:
-
-```bash
-npx --package=react-native-debug-toolkit debug-toolkit hub dev
-```
-
-It runs in the foreground on port `3800` and stores data in `.debug-toolkit/hub`. It prints loopback and LAN addresses. Debug Apps can discover the Hub from the Metro bundle host; `features.devConnect.endpoint` is optional — used as the Release default and the Debug fallback when auto-discovery fails.
-
-Stop the Hub with `Ctrl+C` when you are done. When an Android device or emulator is present, `hub dev` tries `adb reverse tcp:3800 tcp:3800` and continues even if that fails.
-
-If a team runs the same command on another always-on machine, Apps can connect through `endpoint`. Process supervision, auto-start, upgrades, and network hardening are outside the Toolkit.
-
-## Test this repository
-
-Open two terminals in the repository root:
-
-```bash
-npm run hub
-```
-
-```bash
-npm run demo:ios
-# or: npm run demo:android
-```
-
-The Hub listens on port `3800` and keeps its data in `.debug-toolkit/hub`. Open the printed LAN address in a browser, use the Demo, and check that a device and its events appear.
-
-A physical device must reach the Hub over the LAN — do not use `127.0.0.1` for that device.
-
-For the exact Demo checks, see [Demo/README.md](Demo/README.md).
-
-## Add the Toolkit to an App
-
-```bash
+```sh
 npm install react-native-debug-toolkit
 cd ios && pod install
 ```
 
-Expo Go cannot load the native module. Use a development build, prebuild, or bare React Native.
-
-Configure the App with its existing identifier. Debug builds can omit `endpoint` and auto-discover the Hub. Release or internal builds that enable Toolkit may set `endpoint`, or let the user type a reachable Hub address in the Connect tab:
+Wrap your existing root component and set a stable `appId`:
 
 ```tsx
-import { DebugView } from "react-native-debug-toolkit";
+import { DebugView } from 'react-native-debug-toolkit';
 
-<DebugView
-  enabled={__DEV__ || appConfig.buildChannel === "internal"}
-  features={{
-    console: true,
-    network: true,
-    devConnect: {
-      appId: appConfig.appId,
-      endpoint: appConfig.debugLogHubUrl,
-    },
-  }}
->
-  <AppContent />
-</DebugView>;
+export default function App() {
+  return (
+    <DebugView features={{ devConnect: { appId: 'com.example.myapp' } }}>
+      <AppContent />
+    </DebugView>
+  );
+}
 ```
 
-Toolkit owns an isolated `react-native-debug-toolkit` MMKV store for logs,
-Toolkit UI preferences, and built-in feature state. No App storage adapter is
-required.
+Tap the floating launcher to inspect. Expo requires a development build; Expo Go is not supported.
 
-The Connect tab has an address field, **Upload Once**, and **Start/Stop Live Logs**. On a physical device it first suggests the detected LAN prefix, such as `192.168.1.`, so you can fill only the computer IP suffix. When `endpoint` is configured it appears as the second recommendation. A valid manual address is retained by the Toolkit; clearing it returns to the configured endpoint or an empty field.
+## Connect your browser and AI
 
-- Debug builds resolve a Hub, connect, and upload as soon as the Toolkit starts.
-- Internal or release builds upload only after the user selects **Upload Once** or **Start Live Logs**.
-- Public production builds use `enabled={false}`. They do not show the Toolkit or send logs.
+From your app project, start the Hub:
 
-For a bare React Native App, allow access to the internal HTTP Hub only in debug/internal configurations: iOS needs the relevant ATS and Local Network settings; Android needs its cleartext setting. A physical device must be able to reach the Hub over the LAN.
-
-To update the package, install the version you want and rebuild the native App:
-
-```bash
-npm install react-native-debug-toolkit@<version>
-cd ios && pod install
+```sh
+npx --package=react-native-debug-toolkit debug-toolkit hub dev
 ```
 
-## Debug with AI
+Open [localhost:3800](http://127.0.0.1:3800/). Debug builds discover the Hub through Metro and upload automatically. For physical devices, use your computer's reachable LAN address.
 
-The usual path is three steps. You do not need to look up `appId` or a Session ID.
+![Inspect a failed response and watch a successful request arrive live](docs/media/hub.gif)
 
-1. Start the Hub from the App repository: `npx --package=react-native-debug-toolkit debug-toolkit hub dev`
-2. Run the App and reproduce the problem.
-3. Tell the AI what happened, for example `Why did the login request fail just now?`
+Install the AI Skill once:
 
-Set up the repository Skill once:
-
-```bash
+```sh
 npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
-That writes `.agents/skills/react-native-debug-toolkit/SKILL.md` and a managed section in `AGENTS.md`. Commit both files. Later, `debug-toolkit init --check` reports whether the Skill is current, missing, outdated, or modified; `debug-toolkit init --update` replaces a managed copy and keeps a non-overwriting `.bak`. If git ignores those files, the command warns; it does not edit ignore rules.
+Commit the generated Skill and `AGENTS.md` changes. In a coding assistant that loads them, reproduce the issue and ask:
 
-The Hub must stay on a trusted local or LAN network. Do not expose it on the public Internet.
+> Check why the checkout just failed. Use the runtime logs to locate the relevant code.
 
-`diagnose` matches targets by occurrence time (`event.timestamp`). Hub ingestion time (`receivedAt`) is reported for coverage and is the default clock only for older `status` / `context` / `inspect` / `tail` queries unless `timeBasis=event` is set.
+## More tools
 
-### Advanced manual queries
+[Feature examples](docs/usage.md): Zustand state, navigation, events, environments, test accounts, retained sessions and custom tabs.
 
-`status`, `context`, `inspect`, and `tail` remain available when you need to query the Hub yourself. `tail --duration-ms` accepts integers from 1000 through 300000 (default 60000). `--follow` removes the time limit; the 200-event and 2 MiB limits still apply.
+[Run the Demo](Demo/README.md) to try a real HTTP 409 → 201 flow with synthetic shop data.
 
-## Hub web page
-
-Open the Hub address in a browser, for example `http://127.0.0.1:3800/` or the printed LAN URL. Select the App and device, then filter or inspect the events. It is a supporting view for human debugging; the Skill is the AI entry point.
-
-## Included features
-
-- App Toolkit: Console, Network, Native, Navigation, Track, Zustand, Environment, Clipboard, and custom tabs.
-- Hub: a Node service, JSONL storage, and the web page. Logs are kept for seven days, up to 20 GB.
-- AI access: a repository Skill and read-only CLI. MCP is not required.
-
-## Limits
-
-- This is a debugging tool, not production monitoring or a React Native DevTools replacement.
-- It does not redact data by default.
-- Network capture records requests. It cannot determine a business or authentication failure on its own.
-- First release keeps Hub on trusted developer machines or LANs. Do not expose it to the public Internet.
-
-## License
-
-MIT
+Use in debug/internal builds. Release uploads require an explicit action in Connect. Keep public production builds disabled and the Hub on a trusted network; logs are not automatically redacted. [Configuration & troubleshooting](docs/setup.md) · [MIT](LICENSE)

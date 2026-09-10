@@ -111,9 +111,10 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     const copy = kind => sequence === '' ? '' : copyButton(kind, sequence, kind);
     let html = '<section class="detail-section"><div class="network-hero"><span class="method-badge method-' + method.toLowerCase() + '">' + esc(method) + '</span><span>' + esc(request.url || '—') + '</span>' + copy('url') + '</div>';
     const metadata = [];
-    if (response && response.status !== undefined) metadata.push(response.status + (response.statusText ? ' ' + response.statusText : ''));
+    if (response && response.status !== undefined) metadata.push(response.status + (typeof response.statusText === 'string' && response.statusText ? ' ' + response.statusText : ''));
     if (data.duration !== undefined) metadata.push(data.duration + 'ms');
-    if (data.error) metadata.push('Error: ' + data.error);
+    const errorText = typeof data.error === 'string' ? data.error : isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : '';
+    if (errorText) metadata.push('Error: ' + errorText);
     if (metadata.length) html += '<div class="network-meta">' + metadata.map(esc).join('<span>·</span>') + '</div>';
     html += '</section>';
     html += renderSection('Request body', renderValue(request.body), copy('request'));

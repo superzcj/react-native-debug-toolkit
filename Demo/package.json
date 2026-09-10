@@ -7,7 +7,9 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "demo:api": "node server/api.cjs",
+    "test:api": "node --test server/api.test.cjs"
   },
   "dependencies": {
     "@react-native-clipboard/clipboard": "^1.16.3",

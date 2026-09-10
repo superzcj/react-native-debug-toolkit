@@ -75,7 +75,9 @@ function openSessionResponse() {
   };
 }
 
-function mockHubFetch(): jest.MockedFunction<typeof fetch> {
+type HubFetchStub = (input: RequestInfo | URL, init?: RequestInit) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>;
+
+function mockHubFetch(): jest.MockedFunction<HubFetchStub> {
   return jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/ready') && (!init?.method || init.method === 'GET')) {
@@ -95,7 +97,7 @@ function mockHubFetch(): jest.MockedFunction<typeof fetch> {
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
     }
     return { ok: true, status: 200, json: async () => ({}) };
-  }) as unknown as jest.MockedFunction<typeof fetch>;
+  });
 }
 
 async function openConnectTab(renderer: ReactTestRenderer.ReactTestRenderer) {
@@ -142,7 +144,7 @@ afterEach(() => {
 });
 
 test('opens the v4 local Hub controls', async () => {
-  global.fetch = mockHubFetch();
+  global.fetch = mockHubFetch() as jest.MockedFunction<typeof fetch>;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -154,8 +156,8 @@ test('opens the v4 local Hub controls', async () => {
   expect(findText(renderer!.root, 'Hub Address')).toBeTruthy();
   expect(findText(renderer!.root, 'Upload Once')).toBeTruthy();
   expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
-  expect(renderer!.root.findByProps({ placeholder: 'http://127.0.0.1:3800' }).props.value)
-    .toBe('http://127.0.0.1:3800');
+  expect(renderer!.root.findByProps({ placeholder: 'x' }).props.value).toBe('1');
+  expect(renderer!.root.findByProps({ placeholder: '3800' }).props.value).toBe('3800');
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, 'Stop Live Logs');
@@ -174,7 +176,7 @@ test('opens the v4 local Hub controls', async () => {
 
 test('uploads a snapshot batch to the local Hub', async () => {
   const fetchMock = mockHubFetch();
-  global.fetch = fetchMock;
+  global.fetch = fetchMock as jest.MockedFunction<typeof fetch>;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -224,7 +226,7 @@ test('automatically flushes navigation logs without pressing Upload Once', async
     }
     return { ok: true, status: 200, json: async () => ({}) };
   });
-  global.fetch = fetchMock;
+  global.fetch = fetchMock as jest.MockedFunction<typeof fetch>;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {

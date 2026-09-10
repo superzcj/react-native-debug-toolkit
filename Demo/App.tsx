@@ -21,6 +21,9 @@ import {
   DebugToolkit,
 } from 'react-native-debug-toolkit';
 
+import { Showcase } from './Showcase';
+import { DEMO_API, DEMO_HOST } from './demoApi';
+
 // ─── App Types ───────────────────────────────────────────
 
 type RootScreen = 'Explore' | 'Cart' | 'Profile';
@@ -351,7 +354,7 @@ function App(): React.JSX.Element {
     setFeedLoading(true);
 
     try {
-      const response = await fetch('https://jsonplaceholder.typicode.com/posts?_limit=2');
+      const response = await fetch(`${DEMO_API}/posts?_limit=2`);
       const data = (await response.json()) as Array<{ id: number; title: string; body: string }>;
 
       setFeedItems(
@@ -376,7 +379,7 @@ function App(): React.JSX.Element {
 
     try {
       const response = await fetch(
-        `https://jsonplaceholder.typicode.com/comments?postId=${Math.max(
+        `${DEMO_API}/comments?postId=${Math.max(
           1,
           PRODUCTS.findIndex((item) => item.id === productId) + 1,
         )}`,
@@ -404,7 +407,7 @@ function App(): React.JSX.Element {
     setProfileLoading(true);
 
     try {
-      const response = await fetch('https://jsonplaceholder.typicode.com/users/1');
+      const response = await fetch(`${DEMO_API}/users/1`);
       const data = (await response.json()) as {
         name: string;
         email: string;
@@ -527,7 +530,7 @@ function App(): React.JSX.Element {
     addTrackLog({ eventName: 'checkout_started', itemCount, totalPrice });
 
     try {
-      const res = await fetch('https://jsonplaceholder.typicode.com/posts', {
+      const res = await fetch(`${DEMO_API}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,11 +550,11 @@ function App(): React.JSX.Element {
 
   const runRawXhrSmoke = () => {
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://jsonplaceholder.typicode.com/todos/1');
+    xhr.open('GET', `${DEMO_API}/todos/1`);
     xhr.onloadend = () => {
       console.info('[Demo] XHR GET completed', {
         status: xhr.status,
-        url: 'https://jsonplaceholder.typicode.com/todos/1',
+        url: `${DEMO_API}/todos/1`,
       });
     };
     xhr.onerror = () => {
@@ -588,9 +591,11 @@ function App(): React.JSX.Element {
 
   const renderExploreScreen = () => (
     <>
+      <Showcase onAddItem={() => addToCart(PRODUCTS[0]!)} />
+      <Text style={[styles.sectionTitle, { color: T.text }]}>Or explore a real app flow</Text>
       <View style={[styles.promoCard, { backgroundColor: T.hero }]}>
-        <Text style={[styles.promoEyebrow, { color: T.textOnHero }]}>ATELIER HOME</Text>
-        <Text style={[styles.promoTitle, { color: T.textOnHero }]}>Quiet Objects For Daily Rooms</Text>
+        <Text style={[styles.promoEyebrow, { color: T.textOnHero }]}>THE SAMPLE SHOP</Text>
+        <Text style={[styles.promoTitle, { color: T.textOnHero }]}>Atelier Home</Text>
       </View>
 
       <View style={styles.productGrid}>
@@ -773,7 +778,7 @@ function App(): React.JSX.Element {
               onPress={async () => {
                 if (!profile) return;
                 try {
-                  const res = await fetch('https://jsonplaceholder.typicode.com/users/1', {
+                  const res = await fetch(`${DEMO_API}/users/1`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...profile, city: 'Updated City' }),
@@ -841,7 +846,7 @@ function App(): React.JSX.Element {
             style={[styles.devToolBtn, { backgroundColor: T.warning }]}
             onPress={async () => {
               try {
-                await fetch('https://jsonplaceholder.typicode.com/posts/1', { method: 'DELETE' });
+                await fetch(`${DEMO_API}/posts/1`, { method: 'DELETE' });
                 console.info('[Demo] DELETE /posts/1 succeeded');
               } catch (e) {
                 console.error('[Demo] DELETE failed:', e);
@@ -864,13 +869,10 @@ function App(): React.JSX.Element {
       <View style={[styles.devToolsCard, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
         <Text style={[styles.devToolsTitle, { color: T.text }]}>Native Logs</Text>
         <Text style={[styles.devToolsDesc, { color: T.textMuted }]}>
-          Captures platform-level logs — iOS RCTLog, Android logcat —
-          from the OS, native modules, and RN bridge.
-          Not from JS console.* (those appear in Console tab).
+          iOS captures React Native RCTLog output. Android captures logcat entries visible to this app process. JS console messages appear in Console.
         </Text>
         <Text style={[styles.devToolsDesc, { color: T.textMuted }]}>
-          Navigate between screens, load data — native logs accumulate from system activity.
-          Open the debug panel and switch to the Native Logs tab to view them.
+          Open Native to inspect available entries. An empty list can be normal if no supported native logs have been emitted.
         </Text>
       </View>
 
@@ -889,9 +891,8 @@ function App(): React.JSX.Element {
       features={{ devConnect: DEMO_HUB }}
       customFeatures={customFeatures}
       environments={[
-        { id: 'dev', label: 'Development', host: 'jsonplaceholder.typicode.com', color: '#34C759' },
-        { id: 'staging', label: 'Staging', host: 'staging-api.example.com', color: '#FF9500' },
-        { id: 'prod', label: 'Production', host: 'api.example.com', color: '#FF3B30' },
+        { id: 'dev', label: 'Development', host: `${DEMO_HOST}:3801`, color: '#34C759' },
+        // Add your own reachable staging host to try Environment switching.
       ]}
     >
       <SafeAreaView style={[styles.safeArea, { backgroundColor: T.background }]}>
@@ -1017,8 +1018,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topContent: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     paddingBottom: 20,
   },
   screenShell: {
@@ -1028,7 +1029,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   screenContent: {
-    padding: 18,
+    padding: 12,
     paddingBottom: 28,
     gap: 16,
   },

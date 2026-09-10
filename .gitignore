@@ -67,3 +67,11 @@ coverage/
 
 # Git worktrees
 .worktrees/
+
+# Local recording masters
+Demo/recordings/
+
+# Android library build artifacts
+android/.gradle/
+android/build/
+android/.cxx/

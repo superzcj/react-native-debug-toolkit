@@ -1,143 +1,66 @@
 # React Native Debug Toolkit
 
-这是一个给 React Native 排查运行时问题的工具。在开发者自己的 Mac 上启动 Hub，App 把日志发过去，AI 通过仓库里的 Skill 读取；Hub 网页供人手工查看。
+**App 内调试，浏览器看日志，AI 根据运行证据定位问题。**
 
-[English](README.md)
+[English](README.md) · [体验 Demo](Demo/README.md) · [接入说明](docs/setup.zh-CN.md) · [功能示例](docs/usage.zh-CN.md)
 
-## 先按场景选命令
+- **App 内面板：**悬浮查看请求、日志和状态变化。
+- **本地 Hub：**在浏览器实时查看设备日志、搜索并展开请求详情。
+- **AI 排查：**仓库 Skill 让编程助手读取运行证据并追踪代码，无需配置 MCP。
 
-| 要做什么                        | 在哪里执行 | 命令                         |
-| ------------------------------- | ---------- | ---------------------------- |
-| 在自己的 Mac 上调试 App（常用） | App 根目录 | `npx --package=react-native-debug-toolkit debug-toolkit hub dev` |
-| 开发本仓库，启动 Hub            | 仓库根目录 | `npm run hub`                |
-| 跑 iOS Demo                     | 仓库根目录 | `npm run demo:ios`           |
-| 跑 Android Demo                 | 仓库根目录 | `npm run demo:android`       |
-| 为本仓库生成 AI Skill           | 仓库根目录 | `npm run ai:init`            |
-| 为业务 App 生成 AI Skill        | App 根目录 | `npx --package=react-native-debug-toolkit debug-toolkit init` |
+<p align="center"><img src="demo.gif" width="360" alt="触发结账失败，查看真实 HTTP 409 响应。" /></p>
 
-`npm run hub`、`npm run demo:ios`、`npm run demo:android` 和 `npm run ai:init` 都写在本仓库根目录的 `package.json`。`react-native-debug-toolkit` 是 npm 包名，`debug-toolkit` 是 bin 名；业务 App 请用 `npx --package=react-native-debug-toolkit debug-toolkit ...`。
+## 快速接入
 
-## 在本机启动 Hub
+安装后重新构建原生 App：
 
-这是调试业务 App 的默认方式。在 App 根目录执行：
-
-```bash
-npx --package=react-native-debug-toolkit debug-toolkit hub dev
-```
-
-Hub 会以前台方式运行在 `3800` 端口，数据放在 `.debug-toolkit/hub`，并输出 loopback 和局域网地址。Debug 包可以从 Metro bundle host 自动发现 Hub；`features.devConnect.endpoint` 可选，用作 Release 默认值，也是 Debug 自动发现失败后的回退地址。
-
-结束时按 `Ctrl+C` 停止 Hub。检测到 Android 设备或模拟器时，`hub dev` 会尽力执行 `adb reverse tcp:3800 tcp:3800`，失败只提示，不影响启动。
-
-如果团队自行在另一台长期在线电脑上运行同一命令，App 可以通过 `endpoint` 连接；进程守护、开机启动、升级和网络安全由使用者自己的运行环境负责，不属于 Toolkit 首版功能。
-
-## 本仓库怎么跑
-
-在仓库根目录开两个终端：
-
-```bash
-npm run hub
-```
-
-```bash
-npm run demo:ios
-# 或：npm run demo:android
-```
-
-Hub 监听 `3800` 端口，开发数据放在 `.debug-toolkit/hub`。浏览器打开终端打印的局域网地址，操作 Demo，Hub 中应出现设备和日志。
-
-真机必须能从局域网访问 Hub，不能填 `127.0.0.1`。
-
-完整步骤见 [Demo/README.md](Demo/README.md)。
-
-## 接入业务 App
-
-```bash
+```sh
 npm install react-native-debug-toolkit
 cd ios && pod install
 ```
 
-Expo Go 不能加载原生模块，请使用 development build、prebuild 或 bare React Native。
-
-`appId` 直接复用 App 已有的固定标识。Debug 包可以不填 `endpoint`，靠自动发现；Release/内测包可以配置 `endpoint`，也可以在 Connect 页输入当前可达的 Hub 地址：
+包裹现有根组件，填入 App 的固定标识：
 
 ```tsx
-import { DebugView } from "react-native-debug-toolkit";
+import { DebugView } from 'react-native-debug-toolkit';
 
-<DebugView
-  enabled={__DEV__ || appConfig.buildChannel === "internal"}
-  features={{
-    console: true,
-    network: true,
-    devConnect: {
-      appId: appConfig.appId,
-      endpoint: appConfig.debugLogHubUrl,
-    },
-  }}
->
-  <AppContent />
-</DebugView>;
+export default function App() {
+  return (
+    <DebugView features={{ devConnect: { appId: 'com.example.myapp' } }}>
+      <AppContent />
+    </DebugView>
+  );
+}
 ```
 
-Toolkit 自己使用独立的 `react-native-debug-toolkit` MMKV 存储日志、界面偏好和
-内置 feature 状态，不需要 App 传入存储适配器。
+点击悬浮入口即可检查日志。Expo 请使用 development build，不支持 Expo Go。
 
-Connect 页面保留一个地址输入框、"上传一次" 和 "开启/停止实时日志"。真机优先推荐当前局域网前三段，例如 `192.168.1.`，点一下后只需补电脑 IP 尾段；配置了 `endpoint` 时，它作为第二个推荐地址显示。有效的手动地址由 Toolkit 保留；清空后回到配置地址或空输入框。
+## 连接浏览器与 AI
 
-- Debug 包启动后会解析 Hub、连接并自动上传。
-- 内测或 Release 包即使启用了 Toolkit，也要点 "上传一次" 或 "开启实时日志" 才上传。
-- 公开生产包设为 `enabled={false}`，不会显示 Toolkit，也不会上传日志。
+在业务 App 根目录启动 Hub：
 
-bare React Native 只在 debug/internal 配置中放开访问内网 HTTP Hub：iOS 配 ATS 和 Local Network，Android 配 cleartext。真机必须能从局域网访问 Hub。
-
-升级包时，安装指定版本并重新构建原生 App：
-
-```bash
-npm install react-native-debug-toolkit@<版本号>
-cd ios && pod install
+```sh
+npx --package=react-native-debug-toolkit debug-toolkit hub dev
 ```
 
-## 让 AI 看日志
+打开 [localhost:3800](http://127.0.0.1:3800/)。Debug 构建通过 Metro 自动发现 Hub 并上传；真机使用电脑可达的局域网地址。
 
-常用路径就三步，不必自己去查 `appId` 或 Session ID。
+![查看失败响应，再实时收到成功请求](docs/media/hub.gif)
 
-1. 在 App 根目录启动 Hub：`npx --package=react-native-debug-toolkit debug-toolkit hub dev`
-2. 打开 App 并复现问题。
-3. 直接对 AI 描述现象，例如 `看一下刚才登录为什么失败`。
+安装一次 AI Skill：
 
-Skill 只需安装一次：
-
-```bash
+```sh
 npx --package=react-native-debug-toolkit debug-toolkit init
 ```
 
-它会写入 `.agents/skills/react-native-debug-toolkit/SKILL.md`，并在 `AGENTS.md` 加入一段托管说明。把这两个文件提交到仓库。之后可用 `debug-toolkit init --check` 查看 current / missing / outdated / modified；`debug-toolkit init --update` 会换成官方副本并留下不覆盖的 `.bak`。如果 git ignore 了这些文件，命令只会警告，不会改 ignore 规则。
+提交生成的 Skill 和 `AGENTS.md` 改动。在能加载它们的编程助手中，复现问题后直接说：
 
-Hub 只能放在可信的本机或局域网，不能暴露到公网。
+> 看一下刚才结账为什么失败，结合运行日志定位相关代码。
 
-`diagnose` 按发生时间（`event.timestamp`）匹配目标。Hub 入库时间（`receivedAt`）出现在覆盖信息里；旧的 `status` / `context` / `inspect` / `tail` 默认仍用 `receivedAt`，除非显式 `timeBasis=event`。
+## 更多功能
 
-### 高级手工查询
+[功能示例](docs/usage.zh-CN.md)：Zustand 状态、导航、埋点、环境切换、测试账号、历史会话和自定义 Tab。
 
-需要自己查 Hub 时，仍可用 `status`、`context`、`inspect` 和 `tail`。`tail --duration-ms` 只接受 1000 到 300000 的整数（默认 60000）。`--follow` 只取消时间上限，200 条事件和 2 MiB 限制仍然有效。
+[运行 Demo](Demo/README.md)，用示例购物数据体验真实的 HTTP 409 → 201 流程。
 
-## Hub 网页
-
-在浏览器打开 Hub 地址，例如 `http://127.0.0.1:3800/` 或终端打印的局域网地址。选择 App 和设备后，可以过滤、搜索和查看日志详情。它主要给人辅助排查，AI 用 Skill 读取。
-
-## 包含的内容
-
-- App Toolkit：Console、Network、Native、Navigation、Track、Zustand、Environment、Clipboard 和自定义 Tab。
-- Hub：Node 服务、JSONL 存储和网页。日志保留 7 天，总量最多 20 GB。
-- AI：仓库 Skill 和只读 CLI，不需要 MCP。
-
-## 边界
-
-- 这是调试工具，不是线上监控，也不替代 React Native DevTools。
-- 默认不脱敏。
-- Network 只记录请求证据，不能自行判断业务或鉴权失败的原因。
-- 首版只在开发者可信的本机或局域网内运行，不能暴露到公网。
-
-## License
-
-MIT
+用于 Debug/内测构建。Release 需在 Connect 手动开启上传；公开生产包保持关闭。Hub 仅在可信网络使用，日志默认不脱敏。[配置与排障](docs/setup.zh-CN.md) · [MIT](LICENSE)
