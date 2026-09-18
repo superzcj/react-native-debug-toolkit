@@ -81,6 +81,29 @@ describe('CLI parseArgs and diagnose dispatch', () => {
     });
   });
 
+  it('parses and forwards the Hub startup locale', async () => {
+    const parsed = parseArgs(['hub', 'dev', '--locale', 'zh-CN']);
+    expect(parsed.locale).toBe('zh-CN');
+    const start = jest.spyOn(hubStart, 'hubStartCommand').mockResolvedValue({ ok: true, exitCode: 0 });
+    const result = await main(['hub', 'dev', '--locale', 'zh-CN']);
+    expect(result.exitCode).toBe(0);
+    expect(start).toHaveBeenCalledWith(expect.objectContaining({ locale: 'zh-CN' }));
+  });
+
+  it.each([['dev'], ['start']])('rejects a bad Hub locale for hub %s', async (subcommand) => {
+    const start = jest.spyOn(hubStart, 'hubStartCommand').mockResolvedValue({ ok: true, exitCode: 0 });
+    const result = await main(['hub', subcommand, '--locale', 'fr-FR']);
+    expect(result.exitCode).toBe(2);
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it.each([['dev'], ['start']])('rejects a missing Hub locale value for hub %s', async (subcommand) => {
+    const start = jest.spyOn(hubStart, 'hubStartCommand').mockResolvedValue({ ok: true, exitCode: 0 });
+    const result = await main(['hub', subcommand, '--locale']);
+    expect(result.exitCode).toBe(2);
+    expect(start).not.toHaveBeenCalled();
+  });
+
   it('dispatches diagnose before the legacy --app-id guard and prints JSON', async () => {
     const spy = jest.spyOn(diagnose, 'diagnoseCommand').mockResolvedValue({
       result: {
@@ -153,4 +176,3 @@ describe('CLI parseArgs and diagnose dispatch', () => {
     expect(result.exitCode).toBe(2);
   });
 });
-

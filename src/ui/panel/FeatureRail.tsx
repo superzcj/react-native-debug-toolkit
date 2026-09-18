@@ -2,24 +2,65 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing, RAIL_WIDTH } from '../theme/layout';
+import { t, type TranslationKey } from '../../i18n';
 
-const LABEL_MAP: Record<string, string> = {
-  network: 'Net',
-  console: 'Logs',
+const LABEL_MAP: Record<string, TranslationKey> = {
+  network: 'feature.short.network',
+  console: 'feature.short.console',
+  native: 'feature.short.native',
+  navigation: 'feature.short.navigation',
+  zustand: 'feature.short.zustand',
+  track: 'feature.short.track',
+  clipboard: 'feature.short.clipboard',
+  environment: 'feature.short.environment',
+  devConnect: 'feature.short.devConnect',
+  sessionHistory: 'feature.short.sessionHistory',
+  thirdPartyLibs: 'feature.short.thirdPartyLibs',
+};
+
+const DEFAULT_LABELS: Record<string, string> = {
+  network: 'Network',
+  console: 'Console',
   native: 'Native',
-  navigation: 'Nav',
-  zustand: 'State',
+  navigation: 'Navigation',
+  zustand: 'Zustand',
   track: 'Track',
-  clipboard: 'Clip',
-  environment: 'Env',
-  devConnect: 'Connect',
+  clipboard: 'Clipboard',
+  environment: 'Environment',
+  devConnect: 'DevConnect',
   sessionHistory: 'Sessions',
-  thirdPartyLibs: 'Libs',
+  thirdPartyLibs: 'Debug Libraries',
+};
+
+const DEFAULT_LABEL_ALIASES: Record<string, string[]> = {
+  sessionHistory: ['Session'],
+  thirdPartyLibs: ['Third Party'],
+};
+
+const FULL_LABEL_KEYS: Record<string, TranslationKey> = {
+  network: 'feature.network',
+  console: 'feature.console',
+  native: 'feature.native',
+  navigation: 'feature.navigation',
+  zustand: 'feature.zustand',
+  track: 'feature.track',
+  clipboard: 'feature.clipboard',
+  environment: 'feature.environment',
+  devConnect: 'feature.devConnect',
+  sessionHistory: 'feature.sessionHistory',
+  thirdPartyLibs: 'feature.thirdPartyLibs',
 };
 
 export function shortLabelForFeature(label: string, id: string): string {
   const mapped = LABEL_MAP[id];
-  if (mapped) return mapped;
+  const fullKey = FULL_LABEL_KEYS[id];
+  if (mapped && (
+    label.trim() === DEFAULT_LABELS[id]
+    || DEFAULT_LABEL_ALIASES[id]?.includes(label.trim())
+    || (fullKey && label.trim() === t(fullKey))
+  )) {
+    return t(mapped);
+  }
   return label.trim().slice(0, 12);
 }
 

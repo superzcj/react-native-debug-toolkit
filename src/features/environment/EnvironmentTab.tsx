@@ -12,6 +12,7 @@ import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import type { DebugFeatureRenderProps, EnvironmentListItem, EnvironmentState } from '../../types';
 import type { EnvironmentFeatureAPI } from './index';
+import { t } from '../../i18n';
 
 const DEFAULT_COLORS: Record<string, string> = {
   dev: '#22C55E',
@@ -57,10 +58,10 @@ export function getEnvironmentUrlRows(env: EnvironmentListItem): EnvironmentUrlR
       label: formatUrlLabel(key),
       value,
     }));
-    return rows.length > 0 ? rows : [{ label: 'URLs', value: 'No URLs configured' }];
+    return rows.length > 0 ? rows : [{ label: t('environment.urls'), value: t('environment.noUrls') }];
   }
 
-  return [{ label: 'Host', value: env.host }];
+  return [{ label: t('environment.host'), value: env.host }];
 }
 
 function canResetEnvironment(state: EnvironmentState) {
@@ -106,22 +107,22 @@ export function shouldShowRestartBlocker(state: EnvironmentState): boolean {
 
 function confirmEnvironmentSwitch(env: EnvironmentListItem, onConfirm: () => void) {
   Alert.alert(
-    'Switch environment?',
-    `Save "${env.label}" as the active environment? You must kill and reopen the app after saving.`,
+    t('environment.switchConfirmTitle'),
+    t('environment.switchConfirmMessage', { label: env.label }),
     [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Save', style: 'destructive', onPress: onConfirm },
+      { text: t('environment.cancel'), style: 'cancel' },
+      { text: t('environment.save'), style: 'destructive', onPress: onConfirm },
     ],
   );
 }
 
 function confirmRestoreDefault(onConfirm: () => void) {
   Alert.alert(
-    'Restore default URLs?',
-    'This removes the saved environment switch and returns requests to the app default URLs. You must kill and reopen the app after saving.',
+    t('environment.restoreConfirmTitle'),
+    t('environment.restoreConfirmMessage'),
     [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Restore', style: 'destructive', onPress: onConfirm },
+      { text: t('environment.cancel'), style: 'cancel' },
+      { text: t('environment.restore'), style: 'destructive', onPress: onConfirm },
     ],
   );
 }
@@ -136,11 +137,9 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>⚙</Text>
-          <Text style={styles.emptyTitle}>No Environments</Text>
+          <Text style={styles.emptyTitle}>{t('environment.noEnvironments')}</Text>
           <Text style={styles.emptyDesc}>
-            Call{'\n'}
-            <Text style={styles.code}>registerEnvironments([...])</Text>{'\n'}
-            to configure environments.
+            {t('environment.registerHint')}
           </Text>
         </View>
       </View>
@@ -193,15 +192,15 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
   return (
     <View style={styles.container}>
       <View style={styles.headerSection}>
-        <Text style={styles.sectionTitle}>Switch Environment</Text>
+        <Text style={styles.sectionTitle}>{t('environment.switch')}</Text>
         <Text style={styles.sectionDesc}>
-          Save a debug environment only when you are ready to restart the app.
+          {t('environment.description')}
         </Text>
         {showRestartWarning ? (
           <View style={styles.restartWarning}>
-            <Text style={styles.restartWarningTitle}>Restart required</Text>
+            <Text style={styles.restartWarningTitle}>{t('environment.restartRequired')}</Text>
             <Text style={styles.restartWarningText}>
-              Kill and reopen the app after changing or restoring environment settings.
+              {t('environment.restartWarning')}
             </Text>
           </View>
         ) : null}
@@ -210,18 +209,18 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {defaultEnv ? (
           <View style={styles.defaultSection}>
-            <Text style={styles.listSectionTitle}>Built-in URLs</Text>
+            <Text style={styles.listSectionTitle}>{t('environment.builtInUrls')}</Text>
             <View style={styles.builtInCard}>
               <View style={styles.builtInHeaderRow}>
                 <View style={[styles.colorDot, { backgroundColor: getEnvironmentColor(defaultEnv) }]} />
                 <View style={styles.builtInTitleGroup}>
-                  <Text style={styles.builtInKicker}>Current app default</Text>
+                  <Text style={styles.builtInKicker}>{t('environment.currentAppDefault')}</Text>
                   <Text style={styles.builtInLabel} numberOfLines={1}>
                     {defaultEnv.label}
                   </Text>
                 </View>
                 <View style={styles.defaultPill}>
-                  <Text style={styles.defaultPillText}>Default</Text>
+                  <Text style={styles.defaultPillText}>{t('common.default')}</Text>
                 </View>
               </View>
               <View style={styles.builtInUrlList}>
@@ -241,7 +240,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
         ) : null}
 
         {state.mode === 'managed' ? (
-          <Text style={styles.listSectionTitle}>Switch To</Text>
+          <Text style={styles.listSectionTitle}>{t('environment.switchTo')}</Text>
         ) : null}
         <View style={styles.groupedCard}>
           {environments.map((env, index) => {
@@ -269,12 +268,12 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
                     </Text>
                     {isDefault ? (
                       <View style={styles.defaultPill}>
-                        <Text style={styles.defaultPillText}>Default</Text>
+                        <Text style={styles.defaultPillText}>{t('common.default')}</Text>
                       </View>
                     ) : null}
                     {isActive ? (
                       <View style={styles.activePill}>
-                        <Text style={styles.activePillText}>Active</Text>
+                        <Text style={styles.activePillText}>{t('common.active')}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -305,7 +304,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
               onPress={handleRestoreDefault}
               activeOpacity={0.7}
             >
-              <Text style={styles.resetButtonText}>Restore default</Text>
+              <Text style={styles.resetButtonText}>{t('common.restoreDefault')}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -315,7 +314,7 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.resetButtonText}>Reset</Text>
+              <Text style={styles.resetButtonText}>{t('common.reset')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -328,11 +327,11 @@ export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>>
       >
         <View style={styles.blockerBackdrop}>
           <View style={styles.blockerCard}>
-            <Text style={styles.blockerTitle}>Kill app now</Text>
+            <Text style={styles.blockerTitle}>{t('environment.killAppNow')}</Text>
             <Text style={styles.blockerText}>
-              Environment settings were saved. Kill this app and reopen it before using any other debug tools.
+              {t('environment.savedRestart')}
             </Text>
-            <Text style={styles.blockerHint}>No in-app dismiss. Restart required.</Text>
+            <Text style={styles.blockerHint}>{t('environment.noDismiss')}</Text>
           </View>
         </View>
       </Modal>

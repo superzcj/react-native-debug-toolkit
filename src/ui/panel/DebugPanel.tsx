@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
+import { t } from '../../i18n';
 
 interface DebugPanelProps {
   onClose: () => void;
@@ -110,7 +111,7 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
                 </View>
               </View>
               <View style={styles.headerTextBlock}>
-                <Text style={styles.headerTitle}>Debug Toolkit</Text>
+                <Text style={styles.headerTitle}>{t('panel.name')}</Text>
                 {syncLabel && (
                   <View style={styles.syncRow}>
                     <View style={[styles.syncDot, syncColor ? { backgroundColor: syncColor } : null]} />
@@ -126,15 +127,15 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
                   closePanel();
                 }}
                 style={styles.clearButton}
-                accessibilityLabel="Clear all"
+                accessibilityLabel={t('common.clearAll')}
                 accessibilityRole="button"
               >
-                <Text style={styles.clearButtonText}>Clear</Text>
+                <Text style={styles.clearButtonText}>{t('common.clear')}</Text>
               </Pressable>
               <Pressable
                 onPress={closePanel}
                 style={styles.iconButton}
-                accessibilityLabel="Close panel"
+                accessibilityLabel={t('common.closePanel')}
                 accessibilityRole="button"
               >
                 <Text style={styles.iconButtonText}>X</Text>

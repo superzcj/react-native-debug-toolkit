@@ -888,6 +888,7 @@ function App(): React.JSX.Element {
 
   return (
     <DebugView
+      locale="zh-CN"
       features={{ devConnect: DEMO_HUB }}
       customFeatures={customFeatures}
       environments={[

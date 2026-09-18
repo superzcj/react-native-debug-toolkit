@@ -4,6 +4,7 @@ import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { copyToComputer } from '../../utils/copyToComputer';
 import type { DebugFeatureRenderProps } from '../../types';
+import { t } from '../../i18n';
 
 export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(() => {
   const [text, setText] = useState('');
@@ -13,9 +14,9 @@ export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(
     if (!text) return;
     try {
       const result = copyToComputer(text, { label: 'Clipboard' });
-      setFeedback(result.method === 'clipboard' ? 'Copied' : 'Logged');
+      setFeedback(result.method === 'clipboard' ? t('common.copied') : t('common.sent'));
     } catch {
-      setFeedback('Logged');
+      setFeedback(t('common.sent'));
     }
     setTimeout(() => setFeedback(null), 2000);
   }, [text]);
@@ -26,7 +27,7 @@ export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(
         style={s.input}
         value={text}
         onChangeText={setText}
-        placeholder="Paste or type text here..."
+        placeholder={t('clipboard.placeholder')}
         placeholderTextColor={Colors.textMuted}
         multiline
         textAlignVertical="top"
@@ -34,10 +35,10 @@ export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(
       <View style={s.footer}>
         {text ? (
           <TouchableOpacity style={s.copyBtn} onPress={handleCopy} activeOpacity={0.7}>
-            <Text style={s.copyBtnText}>{feedback ?? 'Copy'}</Text>
+            <Text style={s.copyBtnText}>{feedback ?? t('common.copy')}</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={s.hint}>Paste or type content above, then copy to computer</Text>
+          <Text style={s.hint}>{t('clipboard.hint')}</Text>
         )}
       </View>
     </View>

@@ -18,10 +18,10 @@ import { safeStringify } from '../../utils/safeStringify';
 import { fmt } from '../../utils/copyToComputer';
 import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
 import type { DebugFeature, DebugFeatureRenderProps, LogSession } from '../../types';
+import { getLocale, t } from '../../i18n';
 import {
   SESSION_HISTORY_LOG_KEYS,
   SESSION_LOG_COLORS,
-  SESSION_LOG_LABELS,
   countSessionLogs,
   flattenSessionLogs,
   type DetailFilter,
@@ -55,27 +55,27 @@ export interface SelectedSession {
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('relative.justNow');
+  if (mins < 60) return t('relative.minutesAgo', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('relative.hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (days === 1) return t('relative.yesterday');
+  if (days < 7) return t('relative.daysAgo', { count: days });
+  return new Date(ts).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
 }
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return new Date(ts).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatFullDate(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  if (isToday) return `Today ${time}`;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time;
+  const time = d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (isToday) return `${t('relative.today')} ${time}`;
+  return d.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' }) + ' ' + time;
 }
 
 function totalLogs(logs: Record<LogFeatureKey, unknown[]>): number {
@@ -97,6 +97,16 @@ function shortenUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+function sessionLogLabel(key: LogFeatureKey): string {
+  const keys: Record<LogFeatureKey, Parameters<typeof t>[0]> = {
+    console_logs: 'feature.console',
+    network_logs: 'feature.network',
+    native_logs: 'feature.native',
+    track_logs: 'feature.track',
+  };
+  return t(keys[key]);
 }
 
 // ── Main Tab ───────────────────────────────────────────────────────────
@@ -144,9 +154,9 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
           <View style={s.emptyClock}>
             <Text style={s.emptyClockText}>⏱</Text>
           </View>
-          <Text style={s.emptyTitle}>No session history</Text>
+          <Text style={s.emptyTitle}>{t('session.noHistory')}</Text>
           <Text style={s.emptySub}>
-            Previous sessions will appear here after you restart the app.
+            {t('session.description')}
           </Text>
         </View>
       );
@@ -158,14 +168,14 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
           <View style={s.currentCard}>
             <View style={s.currentRow}>
               <View style={s.pulseDot} />
-              <Text style={s.currentLabel}>CURRENT</Text>
+              <Text style={s.currentLabel}>{t('session.current')}</Text>
             </View>
             <Text style={s.currentTime}>{formatFullDate(currentSession.startedAt)}</Text>
           </View>
         )}
 
         <View style={s.timelineSection}>
-          <Text style={s.timelineHeader}>PREVIOUS SESSIONS</Text>
+          <Text style={s.timelineHeader}>{t('session.previous')}</Text>
           {previousSessions.map((session, idx) => {
             const counts = logCounts[session.id];
             const total = counts ? countSessionLogs(counts) : 0;
@@ -196,14 +206,14 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
                           <View key={key} style={[s.pill, { backgroundColor: SESSION_LOG_COLORS[key] + '18' }]}>
                             <View style={[s.pillDot, { backgroundColor: SESSION_LOG_COLORS[key] }]} />
                             <Text style={[s.pillText, { color: SESSION_LOG_COLORS[key] }]}>
-                              {c} {SESSION_LOG_LABELS[key]}
+                              {c} {sessionLogLabel(key)}
                             </Text>
                           </View>
                         );
                       })}
                     </View>
                   ) : (
-                    <Text style={s.cardEmpty}>No logs recorded</Text>
+                    <Text style={s.cardEmpty}>{t('session.noLogs')}</Text>
                   )}
 
                   <View style={s.cardFooter}>
@@ -237,7 +247,7 @@ const SessionDetail: React.FC<{
       <View style={s.sessionHeader}>
         <Pressable onPress={onBack} hitSlop={12} style={s.headerBackBtn}>
           <Text style={s.headerArrow}>‹</Text>
-          <Text style={s.headerBackLabel}>Sessions</Text>
+          <Text style={s.headerBackLabel}>{t('session.sessions')}</Text>
         </Pressable>
         <Text style={s.headerMeta}>#{shortId(sessionId)}</Text>
       </View>
@@ -245,16 +255,16 @@ const SessionDetail: React.FC<{
       <LogListScreen
         data={flatEntries}
         reversed={false}
-        emptyText={filter === 'all' ? 'No logs in this session' : `No ${SESSION_LOG_LABELS[filter]} logs`}
+        emptyText={filter === 'all' ? t('session.noLogsInSession') : `${t('session.noLogs')} (${sessionLogLabel(filter)})`}
         renderListHeader={() => (
           <View style={s.filterBar}>
-            <FilterChip label="All" count={total} active={filter === 'all'} onPress={() => setFilter('all')} color={Colors.text} />
+            <FilterChip label={t('common.all')} count={total} active={filter === 'all'} onPress={() => setFilter('all')} color={Colors.text} />
             {SESSION_HISTORY_LOG_KEYS.map((key) => {
               const c = (logs[key] ?? []).length;
               return (
                 <FilterChip
                   key={key}
-                  label={SESSION_LOG_LABELS[key]}
+                  label={sessionLogLabel(key)}
                   count={c}
                   active={filter === key}
                   onPress={() => setFilter(key)}
@@ -447,11 +457,11 @@ const LogDetailBody: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ en
           return (
             <CollapsibleSection
               key={i}
-              title={typeof d === 'object' && d !== null ? `Arg ${i + 1} (object)` : `Arg ${i + 1}`}
+              title={`${t('console.argument', { index: i + 1 })}${typeof d === 'object' && d !== null ? ` (${t('console.object')})` : ''}`}
               initiallyExpanded={i === 0}
             >
               <View style={s.sectionWithCopy}>
-                <CopyButton text={formatted} label={`Arg ${i + 1}`} />
+                <CopyButton text={formatted} label={t('console.argument', { index: i + 1 })} />
                 {typeof d === 'object' && d !== null ? (
                   <JsonView data={d} maxHeight={250} />
                 ) : (
@@ -483,44 +493,44 @@ const LogDetailBody: React.FC<{ entry: FlatSessionLogEntry }> = React.memo(({ en
         )}
 
         {/* Request Body */}
-        <CollapsibleSection title="Request Body" initiallyExpanded>
+        <CollapsibleSection title={t('network.requestBody')} initiallyExpanded>
           {e.request?.body != null ? (
             <View style={s.sectionWithCopy}>
-              <CopyButton text={fmt(e.request.body)} label="Request Body" />
+          <CopyButton text={fmt(e.request.body)} label={t('network.requestBody')} />
               <JsonView data={e.request.body} maxHeight={250} />
             </View>
           ) : (
-            <Text style={s.emptySection}>No request body</Text>
+          <Text style={s.emptySection}>{t('network.noRequestBody')}</Text>
           )}
         </CollapsibleSection>
 
         {/* Request Headers */}
         {e.request?.headers && (
-          <CollapsibleSection title="Request Headers">
+          <CollapsibleSection title={t('network.requestHeaders')}>
             <View style={s.sectionWithCopy}>
-              <CopyButton text={fmt(e.request.headers)} label="Request Headers" />
+              <CopyButton text={fmt(e.request.headers)} label={t('network.requestHeaders')} />
               <JsonView data={e.request.headers} maxHeight={200} />
             </View>
           </CollapsibleSection>
         )}
 
         {/* Response Body */}
-        <CollapsibleSection title="Response Body" initiallyExpanded>
+        <CollapsibleSection title={t('network.responseBody')} initiallyExpanded>
           {e.response?.data != null ? (
             <View style={s.sectionWithCopy}>
-              <CopyButton text={fmt(e.response.data)} label="Response Body" />
+          <CopyButton text={fmt(e.response.data)} label={t('network.responseBody')} />
               <JsonView data={e.response.data} maxHeight={300} />
             </View>
           ) : (
-            <Text style={s.emptySection}>No response body</Text>
+          <Text style={s.emptySection}>{t('network.noResponseBody')}</Text>
           )}
         </CollapsibleSection>
 
         {/* Response Headers */}
         {e.response?.headers && (
-          <CollapsibleSection title="Response Headers">
+          <CollapsibleSection title={t('network.responseHeaders')}>
             <View style={s.sectionWithCopy}>
-              <CopyButton text={fmt(e.response.headers)} label="Response Headers" />
+              <CopyButton text={fmt(e.response.headers)} label={t('network.responseHeaders')} />
               <JsonView data={e.response.headers} maxHeight={200} />
             </View>
           </CollapsibleSection>

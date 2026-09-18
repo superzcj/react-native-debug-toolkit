@@ -9,6 +9,7 @@ const source = html.slice(html.indexOf('function renderNetworkData('), html.inde
 const render = vm.runInNewContext('(' + source.trim() + ')', {
   isRecord: value => value !== null && typeof value === 'object',
   esc: String,
+  t: (key, params = {}) => key === 'web.error' ? `Error: ${params.value}` : key,
   renderSection: () => '', renderCollapsedSection: () => '', renderValue: () => '', buildCurl: () => '',
 });
 

@@ -4,6 +4,7 @@ import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
 import { useNavigationLogger } from '../features/navigation/useNavigationLogger';
 import type { AnyDebugFeature, DebugEnvironmentInput, NavigationContainerRef } from '../types';
+import type { DebugLocaleOption } from '../i18n';
 
 // --- Types ---
 
@@ -22,6 +23,8 @@ export interface DebugViewProps {
   environments?: DebugEnvironmentInput;
   /** Force enable/disable (default: `__DEV__`). */
   enabled?: boolean;
+  /** Startup language for the debug panel. Changing it requires a reload. */
+  locale?: DebugLocaleOption;
 }
 
 // --- Inner component for navigation hook (satisfies rules of hooks) ---
@@ -44,6 +47,7 @@ export function DebugView({
   navigationRef,
   environments,
   enabled,
+  locale,
 }: DebugViewProps) {
   const destroyRef = useRef<(() => void) | null>(null);
 
@@ -72,6 +76,7 @@ export function DebugView({
       features: resolvedFeatures,
       customFeatures,
       enabled,
+      locale,
     }).then((toolkit) => {
       if (!cancelled) {
         destroyRef.current = () => toolkit.destroy();

@@ -9,6 +9,7 @@ import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { LogRow } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, TrackLogEntry } from '../../types';
+import { t } from '../../i18n';
 
 export function renderTrackLogRow(item: TrackLogEntry) {
   return (
@@ -40,7 +41,7 @@ export function renderTrackLogRow(item: TrackLogEntry) {
 export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = React.memo(({ snapshot }) => (
   <LogListScreen
     data={snapshot}
-    emptyText="No track events"
+    emptyText={t('track.noEvents')}
     renderRow={renderTrackLogRow}
     renderDetailHeader={(item) => (
       <View style={s.eventBadge}><Text style={s.eventBadgeText}>{item.eventName}</Text></View>
@@ -51,9 +52,9 @@ export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = R
       );
       return (
         <ScrollView style={s.detailBody} contentContainerStyle={s.detailBodyContent}>
-          <CollapsibleSection title="Properties" initiallyExpanded>
+          <CollapsibleSection title={t('track.properties')} initiallyExpanded>
             <View style={s.sectionWithCopy}>
-              <CopyButton text={safeStringify(Object.fromEntries(extraProps), 2)} label="Track Properties" />
+              <CopyButton text={safeStringify(Object.fromEntries(extraProps), 2)} label={t('track.properties')} />
               <View style={s.propsGrid}>
                 {extraProps.map(([key, value]) => (
                   <View key={key} style={s.propRow}>
@@ -66,14 +67,14 @@ export const TrackLogTab: React.FC<DebugFeatureRenderProps<TrackLogEntry[]>> = R
               </View>
             </View>
           </CollapsibleSection>
-          <CollapsibleSection title="Full Event Data">
+          <CollapsibleSection title={t('track.fullData')}>
             <View style={s.sectionWithCopy}>
               <CopyButton text={safeStringify(item, 2)} label="Track Event" />
               <JsonView data={item} maxHeight={300} />
             </View>
           </CollapsibleSection>
           <View style={s.timingCard}>
-            <Text style={s.timingLabel}>Time</Text>
+            <Text style={s.timingLabel}>{t('common.time')}</Text>
             <Text style={s.timingValue}>{new Date(item.timestamp).toLocaleString()}</Text>
           </View>
         </ScrollView>

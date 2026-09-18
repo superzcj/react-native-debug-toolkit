@@ -5,6 +5,12 @@ module.exports = {
   Pressable: 'Pressable',
   TextInput: 'TextInput',
   NativeModules: {},
+  Settings: {
+    get: jest.fn(),
+  },
+  I18nManager: {
+    getConstants: jest.fn(() => ({})),
+  },
   DevSettings: {
     reload: jest.fn(),
   },

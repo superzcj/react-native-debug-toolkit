@@ -1,6 +1,7 @@
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import { createQuickAccountsFeature } from '../../features/quickAccounts/createQuickAccountsFeature';
 import { isQuickAccountSwitchDisabled } from '../../features/quickAccounts/QuickAccountsTab';
+import { configureLocale } from '../../i18n';
 
 type PrivateAccount = {
   id: string;
@@ -25,6 +26,24 @@ const accountB: PrivateAccount = {
 };
 
 describe('createQuickAccountsFeature', () => {
+  afterEach(() => {
+    configureLocale('en');
+  });
+
+  it('resolves default presentation copy at display time while preserving overrides', () => {
+    const feature = createQuickAccountsFeature({
+      accounts: [accountA],
+      onSwitch: jest.fn(async () => undefined),
+      copy: { title: 'Custom accounts' },
+    });
+
+    configureLocale('zh-CN');
+
+    expect(feature.label).toBe('账号');
+    expect(feature.getViewState().copy.title).toBe('Custom accounts');
+    expect(feature.getViewState().copy.description).toBe('切换到已配置的调试账号。');
+  });
+
   it('uses the stable opt-in feature name', () => {
     const feature = createQuickAccountsFeature({
       accounts: [accountA],

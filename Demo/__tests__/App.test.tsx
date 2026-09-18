@@ -112,7 +112,7 @@ async function openConnectTab(renderer: ReactTestRenderer.ReactTestRenderer) {
     await Promise.resolve();
   });
   await ReactTestRenderer.act(async () => {
-    pressText(renderer.root, 'Connect');
+    pressText(renderer.root, '连接');
     await flushHub();
   });
 }
@@ -153,21 +153,21 @@ test('opens the v4 local Hub controls', async () => {
   });
   await openConnectTab(renderer!);
 
-  expect(findText(renderer!.root, 'Hub Address')).toBeTruthy();
-  expect(findText(renderer!.root, 'Upload Once')).toBeTruthy();
-  expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
+  expect(findText(renderer!.root, 'Hub 地址')).toBeTruthy();
+  expect(findText(renderer!.root, '上传一次')).toBeTruthy();
+  expect(findText(renderer!.root, '停止实时日志')).toBeTruthy();
   expect(renderer!.root.findByProps({ placeholder: 'x' }).props.value).toBe('1');
   expect(renderer!.root.findByProps({ placeholder: '3800' }).props.value).toBe('3800');
 
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, 'Stop Live Logs');
+    pressText(renderer!.root, '停止实时日志');
     await Promise.resolve();
   });
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, 'Start Live Logs');
+    pressText(renderer!.root, '开始实时日志');
     await Promise.resolve();
   });
-  expect(findText(renderer!.root, 'Stop Live Logs')).toBeTruthy();
+  expect(findText(renderer!.root, '停止实时日志')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
@@ -185,7 +185,7 @@ test('uploads a snapshot batch to the local Hub', async () => {
   });
   await openConnectTab(renderer!);
   await ReactTestRenderer.act(async () => {
-    pressTextStartingWith(renderer!.root, 'Upload Once');
+    pressTextStartingWith(renderer!.root, '上传一次');
     await flushHub();
   });
 

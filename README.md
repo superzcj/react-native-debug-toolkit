@@ -68,6 +68,8 @@ export default function App() {
 
 Rebuild the native app, then tap the floating launcher. The in-app inspector also works without a Hub. Expo requires a development build; Expo Go is not supported.
 
+The inspector supports English and Simplified Chinese. Set `<DebugView locale="zh-CN">` to use Chinese, or leave the default `auto` to detect the device language at startup. [Language configuration →](docs/usage.md#language)
+
 ### Connect your browser and AI
 
 From your app project, start the Hub:

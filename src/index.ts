@@ -5,6 +5,7 @@ export { DebugView } from './ui/DebugView';
 export type { DebugViewProps } from './ui/DebugView';
 export { initializeDebugToolkit } from './core/initialize';
 export type { InitializeOptions, FeatureConfigs } from './core/initialize';
+export type { DebugLocale, DebugLocaleOption } from './i18n';
 
 // Feature factories
 export { createNetworkFeature } from './features/network';

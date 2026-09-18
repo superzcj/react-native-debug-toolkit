@@ -24,6 +24,7 @@ import {
 } from './panelFilterState';
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
+import { t, type TranslationKey } from '../../i18n';
 
 // ─── Error Boundary ────────────────────────────────────
 interface ErrorBoundaryState {
@@ -78,21 +79,49 @@ interface DevConnectSnapshot {
   canonicalEndpoint?: string;
 }
 
+const FEATURE_LABEL_KEYS: Record<string, TranslationKey> = {
+  network: 'feature.network',
+  console: 'feature.console',
+  native: 'feature.native',
+  navigation: 'feature.navigation',
+  zustand: 'feature.zustand',
+  track: 'feature.track',
+  clipboard: 'feature.clipboard',
+  environment: 'feature.environment',
+  devConnect: 'feature.devConnect',
+  sessionHistory: 'feature.sessionHistory',
+  thirdPartyLibs: 'feature.thirdPartyLibs',
+};
+
+const DEFAULT_FEATURE_LABELS: Record<string, string> = {
+  network: 'Network',
+  console: 'Console',
+  native: 'Native',
+  navigation: 'Navigation',
+  zustand: 'Zustand',
+  track: 'Track',
+  clipboard: 'Clipboard',
+  environment: 'Environment',
+  devConnect: 'DevConnect',
+  sessionHistory: 'Sessions',
+  thirdPartyLibs: 'Debug Libraries',
+};
+
 function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
   const devConnect = features.find((f) => f.name === 'devConnect');
   if (!devConnect) {
-    return { label: 'Shared Hub unavailable', color: Colors.textMuted };
+    return { label: t('panel.sharedHubUnavailable'), color: Colors.textMuted };
   }
 
   try {
     const snap = (devConnect.getSnapshot() ?? {}) as DevConnectSnapshot;
     const endpoint = snap.canonicalEndpoint?.trim();
     return {
-      label: endpoint ? 'Shared Hub configured' : 'Shared Hub not configured',
+      label: endpoint ? t('panel.sharedHubConfigured') : t('panel.sharedHubNotConfigured'),
       color: Colors.textMuted,
     };
   } catch {
-    return { label: 'Shared Hub unavailable', color: Colors.textMuted };
+    return { label: t('panel.sharedHubUnavailable'), color: Colors.textMuted };
   }
 }
 
@@ -153,7 +182,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
     refreshQueued.current = true;
     requestAnimationFrame(() => {
       refreshQueued.current = false;
-      setTick((t) => t + 1);
+      setTick((tick) => tick + 1);
     });
   }, []);
 
@@ -180,9 +209,16 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
 
   // Rail items with counts
+  const featureLabel = (feature: AnyDebugFeature): string => {
+    const key = FEATURE_LABEL_KEYS[feature.name];
+    return key && feature.label === DEFAULT_FEATURE_LABELS[feature.name]
+      ? t(key)
+      : feature.label;
+  };
+
   const railItems: RailItem[] = features.map((f) => {
     const b = f.badge?.();
-    return { id: f.name, label: f.label, dotColor: b?.color ?? null, count: snapshotCount(f) };
+    return { id: f.name, label: featureLabel(f), dotColor: b?.color ?? null, count: snapshotCount(f) };
   });
 
   const panelConnectionStatus = buildPanelConnectionStatus(features);
@@ -204,10 +240,10 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   // Render active feature content
   const renderFeatureContent = () => {
     if (features.length === 0) {
-      return <Text style={styles.emptyText}>No debug features enabled</Text>;
+      return <Text style={styles.emptyText}>{t('panel.noFeatures')}</Text>;
     }
     const feature = features[activeTab];
-    if (!feature) return <Text style={styles.emptyText}>Feature not found</Text>;
+    if (!feature) return <Text style={styles.emptyText}>{t('panel.featureNotFound')}</Text>;
     const snapshot = filteredSnapshot;
     const TabComponent = feature.renderContent;
     if (TabComponent) return <TabComponent snapshot={snapshot} feature={feature} />;
@@ -236,7 +272,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
               <View style={styles.contentColumn}>
                 {activeFeature && activeSummary && (
                   <FeatureIntroCard
-                    title={activeFeature.label}
+                    title={featureLabel(activeFeature)}
                     summary={activeSummary}
                     filterBad={filterBad}
                     onFilterBad={(bad) => dispatchFilters({ type: 'set-bad', bad })}

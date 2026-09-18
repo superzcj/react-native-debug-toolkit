@@ -7,6 +7,7 @@ import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import { fmt } from '../../utils/copyToComputer';
 import type { DebugFeatureRenderProps, NativeLogEntry } from '../../types';
+import { t } from '../../i18n';
 
 const LEVEL_COLORS: Record<string, string> = {
   trace: Colors.textMuted, debug: Colors.textMuted, info: Colors.primary,
@@ -37,7 +38,7 @@ export function renderNativeLogRow(item: NativeLogEntry) {
 export const NativeLogTab: React.FC<DebugFeatureRenderProps<NativeLogEntry[]>> = React.memo(({ snapshot }) => (
   <LogListScreen
     data={snapshot}
-    emptyText="No native logs"
+    emptyText={t('native.noLogs')}
     renderRow={renderNativeLogRow}
     renderDetailHeader={(item) => (
       <>

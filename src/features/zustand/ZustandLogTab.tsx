@@ -9,6 +9,7 @@ import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, ZustandLogEntry } from '../../types';
+import { t } from '../../i18n';
 
 /** Middleware / subscribe fallbacks that are not useful as a list title. */
 const GENERIC_ACTIONS = new Set(['setState', 'object-set', 'set']);
@@ -72,7 +73,7 @@ export function resolveZustandLogTitle(item: ZustandLogEntry): {
     };
   }
   return {
-    title: 'state change',
+    title: t('zustand.stateChange'),
     colorKey: 'update',
     namedAction: null,
     changes,
@@ -120,7 +121,7 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
 }) => (
   <LogListScreen
     data={snapshot}
-    emptyText="No Zustand state changes"
+    emptyText={t('zustand.noChanges')}
     renderRow={renderZustandLogRow}
     renderDetailHeader={(item) => {
       const { title, colorKey } = resolveZustandLogTitle(item);
@@ -144,13 +145,13 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
         <ScrollView style={s.detailBody} contentContainerStyle={s.detailBodyContent}>
           <View style={s.metaCard}>
             <View style={s.metaItem}>
-              <Text style={s.metaLabel}>Time</Text>
+              <Text style={s.metaLabel}>{t('common.time')}</Text>
               <Text style={s.metaValue}>{new Date(item.timestamp).toLocaleString()}</Text>
             </View>
             {item.actionCompleteTime != null && <View style={s.metaDivider} />}
             {item.actionCompleteTime != null && (
               <View style={s.metaItem}>
-                <Text style={s.metaLabel}>Duration</Text>
+                <Text style={s.metaLabel}>{t('common.duration')}</Text>
                 <Text style={s.metaValue}>{item.actionCompleteTime}ms</Text>
               </View>
             )}
@@ -160,14 +161,14 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
             <View style={s.metaCard}>
               {item.storeName ? (
                 <View style={s.metaItem}>
-                  <Text style={s.metaLabel}>Store</Text>
+                  <Text style={s.metaLabel}>{t('common.store')}</Text>
                   <Text style={s.metaValue}>{item.storeName}</Text>
                 </View>
               ) : null}
               {item.storeName && namedAction ? <View style={s.metaDivider} /> : null}
               {namedAction ? (
                 <View style={s.metaItem}>
-                  <Text style={s.metaLabel}>Action</Text>
+                  <Text style={s.metaLabel}>{t('common.action')}</Text>
                   <Text style={s.metaValue}>{namedAction}</Text>
                 </View>
               ) : null}
@@ -176,7 +177,7 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
 
           {changes.length > 0 && (
             <View style={s.changesCard}>
-              <Text style={s.changesTitle}>Changed Keys</Text>
+              <Text style={s.changesTitle}>{t('common.changedKeys')}</Text>
               <View style={s.changesTags}>
                 {changes.map((key) => (
                   <View key={key} style={s.changeTag}>
@@ -187,16 +188,16 @@ export const ZustandLogTab: React.FC<DebugFeatureRenderProps<ZustandLogEntry[]>>
             </View>
           )}
 
-          <CollapsibleSection title="Previous State">
+          <CollapsibleSection title={t('common.previousState')}>
             <View style={s.sectionWithCopy}>
-              <CopyButton text={safeStringify(item.prevState, 2)} label="Previous State" />
+              <CopyButton text={safeStringify(item.prevState, 2)} label={t('common.previousState')} />
               <JsonView data={item.prevState} maxHeight={250} highlightKeys={changes} />
             </View>
           </CollapsibleSection>
 
-          <CollapsibleSection title="Next State" initiallyExpanded>
+          <CollapsibleSection title={t('common.nextState')} initiallyExpanded>
             <View style={s.sectionWithCopy}>
-              <CopyButton text={safeStringify(item.nextState, 2)} label="Next State" />
+              <CopyButton text={safeStringify(item.nextState, 2)} label={t('common.nextState')} />
               <JsonView data={item.nextState} maxHeight={250} highlightKeys={changes} />
             </View>
           </CollapsibleSection>

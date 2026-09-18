@@ -5,6 +5,7 @@ import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import { CopyButton } from '../../ui/shared/CopyButton';
 import { LogRow } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, NavigationLogEntry } from '../../types';
+import { t } from '../../i18n';
 
 export function renderNavigationLogRow(item: NavigationLogEntry) {
   return (
@@ -39,7 +40,7 @@ export const NavigationLogTab: React.FC<DebugFeatureRenderProps<NavigationLogEnt
     <View style={styles.container}>
       {data.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <Text style={styles.empty}>No navigation events</Text>
+          <Text style={styles.empty}>{t('navigation.noEvents')}</Text>
         </View>
       ) : (
         <FlatList

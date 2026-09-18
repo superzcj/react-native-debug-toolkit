@@ -1,5 +1,6 @@
 import type { AnyDebugFeature } from '../../types';
 import { Colors } from '../theme/colors';
+import { t } from '../../i18n';
 
 export interface FeatureSummary {
   capabilityText: string;
@@ -62,7 +63,7 @@ function buildNetworkSummary(snapshot: unknown): FeatureSummary {
   }
 
   return {
-    capabilityText: 'HTTP capture, status, duration, request and response body',
+    capabilityText: t('summary.network'),
     count,
     badCount: badCount > 0 ? badCount : undefined,
     latestLabel,
@@ -91,7 +92,7 @@ function buildConsoleSummary(snapshot: unknown): FeatureSummary {
   }
 
   return {
-    capabilityText: 'Console log capture with level filtering',
+    capabilityText: t('summary.console'),
     count,
     badCount: badCount > 0 ? badCount : undefined,
     latestLabel,
@@ -117,7 +118,7 @@ function buildNavigationSummary(snapshot: unknown): FeatureSummary {
   }
 
   return {
-    capabilityText: 'Screen navigation tracking with route history',
+    capabilityText: t('summary.navigation'),
     count,
     latestLabel,
     supportsBadFilter: false,
@@ -141,7 +142,7 @@ function buildZustandSummary(snapshot: unknown): FeatureSummary {
   }
 
   return {
-    capabilityText: 'State change tracking for Zustand stores',
+    capabilityText: t('summary.zustand'),
     count,
     latestLabel,
     supportsBadFilter: false,
@@ -163,7 +164,7 @@ function buildTrackSummary(snapshot: unknown): FeatureSummary {
   }
 
   return {
-    capabilityText: 'Analytics event tracking and inspection',
+    capabilityText: t('summary.track'),
     count,
     latestLabel,
     supportsBadFilter: false,
@@ -172,7 +173,7 @@ function buildTrackSummary(snapshot: unknown): FeatureSummary {
 
 function buildClipboardSummary(_snapshot: unknown): FeatureSummary {
   return {
-    capabilityText: 'Clipboard event monitoring',
+    capabilityText: t('summary.clipboard'),
     supportsBadFilter: false,
   };
 }
@@ -188,7 +189,7 @@ function buildEnvironmentSummary(snapshot: unknown): FeatureSummary {
   const current = envs.find((e) => e.id === env.currentEnvironmentId);
 
   return {
-    capabilityText: 'Environment configuration and switching',
+    capabilityText: t('summary.environment'),
     count: envs.length || undefined,
     latestLabel: current?.label,
     statusLabel: current?.label,
@@ -206,15 +207,15 @@ interface QuickAccountsSummarySnapshot {
 function buildQuickAccountsSummary(snapshot: unknown): FeatureSummary {
   const state = (snapshot ?? {}) as QuickAccountsSummarySnapshot;
   const statusLabel = state.suspended
-    ? 'Paused'
+    ? t('devConnect.paused')
     : state.busy
-      ? 'Switching'
+      ? t('quickAccounts.switchingStatus')
       : state.lastResult === 'error'
-        ? 'Error'
+        ? t('devConnect.error')
         : undefined;
 
   return {
-    capabilityText: 'Opt-in debug account switching',
+    capabilityText: t('summary.quickAccounts'),
     count: typeof state.accountCount === 'number' ? state.accountCount : undefined,
     statusLabel,
     statusColor: state.lastResult === 'error' ? Colors.error : undefined,
@@ -231,9 +232,9 @@ function buildDevConnectSummary(snapshot: unknown): FeatureSummary {
   const endpoint = s.canonicalEndpoint?.trim();
 
   return {
-    capabilityText: 'Shared Hub log upload',
+    capabilityText: t('summary.devConnect'),
     latestLabel: endpoint,
-    statusLabel: endpoint ? 'Hub configured' : 'Hub not configured',
+    statusLabel: endpoint ? t('summary.hubConfigured') : t('summary.hubNotConfigured'),
     statusColor: endpoint ? Colors.success : undefined,
     supportsBadFilter: false,
   };
@@ -249,7 +250,7 @@ function buildSessionHistorySummary(snapshot: unknown): FeatureSummary {
   const s = (snapshot ?? {}) as SessionHistorySnap;
   const count = s.sessions?.length;
   return {
-    capabilityText: 'Session log recording and replay',
+    capabilityText: t('summary.sessionHistory'),
     count: count || undefined,
     latestLabel: s.currentSessionId,
     supportsBadFilter: false,
@@ -259,7 +260,7 @@ function buildSessionHistorySummary(snapshot: unknown): FeatureSummary {
 function buildThirdPartyLibsSummary(snapshot: unknown): FeatureSummary {
   const items = asArray(snapshot);
   return {
-    capabilityText: 'Third-party library inspection and management',
+    capabilityText: t('summary.thirdPartyLibs'),
     count: items.length || undefined,
     supportsBadFilter: false,
   };
@@ -273,7 +274,7 @@ function buildNativeSummary(snapshot: unknown): FeatureSummary {
     if (lvl === 'warn' || lvl === 'error' || lvl === 'fatal') badCount++;
   }
   return {
-    capabilityText: 'Native log capture',
+    capabilityText: t('summary.native'),
     count: items.length || undefined,
     badCount: badCount > 0 ? badCount : undefined,
     supportsBadFilter: items.length > 0,
@@ -283,7 +284,9 @@ function buildNativeSummary(snapshot: unknown): FeatureSummary {
 function buildUnknownSummary(snapshot: unknown): FeatureSummary {
   const items = asArray(snapshot);
   return {
-    capabilityText: `${items.length} item${items.length !== 1 ? 's' : ''} captured`,
+    capabilityText: t(items.length === 1 ? 'summary.oneItemCaptured' : 'summary.manyItemsCaptured', {
+      count: items.length,
+    }),
     count: items.length || undefined,
     supportsBadFilter: false,
   };

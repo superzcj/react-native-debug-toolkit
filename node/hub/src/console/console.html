@@ -36,39 +36,75 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
 </header>
 <main class="container" id="app"></main>
 <div class="toast" id="toast"></div>
+<!-- DT_HUB_CONFIG -->
 <script>
 (() => {
   'use strict';
+  const HUB_CONFIG = window.__DT_HUB_CONFIG__ || { locale: 'auto', messages: {} };
+  function resolveBrowserLocale(option, languages) {
+    if (option === 'en' || option === 'zh-CN') return option;
+    const candidate = Array.isArray(languages) ? languages[0] : languages;
+    const normalized = String(candidate || '').replace(/_/g, '-').toLowerCase();
+    const subtags = normalized.split('-');
+    if (subtags[0] !== 'zh') return 'en';
+    const script = subtags.find((part) => part.length === 4);
+    if (script === 'hans') return 'zh-CN';
+    if (script === 'hant') return 'en';
+    const region = subtags.slice(1).find((part) => /^[a-z]{2}$/.test(part) || /^\d{3}$/.test(part));
+    if (region === 'cn' || region === 'sg') return 'zh-CN';
+    return 'en';
+  }
+  const LOCALE = resolveBrowserLocale(
+    HUB_CONFIG.locale,
+    typeof navigator !== 'undefined'
+      ? (navigator.languages && navigator.languages.length ? navigator.languages : navigator.language)
+      : undefined,
+  );
+  const DICTIONARIES = HUB_CONFIG.messages || {};
+  function t(key, params) {
+    const values = params || {};
+    const current = DICTIONARIES[LOCALE] || {};
+    const fallback = DICTIONARIES.en || {};
+    const template = current[key] || fallback[key] || key;
+    return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
+    ));
+  }
+  document.documentElement.lang = LOCALE;
+  document.title = t('web.title');
   const BASE = window.location.origin;
   const PAGE_SIZE = 200;
   const state = { appId: '', sessions: [], sessionId: null, session: null, events: [], selectedType: '', failedOnly: false, search: '', page: 1, stream: null, maxSequence: 0, pendingLiveUpdates: 0, didAutoOpen: false };
   const $ = selector => document.querySelector(selector);
   const app = $('#app');
+  $('#appSelect').setAttribute('aria-label', t('web.app'));
+  $('#appSelect option').textContent = t('web.loading');
+  $('#refreshBtn').textContent = '↻ ' + t('web.refresh');
 
   function esc(value) { const node = document.createElement('div'); node.textContent = String(value ?? ''); return node.innerHTML; }
   function stringify(value) { try { return JSON.stringify(value, null, 2); } catch { return String(value); } }
   function formatJson(value) { if (typeof value === 'string') { try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; } } if (value === undefined) return ''; return stringify(value); }
   function highlightJson(text) { return esc(text).replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)/g, match => { let cls = 'json-number'; if (match[0] === '"') cls = /:\s*$/.test(match) ? 'json-key' : 'json-string'; else if (match === 'true' || match === 'false') cls = 'json-boolean'; else if (match === 'null') cls = 'json-null'; return '<span class="' + cls + '">' + match + '</span>'; }); }
   function api(path) { return fetch(BASE + path, { cache: 'no-store' }).then(async response => { const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error?.message || response.statusText); return body; }); }
-  function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString(undefined, { hour12: false }); }
-  function formatTimeShort(value) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString(undefined, { hour12: false }); }
-  function formatAge(value) { const ms = Date.now() - new Date(value).getTime(); if (!Number.isFinite(ms)) return ''; const seconds = Math.max(0, Math.floor(ms / 1000)); if (seconds < 60) return seconds + 's ago'; if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago'; if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago'; return Math.floor(seconds / 86400) + 'd ago'; }
+  function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString(LOCALE, { hour12: false }); }
+  function formatTimeShort(value) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString(LOCALE, { hour12: false }); }
+  function formatAge(value) { const ms = Date.now() - new Date(value).getTime(); if (!Number.isFinite(ms)) return ''; const seconds = Math.max(0, Math.floor(ms / 1000)); if (seconds < 60) return t('web.secondsAgo', { count: seconds }); if (seconds < 3600) return t('web.minutesAgo', { count: Math.floor(seconds / 60) }); if (seconds < 86400) return t('web.hoursAgo', { count: Math.floor(seconds / 3600) }); return t('web.daysAgo', { count: Math.floor(seconds / 86400) }); }
   function readHash() { const parts = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map(part => { try { return decodeURIComponent(part); } catch { return part; } }); return { appId: parts[0] || '', sessionId: parts[1] || '' }; }
   function writeHash(appId, sessionId) { const next = appId ? '#/' + encodeURIComponent(appId) + (sessionId ? '/' + encodeURIComponent(sessionId) : '') : '#/'; if (location.hash !== next) history.replaceState(null, '', next); }
-  function sessionStatus(session) { if (session.syncState === 'paused') return { label: 'paused', cls: 'paused' }; if (session.connectionState === 'active') return { label: 'online', cls: 'live' }; return { label: 'offline', cls: 'offline' }; }
+  function sessionStatus(session) { if (session.syncState === 'paused') return { label: t('web.pausedStatus'), cls: 'paused' }; if (session.connectionState === 'active') return { label: t('web.online'), cls: 'live' }; return { label: t('web.offline'), cls: 'offline' }; }
   function formatBytes(bytes) { if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB'; return (bytes / 1073741824).toFixed(2) + ' GB'; }
-  function typeLabel(type) { const labels = { console: 'Console', network: 'Network', navigation: 'Navigation', track: 'Track', zustand: 'State', native: 'Native' }; return labels[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Unknown'); }
+  function typeLabel(type) { const key = type ? 'web.type.' + type : ''; return type && (DICTIONARIES[LOCALE]?.[key] || DICTIONARIES.en?.[key]) ? t(key) : (type ? type.charAt(0).toUpperCase() + type.slice(1) : t('web.unknown')); }
   function typeClass(type) { return String(type || 'unknown').replace(/[^a-z0-9_-]/gi, '_').toLowerCase(); }
-  function deviceLabel(session) { const device = session.device || {}; const parts = []; if (device.platform) parts.push(device.platform === 'ios' ? 'iOS' : device.platform === 'android' ? 'Android' : device.platform); const model = [device.manufacturer, device.model].filter(Boolean).join(' '); if (model) parts.push(model); if (session.sourceIp) parts.push(session.sourceIp); if (device.osVersion) parts.push('OS ' + device.osVersion); if (device.appVersion) parts.push('v' + device.appVersion + (device.buildNumber ? ' (' + device.buildNumber + ')' : '')); return parts.join(' · ') || 'Unknown device'; }
+  function deviceLabel(session) { const device = session.device || {}; const parts = []; if (device.platform) parts.push(device.platform === 'ios' ? 'iOS' : device.platform === 'android' ? 'Android' : device.platform); const model = [device.manufacturer, device.model].filter(Boolean).join(' '); if (model) parts.push(model); if (session.sourceIp) parts.push(session.sourceIp); if (device.osVersion) parts.push('OS ' + device.osVersion); if (device.appVersion) parts.push('v' + device.appVersion + (device.buildNumber ? ' (' + device.buildNumber + ')' : '')); return parts.join(' · ') || t('web.unknownDevice'); }
   function formatUrlParts(url) { try { const parsed = new URL(url); return { host: parsed.host, path: parsed.pathname + parsed.search }; } catch { return { host: '', path: url || '—' }; } }
   function quoteCurl(value) { return String(value).replace(/'/g, "'\\''"); }
   function buildCurl(request) { let command = "curl -X " + (request.method || 'GET') + " '" + quoteCurl(request.url || '') + "'"; if (request.headers) Object.entries(request.headers).forEach(([key, value]) => { command += " \\\n  -H '" + quoteCurl(key) + ': ' + quoteCurl(value) + "'"; }); if (request.body != null && request.body !== '') { command += " \\\n  -d '" + quoteCurl(typeof request.body === 'string' ? request.body : stringify(request.body)) + "'"; } return command; }
   function copyPayload(event, kind) { if (!event) return ''; const data = isRecord(event.data) ? event.data : { value: event.data }; const request = isRecord(data.request) ? data.request : data; const response = isRecord(data.response) ? data.response : null; if (kind === 'url') return request.url || ''; if (kind === 'request') return request.body == null ? '' : formatJson(request.body); if (kind === 'response') return response && response.data != null ? formatJson(response.data) : data.error ? String(data.error) : ''; if (kind === 'curl') return buildCurl(request); if (kind === 'message') { const messages = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return messages.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : formatJson(value)).join('\n'); } return stringify(event); }
-  function copyButton(kind, sequence, label) { return '<button type="button" class="copy-btn" data-copy-kind="' + esc(kind) + '" data-copy-sequence="' + sequence + '" title="Copy ' + esc(label) + '">⧉</button>'; }
-  function summary(event) { const data = event.data || {}; if (event.type === 'network') { const request = data.request || data; if (request.method || request.url) return formatUrlParts(request.url || '').path; } if (event.type === 'console') { const values = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return values.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : stringify(value)).join(' ').slice(0, 240); } if (event.type === 'navigation') return [data.from || data.path, data.to].filter(Boolean).join(' → '); if (event.type === 'track') return data.eventName || data.event || data.name || 'Track event'; if (event.type === 'zustand') return data.action || data.storeName || 'State change'; if (event.type === 'native') return [data.tag, data.message].filter(Boolean).join(': ') || 'Native log'; return data.message || data.text || stringify(data).slice(0, 240); }
+  function copyButton(kind, sequence, label) { return '<button type="button" class="copy-btn" data-copy-kind="' + esc(kind) + '" data-copy-sequence="' + sequence + '" title="' + esc(t('common.copy')) + ' ' + esc(label) + '">⧉</button>'; }
+  function summary(event) { const data = event.data || {}; if (event.type === 'network') { const request = data.request || data; if (request.method || request.url) return formatUrlParts(request.url || '').path; } if (event.type === 'console') { const values = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return values.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : stringify(value)).join(' ').slice(0, 240); } if (event.type === 'navigation') return [data.from || data.path, data.to].filter(Boolean).join(' → '); if (event.type === 'track') return data.eventName || data.event || data.name || t('web.event'); if (event.type === 'zustand') return data.action || data.storeName || t('web.stateChange'); if (event.type === 'native') return [data.tag, data.message].filter(Boolean).join(': ') || t('web.nativeLog'); return data.message || data.text || stringify(data).slice(0, 240); }
   function isFailed(event) { const data = event.data || {}; if (event.type === 'network') { const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return status >= 400; return Boolean(data.error); } return event.severity === 'error' || event.severity === 'fatal' || Boolean(data.error) || Number((data.response || {}).status) >= 400; }
-  function networkStatusLabel(event) { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return String(status); if (data.error === 'Timeout') return 'Timeout'; if (data.error === 'Aborted') return 'Abort'; if (data.error === 'Network Error') return 'NetErr'; return data.error ? 'ERR' : '…'; }
-  function statusBadge(event) { if (event.type === 'network') { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); const failed = Number.isFinite(status) && status > 0 ? status >= 400 : Boolean(data.error); return '<span class="badge ' + (failed ? 'badge-error' : 'badge-info') + '">' + esc(networkStatusLabel(event)) + '</span>'; } if (event.severity === 'error' || event.severity === 'fatal') return '<span class="badge badge-error">ERR</span>'; if (event.severity === 'warn') return '<span class="badge badge-warn">WRN</span>'; return '<span class="badge badge-info">' + esc(event.severity || 'info') + '</span>'; }
+  function networkStatusLabel(event) { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return String(status); if (data.error === 'Timeout') return t('web.timeout'); if (data.error === 'Aborted') return t('web.abort'); if (data.error === 'Network Error') return t('web.networkError'); return data.error ? t('web.errorBadge') : '…'; }
+  function statusBadge(event) { if (event.type === 'network') { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); const failed = Number.isFinite(status) && status > 0 ? status >= 400 : Boolean(data.error); return '<span class="badge ' + (failed ? 'badge-error' : 'badge-info') + '">' + esc(networkStatusLabel(event)) + '</span>'; } if (event.severity === 'error' || event.severity === 'fatal') return '<span class="badge badge-error">' + esc(t('web.errorBadge')) + '</span>'; if (event.severity === 'warn') return '<span class="badge badge-warn">' + esc(t('web.warningBadge')) + '</span>'; return '<span class="badge badge-info">' + esc(event.severity || t('web.info')) + '</span>'; }
 
   function isRecord(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
   function renderValue(value) {
@@ -94,49 +130,49 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   }
   function renderConsoleData(data, event) {
     const messages = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message];
-    const copy = event ? copyButton('message', event.sequence, 'Messages') : '';
-    return renderSection('Console', renderRows([['Level', data.level]])) + renderSection('Messages', '<div class="value-list">' + messages.map(renderValue).join('') + '</div>', copy);
+    const copy = event ? copyButton('message', event.sequence, t('web.copyMessages')) : '';
+    return renderSection(t('web.console'), renderRows([[t('web.level'), data.level]])) + renderSection(t('web.copyMessages'), '<div class="value-list">' + messages.map(renderValue).join('') + '</div>', copy);
   }
   function renderNativeData(data) {
-    return renderSection('Native log', renderRows([
-      ['Level', data.level], ['Platform', data.platform], ['Source', data.source], ['Tag', data.tag],
-      ['Thread', data.thread], ['File', data.file], ['Line', data.line],
-    ])) + renderSection('Message', renderValue(data.message || data.raw || '')) + (data.raw ? renderCollapsedSection('Raw native log', renderValue(data.raw)) : '');
+    return renderSection(t('web.nativeLog'), renderRows([
+      [t('web.level'), data.level], [t('web.platform'), data.platform], [t('web.source'), data.source], [t('web.tag'), data.tag],
+      [t('web.thread'), data.thread], [t('web.file'), data.file], [t('web.line'), data.line],
+    ])) + renderSection(t('web.message'), renderValue(data.message || data.raw || '')) + (data.raw ? renderCollapsedSection(t('web.rawNativeLog'), renderValue(data.raw)) : '');
   }
   function renderNetworkData(data, event) {
     const request = isRecord(data.request) ? data.request : data;
     const response = isRecord(data.response) ? data.response : null;
     const method = String(request.method || 'GET').toUpperCase();
     const sequence = event ? event.sequence : '';
-    const copy = kind => sequence === '' ? '' : copyButton(kind, sequence, kind);
+    const copy = kind => sequence === '' ? '' : copyButton(kind, sequence, t('web.' + kind));
     let html = '<section class="detail-section"><div class="network-hero"><span class="method-badge method-' + method.toLowerCase() + '">' + esc(method) + '</span><span>' + esc(request.url || '—') + '</span>' + copy('url') + '</div>';
     const metadata = [];
     if (response && response.status !== undefined) metadata.push(response.status + (typeof response.statusText === 'string' && response.statusText ? ' ' + response.statusText : ''));
     if (data.duration !== undefined) metadata.push(data.duration + 'ms');
     const errorText = typeof data.error === 'string' ? data.error : isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : '';
-    if (errorText) metadata.push('Error: ' + errorText);
+    if (errorText) metadata.push(t('web.error', { value: errorText }));
     if (metadata.length) html += '<div class="network-meta">' + metadata.map(esc).join('<span>·</span>') + '</div>';
     html += '</section>';
-    html += renderSection('Request body', renderValue(request.body), copy('request'));
-    if (response || data.error) html += renderSection('Response data', renderValue(response ? response.data : data.error), copy('response'));
-    if (request.headers) html += renderCollapsedSection('Request headers', renderValue(request.headers));
-    if (response && response.headers) html += renderCollapsedSection('Response headers', renderValue(response.headers));
-    html += renderCollapsedSection('cURL', '<pre class="json-block">' + esc(buildCurl(request)) + '</pre>', copy('curl'));
+    html += renderSection(t('web.requestBody'), renderValue(request.body), copy('request'));
+    if (response || data.error) html += renderSection(t('web.responseData'), renderValue(response ? response.data : data.error), copy('response'));
+    if (request.headers) html += renderCollapsedSection(t('web.requestHeaders'), renderValue(request.headers));
+    if (response && response.headers) html += renderCollapsedSection(t('web.responseHeaders'), renderValue(response.headers));
+    html += renderCollapsedSection(t('web.curl'), '<pre class="json-block">' + esc(buildCurl(request)) + '</pre>', copy('curl'));
     return html;
   }
   function renderNavigationData(data) {
     const route = [data.from || data.path, data.to].filter(Boolean).join(' → ') || '—';
-    return renderSection('Navigation', renderRows([['Route', route], ['Action', data.action], ['Duration', data.duration !== undefined ? data.duration + 'ms' : undefined]]));
+    return renderSection(t('web.navigation'), renderRows([[t('web.route'), route], [t('web.action'), data.action], [t('web.duration'), data.duration !== undefined ? data.duration + 'ms' : undefined]]));
   }
   function renderTrackData(data) {
     const properties = {};
     Object.entries(data).forEach(([key, value]) => { if (!['id', 'timestamp', 'eventName', 'event', 'name'].includes(key)) properties[key] = value; });
-    return renderSection('Event', renderRows([['Name', data.eventName || data.event || data.name]])) + renderSection('Properties', renderValue(properties));
+    return renderSection(t('web.event'), renderRows([[t('web.name'), data.eventName || data.event || data.name]])) + renderSection(t('web.properties'), renderValue(properties));
   }
   function renderZustandData(data) {
-    return renderSection('State change', renderRows([
-      ['Store', data.storeName], ['Action', data.action], ['Duration', data.actionCompleteTime !== undefined ? data.actionCompleteTime + 'ms' : undefined],
-    ])) + renderCollapsedSection('Previous state', renderValue(data.prevState)) + renderSection('Next state', renderValue(data.nextState));
+    return renderSection(t('web.stateChange'), renderRows([
+      [t('common.store'), data.storeName], [t('common.action'), data.action], [t('web.duration'), data.actionCompleteTime !== undefined ? data.actionCompleteTime + 'ms' : undefined],
+    ])) + renderCollapsedSection(t('web.previousState'), renderValue(data.prevState)) + renderSection(t('web.nextState'), renderValue(data.nextState));
   }
   function renderEventData(event) {
     const data = isRecord(event.data) ? event.data : { value: event.data };
@@ -146,14 +182,14 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     if (event.type === 'navigation') return renderNavigationData(data);
     if (event.type === 'track') return renderTrackData(data);
     if (event.type === 'zustand') return renderZustandData(data);
-    return renderSection('Data', renderValue(data));
+    return renderSection(t('web.data'), renderValue(data));
   }
   function renderEventDetails(event) {
     const metadata = renderRows([
-      ['Type', typeLabel(event.type)], ['Severity', event.severity], ['Sequence', event.sequence],
-      ['Event time', formatTime(event.timestamp)], ['Received', formatTime(event.receivedAt)],
+      [t('web.type'), typeLabel(event.type)], [t('web.severity'), event.severity], [t('web.sequence'), event.sequence],
+      [t('web.eventTime'), formatTime(event.timestamp)], [t('web.received'), formatTime(event.receivedAt)],
     ]);
-    return '<div class="detail-sections">' + renderEventData(event) + renderCollapsedSection('Event metadata', metadata) + renderCollapsedSection('Raw event', renderValue(event)) + '</div>';
+    return '<div class="detail-sections">' + renderEventData(event) + renderCollapsedSection(t('web.eventMetadata'), metadata) + renderCollapsedSection(t('web.rawEvent'), renderValue(event)) + '</div>';
   }
   function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 1800); }
 
@@ -161,19 +197,19 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     closeStream();
     state.sessionId = null; state.session = null; state.events = []; state.pendingLiveUpdates = 0;
     writeHash(state.appId, '');
-    if (!state.appId) { app.innerHTML = '<div class="empty"><div class="empty-icon">_</div><p>No Apps connected yet.</p></div>'; return; }
-    if (!state.sessions.length) { app.innerHTML = '<div class="empty"><div class="empty-icon">_</div><p>No device logs received yet.</p><p style="margin-top:12px;font-size:13px">Open the App and generate a log; it syncs automatically.</p></div>'; return; }
+    if (!state.appId) { app.innerHTML = '<div class="empty"><div class="empty-icon">_</div><p>' + esc(t('web.noApps')) + '</p></div>'; return; }
+    if (!state.sessions.length) { app.innerHTML = '<div class="empty"><div class="empty-icon">_</div><p>' + esc(t('web.noDeviceLogs')) + '</p><p style="margin-top:12px;font-size:13px">' + esc(t('web.openAppHint')) + '</p></div>'; return; }
     const sessions = state.sessions.slice().sort((a, b) => {
       if (a.connectionState === 'active' && b.connectionState !== 'active') return -1;
       if (b.connectionState === 'active' && a.connectionState !== 'active') return 1;
       return new Date(b.lastSeenAt || 0) - new Date(a.lastSeenAt || 0);
     });
-    let html = '<div class="section-title">Devices <span style="color:var(--text3);font-weight:400">(' + sessions.length + ')</span></div><div class="device-grid">';
+    let html = '<div class="section-title">' + esc(t('web.devices')) + ' <span style="color:var(--text3);font-weight:400">(' + sessions.length + ')</span></div><div class="device-grid">';
     sessions.forEach(session => {
       const status = sessionStatus(session);
       const age = formatAge(session.lastSeenAt);
       const count = Number(session.ackThrough) || 0;
-      const meta = [age || formatTime(session.lastSeenAt), count + ' log' + (count === 1 ? '' : 's')].filter(Boolean).join(' · ');
+      const meta = [age || formatTime(session.lastSeenAt), t(count === 1 ? 'web.logCountSingular' : 'web.logCountPlural', { count })].filter(Boolean).join(' · ');
       html += '<button type="button" class="device-card" data-session-id="' + esc(session.sessionId) + '"><div><div class="device-title">' + esc(deviceLabel(session)) + '</div><div class="device-subtitle">' + esc(meta) + '</div></div><div></div><div class="device-tags"><span class="tag tag-' + status.cls + '">' + esc(status.label) + '</span></div><div class="device-arrow">›</div></button>';
     });
     app.innerHTML = html + '</div>';
@@ -198,7 +234,7 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
       if (data.duration != null) durationHtml = '<div class="log-duration' + (Number(data.duration) >= 1000 ? ' slow' : '') + '">' + esc(data.duration) + 'ms</div>';
       copyKind = (data.response && data.response.data != null) || data.error ? 'response' : 'url';
     }
-    return '<article class="log-entry' + (failed ? ' is-failed' : '') + '" id="entry-' + event.sequence + '"><div class="log-row">' + typeHtml + '<div class="log-summary-col"><div class="log-summary">' + esc(summary(event)) + '</div><div class="log-timestamp">' + esc(meta) + '</div></div><div class="log-status">' + statusBadge(event) + '</div>' + durationHtml + '<div class="log-copy"><button type="button" class="copy-btn" data-copy-kind="' + copyKind + '" data-copy-sequence="' + event.sequence + '" title="Copy">⧉</button></div><div class="log-expand" data-collapse title="Toggle details">›</div></div><div class="log-detail"><div class="log-detail-inner">' + renderEventDetails(event) + '</div></div></article>';
+    return '<article class="log-entry' + (failed ? ' is-failed' : '') + '" id="entry-' + event.sequence + '"><div class="log-row">' + typeHtml + '<div class="log-summary-col"><div class="log-summary">' + esc(summary(event)) + '</div><div class="log-timestamp">' + esc(meta) + '</div></div><div class="log-status">' + statusBadge(event) + '</div>' + durationHtml + '<div class="log-copy"><button type="button" class="copy-btn" data-copy-kind="' + copyKind + '" data-copy-sequence="' + event.sequence + '" title="' + esc(t('common.copy')) + '">⧉</button></div><div class="log-expand" data-collapse title="' + esc(t('web.toggleDetails')) + '">›</div></div><div class="log-detail"><div class="log-detail-inner">' + renderEventDetails(event) + '</div></div></article>';
   }
   function bindLogEntry(entry) {
     entry.querySelector('.log-row').addEventListener('click', event => { if (event.target.closest('[data-copy-kind]')) return; entry.classList.toggle('expanded'); });
@@ -209,8 +245,8 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
       copyText(copyPayload(item, button.dataset.copyKind));
     }));
   }
-  function updateLiveUpdateButton() { const button = $('#liveUpdateButton'); if (!button) return; button.hidden = state.pendingLiveUpdates === 0; button.textContent = state.pendingLiveUpdates + ' new log' + (state.pendingLiveUpdates === 1 ? '' : 's') + ' · Show'; }
-  function updateLiveCounters() { const counts = countsByType(); const filtered = filteredEvents(); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); const start = (state.page - 1) * PAGE_SIZE; const entries = $('#entryCount'); if (entries) entries.textContent = state.events.length; app.querySelectorAll('.tab').forEach(tab => { const count = tab.querySelector('.count'); if (count) count.textContent = tab.dataset.type ? (counts[tab.dataset.type] || 0) : state.events.length; }); const range = $('#pagerRange'); if (range) range.textContent = (filtered.length ? start + 1 : 0) + '-' + Math.min(start + PAGE_SIZE, filtered.length) + ' / ' + filtered.length; const page = $('#pagerPage'); if (page) page.textContent = state.page + ' / ' + pages; const previous = $('#previousPage'); if (previous) { previous.disabled = state.page <= 1; previous.dataset.page = state.page - 1; } const next = $('#nextPage'); if (next) { next.disabled = state.page >= pages; next.dataset.page = state.page + 1; } }
+  function updateLiveUpdateButton() { const button = $('#liveUpdateButton'); if (!button) return; button.hidden = state.pendingLiveUpdates === 0; button.textContent = t(state.pendingLiveUpdates === 1 ? 'web.newLogsSingular' : 'web.newLogsPlural', { count: state.pendingLiveUpdates }); }
+  function updateLiveCounters() { const counts = countsByType(); const filtered = filteredEvents(); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); const start = (state.page - 1) * PAGE_SIZE; const entries = $('#entryCount'); if (entries) entries.textContent = state.events.length; app.querySelectorAll('.tab').forEach(tab => { const count = tab.querySelector('.count'); if (count) count.textContent = tab.dataset.type ? (counts[tab.dataset.type] || 0) : state.events.length; }); const range = $('#pagerRange'); if (range) range.textContent = t('web.pageRange', { start: filtered.length ? start + 1 : 0, end: Math.min(start + PAGE_SIZE, filtered.length), total: filtered.length }); const page = $('#pagerPage'); if (page) page.textContent = t('web.page', { current: state.page, total: pages }); const previous = $('#previousPage'); if (previous) { previous.disabled = state.page <= 1; previous.dataset.page = state.page - 1; } const next = $('#nextPage'); if (next) { next.disabled = state.page >= pages; next.dataset.page = state.page + 1; } }
   function refreshLogList() {
     const mount = $('#logMount');
     if (!mount) return;
@@ -221,7 +257,7 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     const start = (state.page - 1) * PAGE_SIZE;
     const visible = filtered.slice(start, start + PAGE_SIZE);
     if (!visible.length) {
-      mount.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p>No logs match filters.</p></div>';
+      mount.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p>' + esc(t('web.noLogsMatch')) + '</p></div>';
     } else {
       mount.innerHTML = '<div class="log-list">' + visible.map(renderLogEntry).join('') + '</div>';
       mount.querySelectorAll('.log-entry').forEach(entry => {
@@ -240,16 +276,16 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     state.pendingLiveUpdates = 0;
     const counts = countsByType(); const types = Object.keys(counts).sort(); const filtered = filteredEvents(); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); state.page = Math.min(state.page, pages); const start = (state.page - 1) * PAGE_SIZE; const visible = filtered.slice(start, start + PAGE_SIZE);
     const status = sessionStatus(session);
-    const barMeta = [esc(deviceLabel(session)), esc(formatAge(session.lastSeenAt) || formatTime(session.lastSeenAt)), '<span id="entryCount">' + state.events.length + '</span> logs'].concat(session.sourceIp ? [esc(session.sourceIp)] : []).join(' · ');
-    let html = '<div class="detail-chrome"><div class="detail-bar"><button type="button" class="back-link" id="backButton">← Devices</button><div class="detail-bar-meta">' + barMeta + '</div><span class="tag tag-' + status.cls + '">' + esc(status.label) + '</span></div>';
-    html += '<nav class="tabs"><button class="tab ' + (!state.selectedType ? 'active' : '') + '" data-type="">All<span class="count">' + state.events.length + '</span></button>';
+    const barMeta = [esc(deviceLabel(session)), esc(formatAge(session.lastSeenAt) || formatTime(session.lastSeenAt)), '<span id="entryCount">' + state.events.length + '</span> ' + esc(t('web.logs'))].concat(session.sourceIp ? [esc(session.sourceIp)] : []).join(' · ');
+    let html = '<div class="detail-chrome"><div class="detail-bar"><button type="button" class="back-link" id="backButton">← ' + esc(t('web.backDevices')) + '</button><div class="detail-bar-meta">' + barMeta + '</div><span class="tag tag-' + status.cls + '">' + esc(status.label) + '</span></div>';
+    html += '<nav class="tabs"><button class="tab ' + (!state.selectedType ? 'active' : '') + '" data-type="">' + esc(t('common.all')) + '<span class="count">' + state.events.length + '</span></button>';
     types.forEach(type => { html += '<button class="tab ' + (state.selectedType === type ? 'active' : '') + '" data-type="' + esc(type) + '">' + esc(typeLabel(type)) + '<span class="count">' + counts[type] + '</span></button>'; });
-    html += '</nav><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="searchInput" type="text" value="' + esc(state.search) + '" placeholder="Search logs..." autocomplete="off"></div><label class="toggle-label">Failed only <span id="failedToggle" class="toggle ' + (state.failedOnly ? 'on' : '') + '"></span></label><button type="button" class="btn ' + (state.stream ? 'on' : '') + '" id="liveButton" aria-pressed="' + (state.stream ? 'true' : 'false') + '" title="' + (state.stream ? 'Pause live updates' : 'Resume live updates') + '">' + (state.stream ? '● Live' : '○ Paused') + '</button><button type="button" class="btn" id="liveUpdateButton" hidden></button></div></div>';
+    html += '</nav><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="searchInput" type="text" value="' + esc(state.search) + '" placeholder="' + esc(t('panel.searchLogs')) + '" aria-label="' + esc(t('panel.searchLogs')) + '" autocomplete="off"></div><label class="toggle-label">' + esc(t('web.failedOnly')) + ' <span id="failedToggle" class="toggle ' + (state.failedOnly ? 'on' : '') + '"></span></label><button type="button" class="btn ' + (state.stream ? 'on' : '') + '" id="liveButton" aria-pressed="' + (state.stream ? 'true' : 'false') + '" title="' + esc(state.stream ? t('web.pauseLive') : t('web.resumeLive')) + '">' + (state.stream ? '● ' + esc(t('web.live')) : '○ ' + esc(t('web.paused'))) + '</button><button type="button" class="btn" id="liveUpdateButton" hidden></button></div></div>';
     html += '<div id="logMount">';
-    if (!visible.length) html += '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p>No logs match filters.</p></div>';
+    if (!visible.length) html += '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p>' + esc(t('web.noLogsMatch')) + '</p></div>';
     else html += '<div class="log-list">' + visible.map(renderLogEntry).join('') + '</div>';
     html += '</div>';
-    html += '<div class="pager"><span id="pagerRange">' + (filtered.length ? start + 1 : 0) + '-' + Math.min(start + PAGE_SIZE, filtered.length) + ' / ' + filtered.length + '</span><button class="page-btn" id="previousPage" data-page="' + (state.page - 1) + '" ' + (state.page <= 1 ? 'disabled' : '') + '>Prev</button><span id="pagerPage">' + state.page + ' / ' + pages + '</span><button class="page-btn" id="nextPage" data-page="' + (state.page + 1) + '" ' + (state.page >= pages ? 'disabled' : '') + '>Next</button></div>';
+    html += '<div class="pager"><span id="pagerRange">' + esc(t('web.pageRange', { start: filtered.length ? start + 1 : 0, end: Math.min(start + PAGE_SIZE, filtered.length), total: filtered.length })) + '</span><button class="page-btn" id="previousPage" data-page="' + (state.page - 1) + '" ' + (state.page <= 1 ? 'disabled' : '') + '>' + esc(t('web.prev')) + '</button><span id="pagerPage">' + esc(t('web.page', { current: state.page, total: pages })) + '</span><button class="page-btn" id="nextPage" data-page="' + (state.page + 1) + '" ' + (state.page >= pages ? 'disabled' : '') + '>' + esc(t('web.next')) + '</button></div>';
     app.innerHTML = html;
     $('#backButton').addEventListener('click', renderList);
     app.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { state.selectedType = tab.dataset.type || ''; state.page = 1; app.querySelectorAll('.tab').forEach(node => node.classList.toggle('active', node === tab)); refreshLogList(); }));
@@ -262,17 +298,17 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   }
 
   async function openSession(sessionId) {
-    const session = state.sessions.find(value => value.sessionId === sessionId); if (!session) return; closeStream(); state.sessionId = sessionId; state.session = session; state.events = []; state.selectedType = ''; state.failedOnly = false; state.search = ''; state.page = 1; state.pendingLiveUpdates = 0; writeHash(state.appId, sessionId); app.innerHTML = '<div class="empty"><div class="empty-icon">…</div><p>Loading logs…</p></div>';
-    try { const result = await api('/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(sessionId) + '/events?limit=500'); state.events = result.events || []; state.maxSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), 0); renderDetail(); startStream(); renderDetail(); } catch (error) { app.innerHTML = '<div class="empty" style="color:var(--red)">Failed to load logs: ' + esc(error.message) + '</div>'; }
+    const session = state.sessions.find(value => value.sessionId === sessionId); if (!session) return; closeStream(); state.sessionId = sessionId; state.session = session; state.events = []; state.selectedType = ''; state.failedOnly = false; state.search = ''; state.page = 1; state.pendingLiveUpdates = 0; writeHash(state.appId, sessionId); app.innerHTML = '<div class="empty"><div class="empty-icon">…</div><p>' + esc(t('web.loadingLogs')) + '</p></div>';
+    try { const result = await api('/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(sessionId) + '/events?limit=500'); state.events = result.events || []; state.maxSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), 0); renderDetail(); startStream(); renderDetail(); } catch (error) { app.innerHTML = '<div class="empty" style="color:var(--red)">' + esc(t('web.failedLoadLogs', { error: error.message })) + '</div>'; }
   }
 
   function startStream() { if (!state.appId || !state.sessionId || state.stream) return; const stream = new EventSource(BASE + '/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(state.sessionId) + '/stream'); state.stream = stream; stream.addEventListener('event', message => { try { const event = JSON.parse(message.data); if (event.sequence > state.maxSequence) appendLiveEvent(event); } catch {} }); stream.onerror = () => { /* EventSource reconnects itself. */ }; }
   function closeStream() { if (state.stream) { state.stream.close(); state.stream = null; } }
-  function copyText(text) { navigator.clipboard?.writeText(text).then(() => showToast('Copied to clipboard')).catch(() => showToast('Copy unavailable')); }
+  function copyText(text) { navigator.clipboard?.writeText(text).then(() => showToast(t('web.copiedClipboard'))).catch(() => showToast(t('web.copyUnavailable'))); }
 
   async function loadApps(preserveView) {
-    try { const ready = await api('/ready'); $('#hubVersion').textContent = ready.version ? 'v' + ready.version : ''; $('#storageText').textContent = ready.storage ? formatBytes(ready.storage.usedBytes) + ' / ' + formatBytes(ready.storage.limitBytes) : ''; $('#pulseDot').classList.remove('off'); const apps = ready.apps || []; const select = $('#appSelect'); const hash = readHash(); const selected = hash.appId && apps.includes(hash.appId) ? hash.appId : apps.includes(state.appId) ? state.appId : apps[0] || ''; state.appId = selected; select.innerHTML = apps.length ? apps.map(appId => '<option value="' + esc(appId) + '" ' + (appId === selected ? 'selected' : '') + '>' + esc(appId) + '</option>').join('') : '<option value="">No apps</option>'; await loadSessions(preserveView); } catch (error) { $('#pulseDot').classList.add('off'); app.innerHTML = '<div class="empty" style="color:var(--red)">Connection failed: ' + esc(error.message) + '</div>'; } }
-  async function loadSessions(preserveView) { if (!state.appId) { state.sessions = []; renderList(); return; } try { const result = await api('/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions'); state.sessions = result.sessions || []; if (preserveView && state.sessionId) { const current = state.sessions.find(value => value.sessionId === state.sessionId); if (current) { state.session = current; return; } } const hash = readHash(); if (hash.sessionId && state.sessions.some(session => session.sessionId === hash.sessionId)) { openSession(hash.sessionId); return; } renderList(); if (!hash.appId && !state.didAutoOpen) { state.didAutoOpen = true; const pick = state.sessions.find(session => session.connectionState === 'active') || (state.sessions.length === 1 ? state.sessions[0] : null); if (pick) openSession(pick.sessionId); } } catch (error) { app.innerHTML = '<div class="empty" style="color:var(--red)">Failed to load devices: ' + esc(error.message) + '</div>'; } }
+    try { const ready = await api('/ready'); $('#hubVersion').textContent = ready.version ? 'v' + ready.version : ''; $('#storageText').textContent = ready.storage ? formatBytes(ready.storage.usedBytes) + ' / ' + formatBytes(ready.storage.limitBytes) : ''; $('#pulseDot').classList.remove('off'); const apps = ready.apps || []; const select = $('#appSelect'); const hash = readHash(); const selected = hash.appId && apps.includes(hash.appId) ? hash.appId : apps.includes(state.appId) ? state.appId : apps[0] || ''; state.appId = selected; select.innerHTML = apps.length ? apps.map(appId => '<option value="' + esc(appId) + '" ' + (appId === selected ? 'selected' : '') + '>' + esc(appId) + '</option>').join('') : '<option value="">' + esc(t('web.noAppsOption')) + '</option>'; await loadSessions(preserveView); } catch (error) { $('#pulseDot').classList.add('off'); app.innerHTML = '<div class="empty" style="color:var(--red)">' + esc(t('web.connectionFailed', { error: error.message })) + '</div>'; } }
+  async function loadSessions(preserveView) { if (!state.appId) { state.sessions = []; renderList(); return; } try { const result = await api('/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions'); state.sessions = result.sessions || []; if (preserveView && state.sessionId) { const current = state.sessions.find(value => value.sessionId === state.sessionId); if (current) { state.session = current; return; } } const hash = readHash(); if (hash.sessionId && state.sessions.some(session => session.sessionId === hash.sessionId)) { openSession(hash.sessionId); return; } renderList(); if (!hash.appId && !state.didAutoOpen) { state.didAutoOpen = true; const pick = state.sessions.find(session => session.connectionState === 'active') || (state.sessions.length === 1 ? state.sessions[0] : null); if (pick) openSession(pick.sessionId); } } catch (error) { app.innerHTML = '<div class="empty" style="color:var(--red)">' + esc(t('web.failedLoadDevices', { error: error.message })) + '</div>'; } }
 
   $('#appSelect').addEventListener('change', event => { state.appId = event.target.value; state.sessionId = null; writeHash(state.appId, ''); loadSessions(false); });
   $('#refreshBtn').addEventListener('click', () => { if (state.sessionId) openSession(state.sessionId); else loadApps(false); });

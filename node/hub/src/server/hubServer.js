@@ -17,7 +17,7 @@ function createHubServer(options = {}) {
   const configuredAdvertiseUrl = options.advertiseUrl;
 
   const hub = new HubStore(dataDir);
-  const handleConsole = createConsoleHandler();
+  const handleConsole = createConsoleHandler({ locale: options.locale });
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);

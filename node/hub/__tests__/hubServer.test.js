@@ -45,8 +45,8 @@ describe('Local Hub HTTP flow', () => {
 
       expect(consolePage.status).toBe(200);
       expect(consolePage.body).toContain('class="device-grid"');
-      expect(consolePage.body).toContain('← Devices');
-      expect(consolePage.body).toContain('Search logs...');
+      expect(consolePage.body).toContain("t('web.backDevices')");
+      expect(consolePage.body).toContain("t('panel.searchLogs')");
       expect(consolePage.body).toContain('device.manufacturer');
       expect(consolePage.body).toContain('if (session.sourceIp) parts.push(session.sourceIp)');
       expect(consolePage.body).toContain('device.appVersion');
@@ -54,8 +54,8 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('.back-link{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);margin-bottom:0;padding:6px 0;cursor:pointer;background:none;border:0}');
       expect(consolePage.body).toContain('function renderEventDetails(event)');
       expect(consolePage.body).toContain('function renderNetworkData(data, event)');
-      expect(consolePage.body).toContain('Raw event');
-      expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection('Event metadata'");
+      expect(consolePage.body).toContain("t('web.rawEvent')");
+      expect(consolePage.body).toContain("renderEventData(event) + renderCollapsedSection(t('web.eventMetadata')");
       expect(consolePage.body).toContain("entry.classList.toggle('expanded')");
       expect(consolePage.body).toMatch(/\.log-row'\)\.addEventListener\('click'[\s\S]*classList\.toggle\('expanded'\)/);
       expect(consolePage.body).toContain('function formatJson(');
@@ -78,7 +78,7 @@ describe('Local Hub HTTP flow', () => {
       expect(consolePage.body).toContain('position:sticky;top:56px');
       expect(consolePage.body).toContain('formatAge(session.lastSeenAt)');
       expect(consolePage.body).toContain('ackThrough');
-      expect(consolePage.body).toContain("label: 'online'");
+      expect(consolePage.body).toContain("label: t('web.online')");
       const liveHandler = consolePage.body.match(
         /stream\.addEventListener\('event', message => \{([\s\S]*?)\}\); stream\.onerror/
       );

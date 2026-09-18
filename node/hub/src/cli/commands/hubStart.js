@@ -99,6 +99,7 @@ async function hubStartCommand(options) {
     bindAddress: bind,
     port,
     advertiseUrl,
+    locale: options.locale,
   });
 
   const close = () => {

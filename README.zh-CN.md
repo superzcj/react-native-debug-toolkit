@@ -68,6 +68,8 @@ export default function App() {
 
 重新构建原生 App，点击悬浮入口即可检查。单独使用 App 内面板无需启动 Hub。Expo 请使用 development build，不支持 Expo Go。
 
+面板支持英文和简体中文。通过 `<DebugView locale="zh-CN">` 指定中文，默认 `auto` 在启动时检测设备语言。[语言配置 →](docs/usage.zh-CN.md#界面语言)
+
 ### 连接浏览器与 AI
 
 在业务 App 根目录启动 Hub：

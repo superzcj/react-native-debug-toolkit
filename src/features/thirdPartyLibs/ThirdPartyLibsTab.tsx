@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import type { DebugFeatureRenderProps, ThirdPartyLib, ThirdPartyLibAction } from '../../types';
+import { t } from '../../i18n';
 
 export const ThirdPartyLibsTab: React.FC<DebugFeatureRenderProps<ThirdPartyLib[]>> = ({
   snapshot,
@@ -12,7 +13,7 @@ export const ThirdPartyLibsTab: React.FC<DebugFeatureRenderProps<ThirdPartyLib[]
     return (
       <View style={styles.container}>
         <View style={styles.emptyWrap}>
-          <Text style={styles.empty}>No debug libraries available for this platform</Text>
+          <Text style={styles.empty}>{t('thirdParty.noLibraries')}</Text>
         </View>
       </View>
     );

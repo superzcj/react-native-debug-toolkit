@@ -19,6 +19,32 @@ Mount `DebugView` once. Most built-in features are enabled by default; configure
 </DebugView>
 ```
 
+## Language
+
+Choose the inspector language when mounting it:
+
+```tsx
+<DebugView locale="zh-CN">
+  <AppContent />
+</DebugView>
+```
+
+If you initialize the toolkit manually, pass the same option:
+
+```ts
+await initializeDebugToolkit({ locale: 'zh-CN' });
+```
+
+Supported values are `auto` (default), `en` and `zh-CN`. `auto` checks the device language at initialization, uses Simplified Chinese when supported, and falls back to English otherwise. Reload the app after changing this configuration. Custom tab labels, account/environment names and raw logs are kept as supplied.
+
+The Web Console has its own startup setting:
+
+```sh
+npx --package=react-native-debug-toolkit debug-toolkit hub dev --locale zh-CN
+```
+
+`hub start` accepts the same flag. You can also set `DEBUG_TOOLKIT_HUB_LOCALE=zh-CN`; the explicit flag takes priority. The default `auto` uses the browser language when the page loads. Restart the Hub after changing its configuration, then reload the page. Phone and browser language settings are independent.
+
 ## State and events
 
 For an app using Zustand, save this as `cartStore.ts`:

@@ -19,6 +19,32 @@
 </DebugView>
 ```
 
+## 界面语言
+
+挂载时配置调试面板的语言：
+
+```tsx
+<DebugView locale="zh-CN">
+  <AppContent />
+</DebugView>
+```
+
+手动初始化时传入相同配置：
+
+```ts
+await initializeDebugToolkit({ locale: 'zh-CN' });
+```
+
+支持 `auto`（默认）、`en` 和 `zh-CN`。`auto` 在初始化时读取设备语言，支持的简体中文环境显示中文，其余情况回退英文。修改配置后重新加载 App 生效。自定义 Tab 标题、账号名、环境名和原始日志保留调用方提供的内容。
+
+Web Console 独立配置语言：
+
+```sh
+npx --package=react-native-debug-toolkit debug-toolkit hub dev --locale zh-CN
+```
+
+`hub start` 也支持此参数。也可设置环境变量 `DEBUG_TOOLKIT_HUB_LOCALE=zh-CN`，显式参数优先。默认 `auto` 在页面加载时读取浏览器语言。修改配置后重启 Hub 并刷新页面；手机与浏览器的语言配置互不影响。
+
 ## 状态与埋点
 
 使用 Zustand 的项目可将以下代码保存为 `cartStore.ts`：

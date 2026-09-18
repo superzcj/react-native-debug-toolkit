@@ -11,6 +11,7 @@ import { LogRow } from '../../ui/shared/LogRow';
 import { fmt } from '../../utils/copyToComputer';
 import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
 import type { ConsoleLogEntry, DebugFeatureRenderProps } from '../../types';
+import { t } from '../../i18n';
 
 export function renderConsoleLogRow(item: ConsoleLogEntry) {
   return (
@@ -34,7 +35,7 @@ export function renderConsoleLogRow(item: ConsoleLogEntry) {
 export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>> = React.memo(({ snapshot }) => (
   <LogListScreen
     data={snapshot}
-    emptyText="No console logs"
+    emptyText={t('console.noLogs')}
     renderRow={renderConsoleLogRow}
     renderDetailHeader={(item) => (
       <>
@@ -51,11 +52,11 @@ export const ConsoleLogTab: React.FC<DebugFeatureRenderProps<ConsoleLogEntry[]>>
           return (
             <CollapsibleSection
               key={index}
-              title={typeof d === 'object' && d !== null ? `Arg ${index + 1} (object)` : `Arg ${index + 1}`}
+              title={`${t('console.argument', { index: index + 1 })}${typeof d === 'object' && d !== null ? ` (${t('console.object')})` : ''}`}
               initiallyExpanded={index === 0}
             >
               <View style={s.sectionWithCopy}>
-                <CopyButton text={formatted} label={`Console Arg ${index + 1}`} />
+                <CopyButton text={formatted} label={t('console.argument', { index: index + 1 })} />
                 {typeof d === 'object' && d !== null ? (
                   <JsonView data={d} maxHeight={250} />
                 ) : (

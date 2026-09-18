@@ -14,6 +14,7 @@ import { fmt } from '../../utils/copyToComputer';
 import { LogListScreen } from '../../ui/shared/LogListScreen';
 import { LogRow, LogRowMetaText } from '../../ui/shared/LogRow';
 import type { DebugFeatureRenderProps, NetworkLogEntry } from '../../types';
+import { t } from '../../i18n';
 
 const formatSize = (data: unknown): string => {
   if (!data) return '';
@@ -30,9 +31,9 @@ const formatSize = (data: unknown): string => {
 const statusLabel = (item: NetworkLogEntry): string => {
   // XHR always emits response.status (0 on transport failure) — prefer error text.
   if (item.error) {
-    if (item.error === 'Timeout') return 'Timeout';
-    if (item.error === 'Aborted') return 'Abort';
-    if (item.error === 'Network Error') return 'NetErr';
+    if (item.error === 'Timeout') return t('network.timeout');
+    if (item.error === 'Aborted') return t('network.abort');
+    if (item.error === 'Network Error') return t('network.error');
     return 'ERR';
   }
   if (item.response?.status != null && item.response.status > 0) {
@@ -98,7 +99,7 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
     <LogListScreen
       data={sorted}
       reversed={false}
-      emptyText="No HTTP requests logged"
+      emptyText={t('network.noRequests')}
       renderRow={renderNetworkLogRow}
       renderDetailHeader={(log) => {
         const statusColor = log.error || (log.response && log.response.status >= 400) ? Colors.error : Colors.success;
@@ -123,18 +124,18 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
               <CopyButton text={log.request.url} label="URL" />
             </View>
 
-            <CollapsibleSection title="Request Body" initiallyExpanded>
+            <CollapsibleSection title={t('network.requestBody')} initiallyExpanded>
               {log.request.body != null ? (
                 <View style={s.sectionWithCopy}>
-                  <CopyButton text={fmt(log.request.body)} label="Request Body" />
+                  <CopyButton text={fmt(log.request.body)} label={t('network.requestBody')} />
                   <JsonView data={log.request.body} maxHeight={250} />
                 </View>
               ) : (
-                <Text style={s.emptySection}>No request body</Text>
+                <Text style={s.emptySection}>{t('network.noRequestBody')}</Text>
               )}
             </CollapsibleSection>
 
-            <CollapsibleSection title={`Response ${formatSize(log.response?.data)}`} initiallyExpanded>
+            <CollapsibleSection title={`${t('network.responseBody')} ${formatSize(log.response?.data)}`} initiallyExpanded>
               {log.error && (
                 <View style={s.errorBox}>
                   <Text style={s.errorIcon}>⚠</Text>
@@ -143,29 +144,29 @@ export const NetworkLogTab: React.FC<DebugFeatureRenderProps<NetworkLogEntry[]>>
               )}
               {log.response?.data != null ? (
                 <View style={s.sectionWithCopy}>
-                  <CopyButton text={fmt(log.response.data)} label="Response Body" />
+                  <CopyButton text={fmt(log.response.data)} label={t('network.responseBody')} />
                   <JsonView data={log.response.data} maxHeight={600} />
                 </View>
               ) : (
-                <Text style={s.emptySection}>No response body</Text>
+                <Text style={s.emptySection}>{t('network.noResponseBody')}</Text>
               )}
             </CollapsibleSection>
 
-            <CollapsibleSection title="Request Headers">
+            <CollapsibleSection title={t('network.requestHeaders')}>
               {log.request.headers ? (
                 <View style={s.sectionWithCopy}>
-                  <CopyButton text={fmt(log.request.headers)} label="Request Headers" />
+                  <CopyButton text={fmt(log.request.headers)} label={t('network.requestHeaders')} />
                   <JsonView data={log.request.headers} maxHeight={200} />
                 </View>
               ) : (
-                <Text style={s.emptySection}>No headers</Text>
+                <Text style={s.emptySection}>{t('network.noHeaders')}</Text>
               )}
             </CollapsibleSection>
 
             {log.response?.headers && (
-              <CollapsibleSection title="Response Headers">
+              <CollapsibleSection title={t('network.responseHeaders')}>
                 <View style={s.sectionWithCopy}>
-                  <CopyButton text={fmt(log.response.headers)} label="Response Headers" />
+                  <CopyButton text={fmt(log.response.headers)} label={t('network.responseHeaders')} />
                   <JsonView data={log.response.headers} maxHeight={200} />
                 </View>
               </CollapsibleSection>

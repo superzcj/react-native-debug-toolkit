@@ -10,6 +10,7 @@ import {
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { useSlideDetailAnimation } from './useSlideDetailAnimation';
+import { t } from '../../i18n';
 
 interface LogListItem {
   id: string;
@@ -92,7 +93,7 @@ export function LogListScreen<T extends LogListItem>({
                 activeOpacity={0.6}
               >
                 <Text style={styles.backIcon}>‹</Text>
-                <Text style={styles.backText}>Back</Text>
+                <Text style={styles.backText}>{t('common.back')}</Text>
               </TouchableOpacity>
               {renderDetailHeader?.(selected)}
             </View>

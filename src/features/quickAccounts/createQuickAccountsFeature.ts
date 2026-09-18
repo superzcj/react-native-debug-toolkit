@@ -3,6 +3,7 @@ import type { DebugFeatureListener } from '../../types';
 import { createDefaultLogStorage } from '../../utils/StorageAdapter';
 import { createQuickAccountsController } from './controller';
 import { QuickAccountsTab } from './QuickAccountsTab';
+import { t } from '../../i18n';
 import { getQuickAccountsLastUsedStorageKey } from './storage';
 import type {
   CreateQuickAccountsFeatureOptions,
@@ -32,6 +33,24 @@ export const DEFAULT_QUICK_ACCOUNTS_COPY: QuickAccountsCopy = {
   successMessage: 'Account switched.',
   errorMessage: 'Could not switch account.',
 };
+
+function getDefaultQuickAccountsCopy(): QuickAccountsCopy {
+  return {
+    tabLabel: t('quickAccounts.tab'),
+    title: t('quickAccounts.title'),
+    description: t('quickAccounts.description'),
+    emptyTitle: t('quickAccounts.emptyTitle'),
+    emptyDescription: t('quickAccounts.emptyDescription'),
+    unauthenticatedTitle: t('quickAccounts.unauthenticatedTitle'),
+    unauthenticatedDescription: t('quickAccounts.unauthenticatedDescription'),
+    currentLabel: t('quickAccounts.current'),
+    lastUsedLabel: t('quickAccounts.recent'),
+    switchLabel: t('quickAccounts.switch'),
+    switchingLabel: t('quickAccounts.switching'),
+    successMessage: t('quickAccounts.success'),
+    errorMessage: t('quickAccounts.error'),
+  };
+}
 
 function projectAccount<TAccount extends QuickAccountItem>(
   account: TAccount,
@@ -105,7 +124,11 @@ export function createQuickAccountsFeature<
   options: CreateQuickAccountsFeatureOptions<TAccount>,
 ): QuickAccountsFeature<TAccount> {
   const listeners = new Set<DebugFeatureListener>();
-  const copy = { ...DEFAULT_QUICK_ACCOUNTS_COPY, ...options.copy };
+  const copyOverrides = { ...options.copy };
+  const getCopy = (): QuickAccountsCopy => ({
+    ...getDefaultQuickAccountsCopy(),
+    ...copyOverrides,
+  });
   const closePanelOnSuccess = options.closePanelOnSuccess ?? true;
   let state = normalizeState<TAccount>(options);
   let lastUsedAccountId: string | null = null;
@@ -228,7 +251,7 @@ export function createQuickAccountsFeature<
       suspended: controllerState.suspended,
       lastResult,
       errorMessage: currentErrorMessage,
-      copy,
+      copy: getCopy(),
     };
   };
 
@@ -272,7 +295,7 @@ export function createQuickAccountsFeature<
         DebugToolkit.closePanel();
       }
     } else if (result.status === 'error') {
-      currentErrorMessage = errorMessage(result.error, copy.errorMessage);
+      currentErrorMessage = errorMessage(result.error, getCopy().errorMessage);
       await callBestEffort(() =>
         options.onError?.(result.error, projectAccount(account)),
       );
@@ -284,7 +307,9 @@ export function createQuickAccountsFeature<
 
   return {
     name: 'quick-accounts',
-    label: copy.tabLabel,
+    get label() {
+      return getCopy().tabLabel;
+    },
     renderContent: QuickAccountsTab,
     setup: () => {
       if (lifecycleAttached) {

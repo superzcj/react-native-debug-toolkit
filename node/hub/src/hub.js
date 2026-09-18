@@ -8,7 +8,8 @@ const port = Number(process.env.DEBUG_TOOLKIT_HUB_PORT || 3800);
 const dataDir = process.env.DEBUG_TOOLKIT_HUB_DATA_DIR
   || path.join(process.cwd(), '.debug-toolkit', 'hub');
 const advertiseUrl = process.env.DEBUG_TOOLKIT_HUB_ADVERTISE_URL || `http://127.0.0.1:${port}`;
-const hub = createHubServer({ bindAddress, port, dataDir, advertiseUrl });
+const locale = process.env.DEBUG_TOOLKIT_HUB_LOCALE;
+const hub = createHubServer({ bindAddress, port, dataDir, advertiseUrl, locale });
 
 const stop = () => hub.stop().finally(() => process.exit(0));
 process.once('SIGINT', stop);

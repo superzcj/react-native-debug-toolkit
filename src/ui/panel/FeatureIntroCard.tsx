@@ -3,6 +3,7 @@ import { View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import type { FeatureSummary } from './buildFeatureSummary';
+import { t } from '../../i18n';
 
 function hexWithAlpha(hex: string, alpha: string): string {
   if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex + alpha;
@@ -34,9 +35,9 @@ export function FeatureIntroCard({
 }: FeatureIntroCardProps) {
   const { statusLabel, statusColor, supportsBadFilter } = summary;
   const metrics = [
-    summary.count != null ? `${summary.count} captured` : null,
-    summary.badCount != null ? `${summary.badCount} bad` : null,
-    summary.latestLabel ? `latest ${summary.latestLabel}` : null,
+    summary.count != null ? t('panel.itemsCaptured', { count: summary.count }) : null,
+    summary.badCount != null ? t('panel.badItems', { count: summary.badCount }) : null,
+    summary.latestLabel ? t('panel.latest', { value: summary.latestLabel }) : null,
   ].filter((item): item is string => Boolean(item));
 
   return (
@@ -45,8 +46,8 @@ export function FeatureIntroCard({
         <View style={styles.searchRow}>
           <TextInput
             style={styles.searchInput}
-            accessibilityLabel="Search logs"
-            placeholder="Search"
+            accessibilityLabel={t('panel.searchLogs')}
+            placeholder={t('common.search')}
             placeholderTextColor={Colors.textMuted}
             value={searchQuery}
             onChangeText={onSearchChange}
@@ -56,10 +57,10 @@ export function FeatureIntroCard({
           <Pressable
             style={styles.searchDone}
             accessibilityRole="button"
-            accessibilityLabel="Close search"
+            accessibilityLabel={t('panel.closeSearch')}
             onPress={() => onSearchExpandedChange(false)}
           >
-            <Text style={styles.searchDoneText}>Done</Text>
+            <Text style={styles.searchDoneText}>{t('common.done')}</Text>
           </Pressable>
         </View>
       ) : (
@@ -93,10 +94,10 @@ export function FeatureIntroCard({
               {supportsBadFilter && (
                 <View style={styles.filterRow}>
                   <Pressable style={[styles.chip, !filterBad && styles.chipActive]} onPress={() => onFilterBad(false)}>
-                    <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>All</Text>
+                    <Text style={[styles.chipText, !filterBad && styles.chipTextActive]}>{t('common.all')}</Text>
                   </Pressable>
                   <Pressable style={[styles.chip, filterBad && styles.chipBadActive]} onPress={() => onFilterBad(true)}>
-                    <Text style={[styles.chipText, filterBad && styles.chipTextBad]}>Bad</Text>
+                    <Text style={[styles.chipText, filterBad && styles.chipTextBad]}>{t('common.bad')}</Text>
                   </Pressable>
                 </View>
               )}
@@ -104,7 +105,7 @@ export function FeatureIntroCard({
                 <Pressable
                   style={[styles.searchTrigger, !!searchQuery && styles.searchTriggerActive]}
                   accessibilityRole="button"
-                  accessibilityLabel="Open search"
+                  accessibilityLabel={t('panel.openSearch')}
                   accessibilityState={{ expanded: false, selected: !!searchQuery }}
                   onPress={() => onSearchExpandedChange(true)}
                 >

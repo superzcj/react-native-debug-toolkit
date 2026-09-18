@@ -20,6 +20,8 @@ import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { createNativeLogsFeature } from '../features/nativeLogs';
 import type { NativeLogsFeatureConfig } from '../features/nativeLogs';
 import type { AnyDebugFeature, BuiltInFeatureName } from '../types';
+import { configureLocale } from '../i18n';
+import type { DebugLocaleOption } from '../i18n';
 import {
   createLogRuntime,
   setDefaultLogRuntime,
@@ -47,6 +49,8 @@ export interface InitializeOptions {
   customFeatures?: AnyDebugFeature[];
   enabled?: boolean;
   maxLogSessions?: number;
+  /** Language used by the debug panel for this initialized toolkit. */
+  locale?: DebugLocaleOption;
 }
 
 type EnvironmentFeatureConfig = Parameters<typeof createEnvironmentFeature>[0];
@@ -176,6 +180,11 @@ function appendCustomFeatures(
 export async function initializeDebugToolkit(
   options?: InitializeOptions,
 ): Promise<typeof DebugToolkit> {
+  // Configure synchronously before awaiting native debug-mode detection or
+  // creating features. Some feature factories are called before this point;
+  // their presentation reads the configured locale at render time.
+  configureLocale(options?.locale);
+
   let enabled: boolean;
   if (options?.enabled !== undefined) {
     enabled = options.enabled;

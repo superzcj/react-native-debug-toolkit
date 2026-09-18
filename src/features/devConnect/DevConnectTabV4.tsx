@@ -33,6 +33,7 @@ import {
 } from './hubAddressRecommendations';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
+import { t, type TranslationKey } from '../../i18n';
 
 const STATE_COLORS: Record<HubConnectionState, string> = {
   connecting: Colors.warning,
@@ -46,16 +47,16 @@ const STATE_COLORS: Record<HubConnectionState, string> = {
   invalid_config: Colors.textMuted,
 };
 
-const STATE_LABELS: Record<HubConnectionState, string> = {
-  connecting: 'Connecting...',
-  connected: 'Connected',
-  paused: 'Paused',
-  retrying: 'Retrying...',
-  hub_unreachable: 'Hub unreachable',
-  hub_not_ready: 'Hub starting...',
-  storage_full: 'Storage full',
-  protocol_mismatch: 'Version mismatch',
-  invalid_config: 'Not configured',
+const STATE_LABEL_KEYS: Record<HubConnectionState, TranslationKey | null> = {
+  connecting: 'devConnect.connecting',
+  connected: 'devConnect.connected',
+  paused: 'devConnect.paused',
+  retrying: 'devConnect.retrying',
+  hub_unreachable: 'devConnect.hubUnreachable',
+  hub_not_ready: 'devConnect.hubStarting',
+  storage_full: 'devConnect.storageFull',
+  protocol_mismatch: 'devConnect.versionMismatch',
+  invalid_config: 'devConnect.notConfigured',
 };
 
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
@@ -111,7 +112,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       return;
     }
     if (submission.kind === 'invalid') {
-      setInputError('Invalid Hub address');
+      setInputError(t('devConnect.invalidAddress'));
       return;
     }
     setInputError(null);
@@ -202,9 +203,9 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   };
 
   const uploadButtonText = (() => {
-    if (syncing) return 'Uploading...';
-    if (isLoading && !syncing) return 'Connecting...';
-    return 'Upload Once';
+    if (syncing) return t('devConnect.uploading');
+    if (isLoading && !syncing) return t('devConnect.connecting');
+    return t('devConnect.uploadOnce');
   })();
 
   return (
@@ -215,7 +216,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     >
       {/* Hub Endpoint Input */}
       <View style={styles.section}>
-        <Text style={styles.label}>Hub Address</Text>
+        <Text style={styles.label}>{t('devConnect.hubAddress')}</Text>
         <View style={[styles.inputShell, inputError ? styles.inputError : null]}>
           <Text style={styles.affix}>http://</Text>
           <TextInput
@@ -291,7 +292,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
                 activeOpacity={0.7}
               >
                 <Text style={styles.recommendationLabel}>
-                  {recommendation.kind === 'subnet' ? 'LAN' : 'Env'}
+                  {recommendation.kind === 'subnet' ? t('devConnect.lan') : t('devConnect.environment')}
                 </Text>
                 <Text style={styles.recommendationText}>
                   {recommendation.kind === 'subnet'
@@ -333,7 +334,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
           activeOpacity={0.75}
         >
           <Text style={styles.pauseButtonText}>
-            {isPaused || !isConnected ? 'Start Live Logs' : 'Stop Live Logs'}
+            {isPaused || !isConnected ? t('devConnect.startLiveLogs') : t('devConnect.stopLiveLogs')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -341,9 +342,9 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       {/* Connection state hint */}
       {isErrorState ? (
         <Text style={styles.stateHint}>
-          {STATE_LABELS[status.state]}
-          {status.state === 'protocol_mismatch' ? '. Upgrade the App or Hub.' : ''}
-          {status.state === 'storage_full' ? '. Hub storage is full.' : ''}
+          {STATE_LABEL_KEYS[status.state] ? t(STATE_LABEL_KEYS[status.state]!) : ''}
+          {status.state === 'protocol_mismatch' ? ` ${t('devConnect.upgrade')}` : ''}
+          {status.state === 'storage_full' ? ` ${t('devConnect.storageFullHint')}` : ''}
         </Text>
       ) : null}
     </ScrollView>

@@ -74,6 +74,7 @@ function parseArgs(args) {
     port: portValue === undefined ? undefined : parseInt(portValue, 10),
     dataDir: readOption(args, '--data-dir', undefined, argumentErrors),
     advertiseUrl: readOption(args, '--advertise-url', undefined, argumentErrors),
+    locale: readOption(args, '--locale', undefined, argumentErrors),
     help: hasFlag(args, '--help') || hasFlag(args, '-h'),
     json: hasFlag(args, '--json'),
     entryId: null,
@@ -96,6 +97,7 @@ function printHelp() {
     + '  --endpoint <url>          Project default Hub URL (probed after 127.0.0.1:3800)\n'
     + '  --hub <url>               Use this Hub URL only (user-provided override)\n'
     + '  --app-id <id>             App identifier (or DEBUG_TOOLKIT_APP_ID)\n'
+    + '  --locale <locale>         Hub Console language: auto, en, or zh-CN\n'
     + '  --session <id>            Session ID\n'
     + '  --allow-stale             Allow reading stale sessions\n'
     + '  --prefer-stale            Prefer stale Sessions for crash/history\n'
@@ -120,6 +122,10 @@ function printHubHelp() {
     'Usage: debug-toolkit hub <command>\n\n'
     + 'Commands:\n'
     + '  dev                       Run a local foreground Hub on port 3800\n'
+    + '  start                     Run a Hub with explicit startup options\n'
+    + '\n'
+    + 'Options:\n'
+    + '  --locale <auto|en|zh-CN>   Console language (or DEBUG_TOOLKIT_HUB_LOCALE)\n'
     + '\n'
     + 'Examples:\n'
     + '  debug-toolkit hub dev\n'
@@ -189,6 +195,15 @@ function validateTailOptions(parsed) {
   return null;
 }
 
+function validateHubLocale(parsed) {
+  const localeError = parsed.argumentErrors.find((item) => item.field === 'locale');
+  if (localeError) return `INVALID_ARGUMENT: ${localeError.message}`;
+  if (parsed.locale !== undefined && !['auto', 'en', 'zh-CN'].includes(parsed.locale)) {
+    return 'INVALID_ARGUMENT: --locale must be one of: auto, en, zh-CN';
+  }
+  return null;
+}
+
 async function main(argv) {
   const args = argv || process.argv.slice(2);
 
@@ -211,6 +226,11 @@ async function main(argv) {
   if (parsed.command === 'hub') {
     if (parsed.subcommand === 'dev') {
       const { hubStartCommand, resolveDevOptions } = require('./commands/hubStart');
+      const localeError = validateHubLocale(parsed);
+      if (localeError) {
+        process.stderr.write(`${localeError}\n`);
+        return { exitCode: 2 };
+      }
       if (!localOverride.ok) {
         process.stderr.write(`INVALID_ARGUMENT: ${localOverride.message}\n`);
         return { exitCode: 2 };
@@ -228,6 +248,11 @@ async function main(argv) {
     }
     if (parsed.subcommand === 'start') {
       const { hubStartCommand } = require('./commands/hubStart');
+      const localeError = validateHubLocale(parsed);
+      if (localeError) {
+        process.stderr.write(`${localeError}\n`);
+        return { exitCode: 2 };
+      }
       return hubStartCommand(parsed);
     }
     process.stderr.write('Unknown hub command. Use: hub dev\n');
