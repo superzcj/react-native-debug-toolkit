@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react';
 
+export type FeatureConfig<T extends object> = T & { enabled?: boolean };
+
 export type DebugFeatureListener = () => void;
 
 export type BuiltInFeatureName =

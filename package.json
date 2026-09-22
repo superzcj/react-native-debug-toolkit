@@ -28,6 +28,7 @@
     "demo:android": "npm --prefix Demo run android",
     "ai:init": "node bin/debug-toolkit.js init",
     "typecheck": "tsc --noEmit",
+    "typecheck:api": "tsc -p type-tests/tsconfig.json",
     "typescript": "npm run typecheck",
     "test": "jest",
     "eval:runtime-skill": "node node/hub/evals/runtime-diagnostics/run.js --model gpt-5.5 --reasoning high --runs 5",
