@@ -107,7 +107,7 @@ export const createEnvironmentFeature = (
     return pending;
   };
   return {
-    name: 'environment', label: 'Environment', renderContent: EnvironmentTab,
+    name: 'environment', label: 'Environment', status: { phase: 'initializing', issues: [] }, renderContent: EnvironmentTab,
     setup() {
       const controller = new AbortController();
       start({ owner: Symbol('environment'), signal: controller.signal, isCurrent: () => true, setStatus() {} });

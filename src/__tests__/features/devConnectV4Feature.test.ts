@@ -2,8 +2,10 @@
 global.__DEV__ = true;
 
 import { DevConnectTabV4 } from '../../features/devConnect/DevConnectTabV4';
-import { createDevConnectFeature } from '../../features/devConnect';
-import { _resetHubClientForTesting, hubClient } from '../../utils/HubClient';
+import { createDevConnectFeature as createFeature } from '../../features/devConnect';
+import { HubClient } from '../../utils/HubClient';
+const hubClient = new HubClient({ featureProvider: { features: [], subscribe: () => () => {} } });
+const createDevConnectFeature = (config: Parameters<typeof createFeature>[0] = {}) => createFeature(config, { client: hubClient });
 import { NativeModules } from 'react-native';
 
 jest.mock('../../features/devConnect/resolveAndApplyHubEndpoint', () => ({
@@ -29,7 +31,7 @@ async function flushPromises(): Promise<void> {
 describe('createDevConnectFeature v4', () => {
   beforeEach(() => {
     delete NativeModules.DebugToolkitDevConnect;
-    _resetHubClientForTesting();
+    hubClient._resetForTesting();
     jest.clearAllMocks();
     const { getPreference } = jest.requireMock('../../utils/debugPreferences');
     getPreference.mockResolvedValue(null);
@@ -42,7 +44,7 @@ describe('createDevConnectFeature v4', () => {
     // @ts-expect-error __DEV__ is a React Native global
     global.__DEV__ = true;
     jest.restoreAllMocks();
-    _resetHubClientForTesting();
+    hubClient._resetForTesting();
   });
 
   it('resolves native app identity without config and reports missing identity as unavailable', async () => {

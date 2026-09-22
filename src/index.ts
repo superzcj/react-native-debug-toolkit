@@ -1,96 +1,19 @@
-// Core
-export { DebugToolkit } from './core/DebugToolkit';
-export { DebugToolkitProvider, useDebugToolkit } from './core/DebugToolkitProvider';
-export { DebugView } from './ui/DebugView';
-export type { DebugViewProps } from './ui/DebugView';
-export { initializeDebugToolkit } from './core/initialize';
-export type { InitializeOptions, FeatureConfigs } from './core/initialize';
-export type { DebugLocale, DebugLocaleOption } from './i18n';
-
-// Feature factories
-export { createNetworkFeature } from './features/network';
-export type { NetworkFeatureConfig } from './features/network';
-export { createConsoleLogFeature } from './features/console';
-export type { ConsoleFeatureConfig } from './features/console';
-export { createZustandLogFeature, zustandLogMiddleware, addZustandLog } from './features/zustand';
-export type { ZustandFeatureConfig } from './features/zustand';
-export { createNavigationLogFeature, addNavigationLog } from './features/navigation';
-export type { NavigationFeatureConfig } from './features/navigation';
-export { createTrackFeature, addTrackLog } from './features/track';
-export type { TrackFeatureConfig, TrackEventData } from './features/track';
-export { createEnvironmentFeature } from './features/environment';
-export type { EnvironmentFeatureAPI } from './features/environment';
-export { createClipboardFeature } from './features/clipboard';
-export { createDevConnectFeature } from './features/devConnect';
-export type { DevConnectV4Config, DevConnectV4State } from './features/devConnect';
-export { createSessionHistoryFeature } from './features/sessionHistory';
-export { createNativeLogsFeature } from './features/nativeLogs';
-export type { NativeLogsFeatureConfig } from './features/nativeLogs';
-export {
-  createQuickAccountsFeature,
-  DEFAULT_QUICK_ACCOUNTS_COPY,
-  useQuickAccountsFeature,
-} from './features/quickAccounts';
+export { withDebugToolkit } from './withDebugToolkit';
+export { debug } from './core/debug';
 export type {
-  CreateQuickAccountsFeatureOptions,
-  QuickAccountDetail,
-  QuickAccountItem,
-  QuickAccountViewItem,
-  QuickAccountRollbackContext,
-  QuickAccountRollbackReason,
-  QuickAccountsCopy,
-  QuickAccountsFeature,
-  QuickAccountsLastResult,
-  QuickAccountsSnapshot,
-  QuickAccountsState,
-  QuickAccountsStorageKey,
-  QuickAccountsViewState,
-  QuickAccountSwitchContext,
-  QuickAccountSwitchResult,
-} from './features/quickAccounts';
-
-// Hooks
-export { useNavigationLogger } from './features/navigation/useNavigationLogger';
-
-// Utilities
-export { safeStringify } from './utils/safeStringify';
-export { createDebugTab } from './utils/createDebugTab';
-export type { CreateDebugTabOptions } from './utils/createDebugTab';
-export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
-export type { CopyResult, CopyOptions } from './utils/copyToComputer';
-export { createDebugDeviceReport } from './utils/deviceReport';
-export type { DebugDeviceReport, DebugDeviceReportOptions } from './utils/deviceReport';
-export {
-  createDefaultLogStorage,
-  MemoryStorageAdapter,
-} from './utils/StorageAdapter';
-export type { StorageAdapter } from './utils/StorageAdapter';
+  DebugToolkitConfig, DebugAccount, AccountsSnapshot, AccountsOptions, AccountsData, DebugTab,
+} from './types/config';
+export type { DebugSource, StateAdapter } from './types/source';
 export type {
-  LogFeatureKey,
-  LogSession,
-  SessionManagerOptions,
-} from './utils/SessionManager';
-
-// Types
+  DebugActions, DebugReport, ReadyResult, FeatureStatus, FeaturePhase,
+  AccountsActions, AccountSwitchResult, CopyResult, DeliveryStatus,
+} from './types/debug';
+export type { FeatureConfig } from './types/feature';
+export type { FeatureKey, LogFeatureKey } from './core/featureCatalog';
+export type { ConfigIssue } from './core/config';
+export type { DebugEnvironment, EnvironmentOptions } from './types/environment';
+export type { DebugNavigationRef } from './types/navigation';
 export type {
-  AnyDebugFeature,
-  BuiltInFeatureName,
-  DebugFeature,
-  DebugFeatureListener,
-  DebugFeatureRenderProps,
-  FeatureDataProvider,
-  NetworkLogEntry,
-  ConsoleLogEntry,
-  NativeLogEntry,
-  NativeLogLevel,
-  NativeLogSource,
-  ZustandLogEntry,
-  NavigationLogEntry,
-  TrackLogEntry,
-  EnvironmentState,
-  DebugEnvironment,
-  EnvironmentOptions,
-} from './types';
-
-// Default export for convenience
-export { initializeDebugToolkit as default } from './core/initialize';
+  StateEvent, StateLogEntry, NavigationEvent, NavigationLogEntry,
+  NetworkLogEntry, ConsoleLogEntry, NativeLogEntry, NativeLogLevel, NativeLogSource, TrackLogEntry,
+} from './types/logs';

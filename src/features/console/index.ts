@@ -51,10 +51,14 @@ export interface ConsoleFeatureConfig {
   levels?: readonly ConsoleLogEntry['level'][];
 }
 
+export interface ConsoleFeature extends DebugFeature<ConsoleLogEntry[]> {
+  record(text: string, label?: string): void;
+}
+
 export const createConsoleLogFeature = (
   config: ConsoleFeatureConfig | undefined,
   runtime: LogRuntimeContext,
-): DebugFeature<ConsoleLogEntry[]> => {
+): ConsoleFeature => {
   const maxLogs = config?.maxLogs ?? DEFAULT_MAX_LOGS;
   const logStore = createPersistedObservableStore<ConsoleLogEntry>({
     storage: runtime.logStorage,
@@ -68,6 +72,7 @@ export const createConsoleLogFeature = (
   return {
     name: 'console',
     label: 'Console',
+    status: { phase: 'initializing', issues: [] },
     renderContent: ConsoleLogTab,
     setup: () => {
       if (initialized || !runtime.active) {
@@ -79,6 +84,11 @@ export const createConsoleLogFeature = (
         logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
       });
       initialized = true;
+      return logStore.ready;
+    },
+    record(text, label) {
+      if (!initialized || !runtime.active) { return; }
+      logStore.push({ id: logStore.nextId(), timestamp: Date.now(), level: 'log', data: label ? [label, text] : [text] }, maxLogs);
     },
     getSnapshot: () => logStore.getData(),
     clear: () => { logStore.clearPersisted(); },

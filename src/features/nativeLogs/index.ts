@@ -68,6 +68,7 @@ export const createNativeLogsFeature = (
   return {
     name: 'native',
     label: 'Native',
+    status: { phase: 'initializing', issues: [] },
     renderContent: NativeLogTab,
     setup: () => {
       if (initialized || !runtime.active) return;
@@ -79,7 +80,7 @@ export const createNativeLogsFeature = (
       const epoch = ++generation;
       const lease = acquireNativeLogCapture();
       capture = lease;
-      void lease.ready.then(started => {
+      return Promise.all([logStore.ready, lease.ready.then(started => {
         if (!initialized || !runtime.active) {
           lease.release();
           return;
@@ -90,7 +91,7 @@ export const createNativeLogsFeature = (
           return;
         }
         timer = setInterval(() => { void drainOnce(); }, pollIntervalMs);
-      });
+      })]).then(() => undefined);
     },
     getSnapshot: () => logStore.getData(),
     clear: () => { logStore.clearPersisted(); },

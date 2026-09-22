@@ -13,13 +13,6 @@ export interface TrackEventData {
 
 type TrackLogPayload = TrackEventData & { timestamp: number };
 
-let trackChannel = createEventChannel<TrackLogPayload>();
-
-export const addTrackLog = (eventData: TrackEventData): void => {
-  const snapshot = sanitizeDebugLogEntry(eventData) as TrackEventData;
-  trackChannel.emit({ timestamp: Date.now(), ...snapshot });
-};
-
 export interface TrackFeatureConfig {
   /** Maximum number of track events to keep (default: 200) */
   maxLogs?: number;
@@ -36,7 +29,6 @@ export const createTrackFeature = (
   const channel = createEventChannel<TrackLogPayload>();
   let active = false;
   let context: FeatureContext | undefined;
-  let removeLegacy: (() => void) | undefined;
   const current = () => active && runtime.active && (!context || (context.isCurrent() && !context.signal.aborted));
   const base = createChannelFeature(
     () => channel,
@@ -67,28 +59,22 @@ export const createTrackFeature = (
   const setup = () => {
     if (active || !runtime.active) {return;}
     active = true;
-    base.setup();
-    removeLegacy = trackChannel.subscribe(payload => { if (current()) { channel.emit(payload); status(); } });
+    return base.setup();
   };
   const dispose = () => {
     active = false;
     context?.signal.removeEventListener('abort', dispose);
-    removeLegacy?.(); removeLegacy = undefined;
     base.cleanup();
   };
   return {
     ...base, setup, cleanup: dispose, dispose, record,
     clear() { base.clear?.(); status(); },
-    start(ctx) {
+    async start(ctx) {
       if (active || !runtime.active || ctx.signal.aborted || !ctx.isCurrent()) {return;}
-      context = ctx; setup();
+      context = ctx; const pending = setup();
       ctx.signal.addEventListener('abort', dispose, { once: true });
+      await pending;
       status();
     },
   };
 };
-
-/** Reset module-level state for testing */
-export function _resetTrackForTesting(): void {
-  trackChannel = createEventChannel<TrackLogPayload>();
-}

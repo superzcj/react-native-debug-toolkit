@@ -68,11 +68,3 @@ export function createLogRuntime(options: LogRuntimeOptions): LogRuntimeContext 
   };
   return runtime;
 }
-
-let defaultRuntime: LogRuntimeContext | null = null;
-/** Explicit legacy host binding only; collectors always receive their own runtime. */
-export function setDefaultLogRuntime(runtime: LogRuntimeContext | null): void { defaultRuntime = runtime; }
-export function getDefaultLogRuntime(): LogRuntimeContext {
-  if (!defaultRuntime) { throw new Error('A log runtime must be injected by the toolkit host.'); }
-  return defaultRuntime;
-}

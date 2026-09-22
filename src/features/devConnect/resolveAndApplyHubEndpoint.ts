@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { hubClient, type HubClient } from '../../utils/HubClient';
+import type { HubClient } from '../../utils/HubClient';
 import {
   probeHubReady,
   resolveHubEndpoint,
@@ -10,10 +10,10 @@ function isDevRuntime(): boolean {
 }
 
 export async function resolveAndApplyHubEndpoint(
-  configuredEndpoint?: string | null,
-  options: { client?: HubClient; signal?: AbortSignal; isCurrent?: () => boolean; isDev?: boolean } = {},
+  configuredEndpoint: string | null | undefined,
+  options: { client: HubClient; signal?: AbortSignal; isCurrent?: () => boolean; isDev?: boolean },
 ): Promise<string | null> {
-  const client = options.client ?? hubClient;
+  const client = options.client;
   const manual = client.getRuntimeEndpoint();
   const current = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
     && manual === client.getRuntimeEndpoint();

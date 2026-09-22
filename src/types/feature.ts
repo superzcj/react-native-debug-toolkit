@@ -1,20 +1,9 @@
 import type { ComponentType } from 'react';
+import type { FeatureStatus } from './debug';
 
 export type FeatureConfig<T extends object> = T & { enabled?: boolean };
 
 export type DebugFeatureListener = () => void;
-
-export type BuiltInFeatureName =
-  | 'network'
-  | 'console'
-  | 'native'
-  | 'zustand'
-  | 'navigation'
-  | 'track'
-  | 'environment'
-  | 'clipboard'
-  | 'devConnect'
-  | 'sessionHistory';
 
 export interface DebugFeatureRenderProps<TSnapshot = unknown> {
   snapshot: TSnapshot;
@@ -31,9 +20,10 @@ export interface FeatureDataProvider {
 }
 
 export interface DebugFeature<TSnapshot = unknown> {
+  readonly status: FeatureStatus;
   name: string;
   label: string;
-  setup: () => void;
+  setup: () => void | Promise<void>;
   getSnapshot: () => TSnapshot;
   clear?: () => void;
   cleanup: () => void;

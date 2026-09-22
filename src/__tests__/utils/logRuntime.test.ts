@@ -1,6 +1,6 @@
 import { createLogRuntime, persistedLogLimit } from '../../utils/logRuntime';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
-import { createTrackFeature, addTrackLog } from '../../features/track';
+import { createTrackFeature } from '../../features/track';
 
 function disk() {
   const storage = new MemoryStorageAdapter();
@@ -28,7 +28,7 @@ test('History off never touches log disk and preserves history for the next enab
   await runtime.preferenceStorage.setItem('pref', 'kept');
   const feature = createTrackFeature({ maxLogs: 1 }, runtime);
   feature.setup();
-  addTrackLog({ eventName: 'off' });
+  feature.record({ eventName: 'off' });
   jest.advanceTimersByTime(2000);
   feature.clear?.();
   feature.cleanup();

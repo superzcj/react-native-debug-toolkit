@@ -4,9 +4,3 @@ export interface DebugNavigationRef {
   getRootState(): unknown;
   addListener(event: 'state', callback: () => void): () => void;
 }
-
-export interface NavigationContainerRef {
-  getCurrentRoute?: () => { name?: string } | undefined;
-  getRootState?: () => unknown;
-  addListener: (event: string, callback: () => void) => () => void;
-}

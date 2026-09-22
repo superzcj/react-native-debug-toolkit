@@ -14,6 +14,7 @@ import { DebugPanel } from './DebugPanel';
 import { FeatureRail } from './FeatureRail';
 import type { RailItem } from './FeatureRail';
 import { FeatureIntroCard } from './FeatureIntroCard';
+import { FeatureStatusView } from './FeatureStatusView';
 import { buildFeatureSummary } from './buildFeatureSummary';
 import { filterFeatureSnapshot } from './filterFeatureSnapshot';
 import {
@@ -29,25 +30,26 @@ import { t, type TranslationKey } from '../../i18n';
 // ─── Error Boundary ────────────────────────────────────
 interface ErrorBoundaryState {
   hasError: boolean;
+  message?: string;
 }
 
 class DebugErrorBoundary extends Component<
-  { children: React.ReactNode; onError: () => void },
+  { children: React.ReactNode; onError?: () => void; name?: string },
   ErrorBoundaryState
 > {
   state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, message: error.message };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[DebugToolkit] Panel crashed:', error, info.componentStack);
-    this.props.onError();
+    this.props.onError?.();
   }
 
   render() {
-    if (this.state.hasError) return null;
+    if (this.state.hasError) return <FeatureStatusView name={this.props.name ?? 'panel'} status={{ phase: 'error', issues: [{ path: `${this.props.name ?? 'panel'}.render`, message: this.state.message ?? 'Render failed.' }] }} />;
     return this.props.children;
   }
 }
@@ -84,13 +86,14 @@ const FEATURE_LABEL_KEYS: Record<string, TranslationKey> = {
   console: 'feature.console',
   native: 'feature.native',
   navigation: 'feature.navigation',
-  zustand: 'feature.zustand',
+  state: 'feature.state',
   track: 'feature.track',
   clipboard: 'feature.clipboard',
   environment: 'feature.environment',
-  devConnect: 'feature.devConnect',
-  sessionHistory: 'feature.sessionHistory',
-  thirdPartyLibs: 'feature.thirdPartyLibs',
+  connect: 'feature.connect',
+  history: 'feature.history',
+  accounts: 'feature.accounts',
+  tabs: 'feature.tabs',
 };
 
 const DEFAULT_FEATURE_LABELS: Record<string, string> = {
@@ -98,17 +101,18 @@ const DEFAULT_FEATURE_LABELS: Record<string, string> = {
   console: 'Console',
   native: 'Native',
   navigation: 'Navigation',
-  zustand: 'Zustand',
+  state: 'State',
   track: 'Track',
   clipboard: 'Clipboard',
   environment: 'Environment',
-  devConnect: 'DevConnect',
-  sessionHistory: 'Sessions',
-  thirdPartyLibs: 'Debug Libraries',
+  connect: 'Connect',
+  history: 'History',
+  accounts: 'Accounts',
+  tabs: 'Custom',
 };
 
 function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
-  const devConnect = features.find((f) => f.name === 'devConnect');
+  const devConnect = features.find((f) => f.name === 'connect');
   if (!devConnect) {
     return { label: t('panel.sharedHubUnavailable'), color: Colors.textMuted };
   }
@@ -292,7 +296,12 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                   ]}
                   {...panHandlers}
                 >
-                  {renderFeatureContent()}
+                  {activeFeature && <View testID={`debug-page-${activeFeature.name}`} style={styles.contentContainer}>
+                    <DebugErrorBoundary key={activeFeature.name} name={activeFeature.name}>
+                      <FeatureStatusView name={activeFeature.name} status={activeFeature.status} />
+                      {renderFeatureContent()}
+                    </DebugErrorBoundary>
+                  </View>}
                 </Animated.View>
               </View>
             </View>

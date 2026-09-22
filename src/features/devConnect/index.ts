@@ -1,6 +1,6 @@
 import { DevConnectTabV4 } from './DevConnectTabV4';
 import { extractIpv4SubnetPrefix } from './hubAddressRecommendations';
-import { hubClient, normalizeHubEndpoint, type HubClient } from '../../utils/HubClient';
+import { normalizeHubEndpoint, type HubClient } from '../../utils/HubClient';
 import { getPreference, KEYS } from '../../utils/debugPreferences';
 import { getDeviceLocalIp, getNativeAppInfo, nativeIsDebugBuild, resolveAppId } from './nativeDevConnect';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
@@ -16,10 +16,10 @@ const owners = new WeakMap<HubClient, symbol>();
 export interface DevConnectFeature extends DebugFeature<DevConnectV4State>, FeatureDriver {}
 
 export function createDevConnectFeature(
-  config: DevConnectV4Config = {},
-  dependencies: { client?: HubClient; isDebugBuild?: boolean } = {},
+  config: DevConnectV4Config,
+  dependencies: { client: HubClient; isDebugBuild?: boolean },
 ): DevConnectFeature {
-  const client = dependencies.client ?? hubClient;
+  const client = dependencies.client;
   const configuredEndpoint = config.endpoint ? normalizeHubEndpoint(config.endpoint) || config.endpoint : '';
   const listeners = new Set<DebugFeatureListener>();
   let context: FeatureContext | undefined;
@@ -122,7 +122,7 @@ export function createDevConnectFeature(
     if (debugBuild && current()) { void discover(); }
   };
   return {
-    name: 'devConnect', label: 'Connect', renderContent: DevConnectTabV4,
+    name: 'connect', label: 'Connect', status: { phase: 'initializing', issues: [] }, renderContent: DevConnectTabV4,
     start, dispose, cleanup: dispose,
     setup() {
       const controller = new AbortController();

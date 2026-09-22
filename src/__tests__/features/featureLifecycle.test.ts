@@ -1,35 +1,29 @@
 import { createLogRuntime } from '../../utils/logRuntime';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
-import { _resetTrackForTesting } from '../../features/track';
-import { _resetNavigationForTesting } from '../../features/navigation';
 import { createConsoleLogFeature, _resetConsoleForTesting } from '../../features/console';
 import { _resetNetworkForTesting } from '../../features/network';
-import { _resetZustandForTesting } from '../../features/zustand';
-import { addTrackLog, createTrackFeature } from '../../features/track';
-import { addNavigationLog, createNavigationLogFeature } from '../../features/navigation';
-import { addZustandLog, createZustandLogFeature } from '../../features/zustand';
+import { createTrackFeature } from '../../features/track';
+import { createNavigationLogFeature } from '../../features/navigation';
+import { createStateFeature } from '../../features/state';
 import type { DebugFeature } from '../../types';
 
 function resetAllFeatureState() {
-  _resetTrackForTesting();
-  _resetNavigationForTesting();
   _resetConsoleForTesting();
   _resetNetworkForTesting();
-  _resetZustandForTesting();
 }
 
 /**
  * Generic feature lifecycle test.
  * Validates: setup → data capture → subscribe → clear → cleanup
  */
-function testFeatureLifecycle<TEntry>(
+function testFeatureLifecycle<TFeature extends DebugFeature<any>>(
   name: string,
-  createFeature: () => DebugFeature<TEntry[]>,
-  emitEvent: () => void,
-  resetState: () => void,
+  createFeature: () => TFeature,
+  emitEvent: (feature: TFeature) => void,
+  resetState: () => void = () => {},
 ) {
   describe(`${name} feature lifecycle`, () => {
-    let feature: DebugFeature<TEntry[]>;
+    let feature: TFeature;
 
     beforeEach(() => {
       resetState();
@@ -46,12 +40,12 @@ function testFeatureLifecycle<TEntry>(
 
     it('captures data after setup + emit', () => {
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       expect(feature.getSnapshot().length).toBe(1);
     });
 
     it('does not capture before setup', () => {
-      emitEvent();
+      emitEvent(feature);
       expect(feature.getSnapshot()).toEqual([]);
     });
 
@@ -59,39 +53,39 @@ function testFeatureLifecycle<TEntry>(
       feature.setup();
       const listener = jest.fn();
       feature.subscribe?.(listener);
-      emitEvent();
+      emitEvent(feature);
       expect(listener).toHaveBeenCalled();
     });
 
     it('clears data', () => {
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       feature.clear?.();
       expect(feature.getSnapshot()).toEqual([]);
     });
 
     it('stops capture after cleanup', () => {
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       feature.cleanup();
-      emitEvent();
+      emitEvent(feature);
       // Data from before cleanup is gone, and no new data captured
       expect(feature.getSnapshot()).toEqual([]);
     });
 
     it('can setup again after cleanup', () => {
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       feature.cleanup();
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       expect(feature.getSnapshot().length).toBe(1);
     });
 
     it('idempotent setup — calling setup twice is safe', () => {
       feature.setup();
       feature.setup();
-      emitEvent();
+      emitEvent(feature);
       expect(feature.getSnapshot().length).toBe(1);
     });
 
@@ -109,8 +103,7 @@ function testFeatureLifecycle<TEntry>(
 testFeatureLifecycle(
   'Track',
   () => createTrackFeature(undefined, testRuntime()),
-  () => addTrackLog({ eventName: 'test_event', payload: 'data' }),
-  _resetTrackForTesting,
+  feature => feature.record({ eventName: 'test_event', payload: 'data' }),
 );
 
 // ─── Navigation Feature ───────────────────────────────
@@ -118,17 +111,18 @@ testFeatureLifecycle(
 testFeatureLifecycle(
   'Navigation',
   () => createNavigationLogFeature(),
-  () => addNavigationLog('navigate', 'Home', 'Detail'),
-  _resetNavigationForTesting,
+  feature => feature.record({ action: 'navigate', from: 'Home', to: 'Detail' }),
 );
 
-// ─── Zustand Feature ──────────────────────────────────
+// ─── State Feature ──────────────────────────────────
 
 testFeatureLifecycle(
-  'Zustand',
-  () => createZustandLogFeature(),
-  () => addZustandLog('increment', { count: 0 }, { count: 1 }),
-  _resetZustandForTesting,
+  'State',
+  () => {
+    const feature = createStateFeature();
+    return { ...feature, setup: () => feature.start({ owner: Symbol(), signal: new AbortController().signal, isCurrent: () => true, setStatus() {} }) };
+  },
+  feature => feature.record('counter', { action: 'increment', before: { count: 0 }, after: { count: 1 } }),
 );
 
 // ─── Reset functions ──────────────────────────────────
@@ -139,13 +133,12 @@ describe('feature isolation via reset', () => {
   it('track reset isolates feature instances', () => {
     const f1 = createTrackFeature(undefined, testRuntime());
     f1.setup();
-    addTrackLog({ eventName: 'e1' });
+    f1.record({ eventName: 'e1' });
     f1.cleanup();
-    _resetTrackForTesting();
 
     const f2 = createTrackFeature(undefined, testRuntime());
     f2.setup();
-    addTrackLog({ eventName: 'e2' });
+    f2.record({ eventName: 'e2' });
     // f2 only sees its own event
     expect(f2.getSnapshot().length).toBe(1);
     expect((f2.getSnapshot()[0] as { eventName: string }).eventName).toBe('e2');
@@ -155,13 +148,12 @@ describe('feature isolation via reset', () => {
   it('navigation reset isolates feature instances', () => {
     const f1 = createNavigationLogFeature();
     f1.setup();
-    addNavigationLog('navigate', 'A', 'B');
+    f1.record({ action: 'navigate', from: 'A', to: 'B' });
     f1.cleanup();
-    _resetNavigationForTesting();
 
     const f2 = createNavigationLogFeature();
     f2.setup();
-    addNavigationLog('navigate', 'C', 'D');
+    f2.record({ action: 'navigate', from: 'C', to: 'D' });
     expect(f2.getSnapshot().length).toBe(1);
     f2.cleanup();
   });
@@ -194,7 +186,7 @@ function testRuntime() { return createLogRuntime({ history: { enabled: false, ma
 
 
 describe('collection isolates hostile business values', () => {
-  afterEach(() => { _resetConsoleForTesting(); _resetTrackForTesting(); });
+  afterEach(_resetConsoleForTesting);
 
   it('does not invoke enumerable getters while collecting console and track data', () => {
     const getter = jest.fn(() => 123);
@@ -209,7 +201,7 @@ describe('collection isolates hostile business values', () => {
     consoleFeature.setup(); trackFeature.setup();
     try {
       expect(() => console.log(data)).not.toThrow();
-      expect(() => addTrackLog({ eventName: 'accessors', data })).not.toThrow();
+      expect(() => trackFeature.record({ eventName: 'accessors', data })).not.toThrow();
       expect(getter).not.toHaveBeenCalled();
       expect(throwingGetter).not.toHaveBeenCalled();
       expect(consoleFeature.getSnapshot()[0]!.data).toEqual([{ value: '[Accessor]', failure: '[Accessor]' }]);
@@ -223,7 +215,7 @@ describe('collection isolates hostile business values', () => {
     const feature = createTrackFeature(undefined, testRuntime());
     feature.setup();
     try {
-      expect(() => addTrackLog(event)).not.toThrow();
+      expect(() => feature.record(event)).not.toThrow();
       expect(getter).not.toHaveBeenCalled();
       expect(feature.getSnapshot()[0]).toMatchObject({ eventName: 'safe', payload: '[Accessor]' });
     } finally { feature.cleanup(); }

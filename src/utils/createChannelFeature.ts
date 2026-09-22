@@ -74,6 +74,7 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
   return {
     name: options.name,
     label: options.label,
+    status: { phase: 'initializing', issues: [] },
     renderContent: options.renderContent,
     setup: () => {
       if (initialized || options.persist?.isActive?.() === false) {
@@ -92,6 +93,7 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
         customCleanup = cleanup;
       }
       initialized = true;
+      return persistedStore?.ready;
     },
     getSnapshot: () => logStore.getData(),
     clear: () => {

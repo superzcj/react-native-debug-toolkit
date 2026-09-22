@@ -13,9 +13,11 @@ jest.mock('react-native-mmkv', () => ({
 import { DevConnectTabV4 } from '../../src/features/devConnect/DevConnectTabV4';
 import type { DevConnectV4State } from '../../src/features/devConnect/types';
 import type { DebugFeature } from '../../src/types';
-import { _resetHubClientForTesting, hubClient } from '../../src/utils/HubClient';
+import { HubClient } from '../../src/utils/HubClient';
+const hubClient = new HubClient({ featureProvider: { features: [], subscribe: () => () => {} } });
 
 const snapshot: DevConnectV4State = {
+  client: hubClient,
   appId: 'com.example.audit',
   canonicalEndpoint: 'http://192.168.1.10:3800',
   configuredEndpoint: 'http://192.168.1.10:3800',
@@ -23,7 +25,8 @@ const snapshot: DevConnectV4State = {
 };
 
 const feature: DebugFeature<DevConnectV4State> = {
-  name: 'devConnect',
+  name: 'connect',
+  status: { phase: 'ready', issues: [] },
   label: 'Connect',
   setup: () => undefined,
   cleanup: () => undefined,
@@ -59,7 +62,7 @@ describe('DevConnectTabV4 Upload Once', () => {
   const fetchMock = jest.fn();
 
   beforeEach(() => {
-    _resetHubClientForTesting();
+    hubClient._resetForTesting();
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (url: string) => {
       if (String(url).includes('/sessions') && !String(url).includes('/events')) {
@@ -81,7 +84,7 @@ describe('DevConnectTabV4 Upload Once', () => {
   });
 
   afterEach(() => {
-    _resetHubClientForTesting();
+    hubClient._resetForTesting();
     delete (globalThis as unknown as { fetch?: typeof fetchMock }).fetch;
   });
 

@@ -22,14 +22,14 @@ export function buildFeatureSummary(
   if (name === 'network') return buildNetworkSummary(snapshot);
   if (name === 'console') return buildConsoleSummary(snapshot);
   if (name === 'navigation') return buildNavigationSummary(snapshot);
-  if (name === 'zustand') return buildZustandSummary(snapshot);
+  if (name === 'state') return buildStateSummary(snapshot);
   if (name === 'track') return buildTrackSummary(snapshot);
   if (name === 'clipboard') return buildClipboardSummary(snapshot);
   if (name === 'environment') return buildEnvironmentSummary(snapshot);
-  if (name === 'quick-accounts') return buildQuickAccountsSummary(snapshot);
-  if (name === 'devConnect') return buildDevConnectSummary(snapshot);
-  if (name === 'sessionHistory') return buildSessionHistorySummary(snapshot);
-  if (name === 'thirdPartyLibs') return buildThirdPartyLibsSummary(snapshot);
+  if (name === 'accounts') return buildQuickAccountsSummary(snapshot);
+  if (name === 'connect') return buildDevConnectSummary(snapshot);
+  if (name === 'history') return buildSessionHistorySummary(snapshot);
+  if (name === 'tabs') return { capabilityText: t('summary.tabs'), supportsBadFilter: false };
   if (name === 'native') return buildNativeSummary(snapshot);
 
   return buildUnknownSummary(snapshot);
@@ -125,24 +125,24 @@ function buildNavigationSummary(snapshot: unknown): FeatureSummary {
   };
 }
 
-interface ZustandItem {
+interface StateItem {
   action?: string;
-  storeName?: string;
+  storeId?: string;
 }
 
-function buildZustandSummary(snapshot: unknown): FeatureSummary {
+function buildStateSummary(snapshot: unknown): FeatureSummary {
   const items = asArray(snapshot);
   const count = items.length;
   let latestLabel: string | undefined;
 
   if (count > 0) {
-    const last = items[items.length - 1] as ZustandItem;
-    const parts = [last.action, last.storeName].filter(Boolean);
+    const last = items[items.length - 1] as StateItem;
+    const parts = [last.action, last.storeId].filter(Boolean);
     latestLabel = parts.join(' @ ') || undefined;
   }
 
   return {
-    capabilityText: t('summary.zustand'),
+    capabilityText: t('summary.state'),
     count,
     latestLabel,
     supportsBadFilter: false,
@@ -179,7 +179,7 @@ function buildClipboardSummary(_snapshot: unknown): FeatureSummary {
 }
 
 interface EnvironmentSnap {
-  environments?: Array<{ id: string; label: string }>;
+  environments?: Array<{ id: string; title: string }>;
   currentEnvironmentId?: string | null;
 }
 
@@ -191,8 +191,8 @@ function buildEnvironmentSummary(snapshot: unknown): FeatureSummary {
   return {
     capabilityText: t('summary.environment'),
     count: envs.length || undefined,
-    latestLabel: current?.label,
-    statusLabel: current?.label,
+    latestLabel: current?.title,
+    statusLabel: current?.title,
     supportsBadFilter: false,
   };
 }
@@ -207,15 +207,15 @@ interface QuickAccountsSummarySnapshot {
 function buildQuickAccountsSummary(snapshot: unknown): FeatureSummary {
   const state = (snapshot ?? {}) as QuickAccountsSummarySnapshot;
   const statusLabel = state.suspended
-    ? t('devConnect.paused')
+    ? t('connect.paused')
     : state.busy
-      ? t('quickAccounts.switchingStatus')
+      ? t('accounts.switchingStatus')
       : state.lastResult === 'error'
-        ? t('devConnect.error')
+        ? t('connect.error')
         : undefined;
 
   return {
-    capabilityText: t('summary.quickAccounts'),
+    capabilityText: t('summary.accounts'),
     count: typeof state.accountCount === 'number' ? state.accountCount : undefined,
     statusLabel,
     statusColor: state.lastResult === 'error' ? Colors.error : undefined,
@@ -232,7 +232,7 @@ function buildDevConnectSummary(snapshot: unknown): FeatureSummary {
   const endpoint = s.canonicalEndpoint?.trim();
 
   return {
-    capabilityText: t('summary.devConnect'),
+    capabilityText: t('summary.connect'),
     latestLabel: endpoint,
     statusLabel: endpoint ? t('summary.hubConfigured') : t('summary.hubNotConfigured'),
     statusColor: endpoint ? Colors.success : undefined,
@@ -250,18 +250,9 @@ function buildSessionHistorySummary(snapshot: unknown): FeatureSummary {
   const s = (snapshot ?? {}) as SessionHistorySnap;
   const count = s.sessions?.length;
   return {
-    capabilityText: t('summary.sessionHistory'),
+    capabilityText: t('summary.history'),
     count: count || undefined,
     latestLabel: s.currentSessionId,
-    supportsBadFilter: false,
-  };
-}
-
-function buildThirdPartyLibsSummary(snapshot: unknown): FeatureSummary {
-  const items = asArray(snapshot);
-  return {
-    capabilityText: t('summary.thirdPartyLibs'),
-    count: items.length || undefined,
     supportsBadFilter: false,
   };
 }

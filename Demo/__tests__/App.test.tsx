@@ -3,14 +3,14 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
-import { DebugToolkit } from '../../src/core/DebugToolkit';
-import { _resetHubClientForTesting } from '../../src/utils/HubClient';
+import { NativeModules } from 'react-native';
+import { debug } from '../../src/core/debug';
 
 jest.mock('react-native-mmkv', () => ({
   createMMKV: () => ({
     getString: () => undefined,
     set: () => undefined,
-    delete: () => undefined,
+    remove: () => true,
   }),
 }), { virtual: true });
 
@@ -46,7 +46,7 @@ function pressTextStartingWith(root: ReactTestRenderer.ReactTestInstance, prefix
 }
 
 async function flushHub(): Promise<void> {
-  for (let index = 0; index < 12; index += 1) await Promise.resolve();
+  for (let index = 0; index < 50; index += 1) await Promise.resolve();
 }
 
 function readyResponse() {
@@ -101,6 +101,7 @@ function mockHubFetch(): jest.MockedFunction<HubFetchStub> {
 }
 
 async function openConnectTab(renderer: ReactTestRenderer.ReactTestRenderer) {
+  await ReactTestRenderer.act(async () => { await debug.ready(); });
   await ReactTestRenderer.act(async () => {
     pressText(renderer.root, 'Profile');
     await Promise.resolve();
@@ -133,15 +134,8 @@ afterAll(() => {
   consoleWarnSpy.mockRestore();
 });
 
-beforeEach(() => {
-  DebugToolkit.destroy();
-  _resetHubClientForTesting();
-});
+beforeEach(() => { NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true }; });
 
-afterEach(() => {
-  _resetHubClientForTesting();
-  DebugToolkit.destroy();
-});
 
 test('opens the v4 local Hub controls', async () => {
   global.fetch = mockHubFetch() as jest.MockedFunction<typeof fetch>;

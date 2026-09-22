@@ -1,10 +1,9 @@
 import React from 'react';
-import type { ComponentType } from 'react';
-import type { DebugToolkitConfig, DebugAccount, AccountsSnapshot } from '../src/types/config';
-import type { DebugSource } from '../src/types/source';
-
-// Task 10 replaces this contract declaration with the public implementation import.
-declare function withDebugToolkit<P extends object, A extends DebugAccount = DebugAccount, S extends readonly unknown[] = readonly never[]>(App: ComponentType<P>, config?: DebugToolkitConfig<A, S>): ComponentType<P>;
+import { withDebugToolkit, debug, type DebugToolkitConfig, type DebugAccount, type AccountsSnapshot, type DebugSource } from '../src';
+// @ts-expect-error Old bootstrap and default export were removed.
+import initializeDebugToolkit from '../src';
+// @ts-expect-error Old factories, Provider, hooks and utility exports were removed.
+import { DebugView, DebugToolkitProvider, useDebugToolkit, createNetworkFeature, createDebugTab, addTrackLog, copyToComputer } from '../src';
 const empty = { accounts: {}, environment: {}, tabs: {} } satisfies DebugToolkitConfig;
 const disabled = { accounts: { enabled: false } } satisfies DebugToolkitConfig;
 declare const someBoolean: boolean;
@@ -15,7 +14,7 @@ function App(props: { greeting: string }) { return <>{props.greeting}</>; }
 const Wrapped = withDebugToolkit(App, {
   accounts: {
     items: [{ id: 'a', title: 'A', tenantId: 42 }],
-    onSwitch: (account, { signal }) => { account.tenantId.toFixed(); signal.throwIfAborted(); },
+    onSwitch: (account, { signal }) => { account.tenantId.toFixed(); const cancelled: boolean = signal.aborted; void cancelled; },
   },
 });
 const validApp = <Wrapped greeting="hello" />;
@@ -62,3 +61,20 @@ const wrongSnapshot = { tabs: { items: [{ id: 'cart', title: 'Cart', source: car
 const navigation = { navigation: { ref: { current: { isReady: () => true, getCurrentRoute: () => ({ name: 'Home' }), getRootState: () => ({}), addListener: (_event: 'state', _callback: () => void) => () => {} } } } } satisfies DebugToolkitConfig;
 // @ts-expect-error Ref methods are required when current is non-null.
 const invalidRef = { navigation: { ref: { current: {} } } } satisfies DebugToolkitConfig;
+
+debug.track('checkout', { total: 20 });
+debug.state('cart', { action: 'add', before: 0, after: 1 });
+debug.navigation({ action: 'navigate', to: 'Cart' });
+debug.clear('state');
+// @ts-expect-error clear only accepts the six current log features.
+debug.clear('environment');
+// @ts-expect-error Old log feature key is unsupported.
+debug.clear('zustand');
+class ClassApp extends React.Component<{ title: string }> { render() { return null; } }
+const ClassWrapped = withDebugToolkit(ClassApp);
+const classApp = <ClassWrapped title="Shop" ref={React.createRef<ClassApp>()} />;
+const RefApp = React.forwardRef<{ reload(): void }, { title: string }>(() => null);
+const RefWrapped = withDebugToolkit(RefApp);
+const refApp = <RefWrapped title="Shop" ref={React.createRef<{ reload(): void }>()} />;
+// @ts-expect-error Ref types survive wrapping.
+const wrongRef = <RefWrapped title="Shop" ref={React.createRef<{ count: number }>()} />;

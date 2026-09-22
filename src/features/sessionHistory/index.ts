@@ -1,5 +1,4 @@
 import { SessionHistoryTab, type SessionHistoryState, type SelectedSession, type SessionHistoryFeature } from './SessionHistoryTab';
-import { createDebugTab } from '../../utils/createDebugTab';
 import { type LogRuntimeContext } from '../../utils/logRuntime';
 import {
   SESSION_HISTORY_LOG_KEYS,
@@ -71,11 +70,11 @@ export function createSessionHistoryFeature(
   }
 
   const feature: SessionHistoryFeature = {
-    ...createDebugTab<SessionHistoryState>({
-      name: 'sessionHistory',
-      label: 'Sessions',
+      name: 'history',
+      label: 'History',
+      status: { phase: 'initializing', issues: [] },
       getSnapshot,
-      render: SessionHistoryTab,
+      renderContent: SessionHistoryTab,
       setup: async () => {
         if (initialized || !runtime.active) return;
         initialized = true;
@@ -110,7 +109,6 @@ export function createSessionHistoryFeature(
           listeners = listeners.filter((l) => l !== listener);
         };
       },
-    }),
     loadSession,
   };
 

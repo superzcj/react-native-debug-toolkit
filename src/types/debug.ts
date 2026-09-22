@@ -1,5 +1,6 @@
 import type { ConfigIssue } from '../core/config';
-import type { FeatureKey } from '../core/featureCatalog';
+import type { FeatureKey, LogFeatureKey } from '../core/featureCatalog';
+import type { NavigationEvent, StateEvent } from './logs';
 
 export type AccountSwitchResult =
   | { readonly status: 'success' | 'superseded' | 'disabled' | 'busy' | 'not_configured' | 'not_found' }
@@ -32,3 +33,24 @@ export interface CopyResult {
   hub: { status: DeliveryStatus; reason?: string };
 }
 export type CopyAction = (text: string, options?: { label?: string }) => Promise<CopyResult>;
+
+export interface DebugReport {
+  status: ReadyResult['status'];
+  features: Partial<Record<FeatureKey, FeatureStatus>>;
+  logs: Partial<Record<LogFeatureKey, readonly unknown[]>>;
+  appId?: string;
+  sessionId?: string;
+}
+
+export interface DebugActions {
+  ready(): Promise<ReadyResult>;
+  open(): void;
+  close(): void;
+  clear(feature?: LogFeatureKey): void;
+  track(name: string, data?: unknown): void;
+  state(id: string, event: StateEvent): void;
+  navigation(event: NavigationEvent): void;
+  copyToComputer: CopyAction;
+  getReport(): DebugReport;
+  accounts: AccountsActions;
+}

@@ -9,7 +9,9 @@ import {
   getPreference,
   removePreference,
   KEYS,
+  bindPreferenceStorage,
 } from '../../utils/debugPreferences';
+import { createDefaultLogStorage } from '../../utils/StorageAdapter';
 
 describe('debugPreferences', () => {
   it('persists preferences in the Toolkit MMKV store', async () => {
@@ -18,6 +20,7 @@ describe('debugPreferences', () => {
     const set = jest.fn((key: string, value: string) => values.set(key, value));
     const remove = jest.fn((key: string) => values.delete(key));
     mockCreateMMKV.mockReturnValue({ getString, set, remove });
+    const release = bindPreferenceStorage(createDefaultLogStorage());
 
     await setPreference(KEYS.fabPosition, '{"x":10,"y":20}');
 
@@ -27,6 +30,7 @@ describe('debugPreferences', () => {
     expect(mockCreateMMKV).toHaveBeenCalledWith({ id: 'react-native-debug-toolkit' });
     expect(set).toHaveBeenCalledWith(KEYS.fabPosition, '{"x":10,"y":20}');
     expect(remove).toHaveBeenCalledWith(KEYS.fabPosition);
+    release();
   });
 
   it('exposes expected key constants', () => {

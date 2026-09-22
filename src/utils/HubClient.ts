@@ -1,5 +1,4 @@
 import { AppState, type AppStateStatus, Platform } from 'react-native';
-import { debugToolkit } from '../core/DebugToolkit';
 import type { FeatureDataProvider } from '../types';
 import { addToBlacklist } from '../features/network';
 import { safeStringify } from './safeStringify';
@@ -672,9 +671,11 @@ export class HubClient {
           const e = entry as Record<string, unknown>;
           this._enqueueEvent({
             timestamp: normalizeEventTimestamp(e.timestamp),
-            type: feature.name,
+            type: feature.name === 'state' ? 'zustand' : feature.name,
             severity: normalizeSeverity(String(e.level || e.severity || 'info')),
-            data: e,
+            data: feature.name === 'state'
+              ? { ...e, storeName: e.storeId, prevState: e.before, nextState: e.after }
+              : e,
           });
         }
 
@@ -1036,12 +1037,4 @@ export class HubClient {
     this._lastError = undefined;
     this._debugBuild = undefined;
   }
-}
-
-// ---- Module Singleton ----
-
-export const hubClient = new HubClient({ featureProvider: debugToolkit });
-
-export function _resetHubClientForTesting(): void {
-  hubClient._resetForTesting();
 }

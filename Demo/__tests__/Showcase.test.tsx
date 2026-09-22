@@ -2,10 +2,10 @@ import React from 'react';
 import Renderer from 'react-test-renderer';
 import { Showcase } from '../Showcase';
 import { checkoutRequest } from '../demoApi';
-import { addTrackLog } from 'react-native-debug-toolkit';
+import { debug } from 'react-native-debug-toolkit';
 
 jest.mock('../demoApi', () => ({ checkoutRequest: jest.fn(), DEMO_API: 'http://localhost:3801' }));
-jest.mock('react-native-debug-toolkit', () => ({ addTrackLog: jest.fn(), DebugToolkit: { openPanel: jest.fn() } }));
+jest.mock('react-native-debug-toolkit', () => ({ debug: { track: jest.fn(), open: jest.fn() } }));
 
 function press(root: Renderer.ReactTestInstance, label: string) {
   let node = root.findAll((item) => (item.type as unknown) === 'Text' && item.props.children === label)[0];
@@ -27,7 +27,7 @@ test.each([
     await Renderer.act(async () => { tree = Renderer.create(<Showcase onAddItem={onAddItem} />); });
     await Renderer.act(async () => { await press(tree.root, ok ? 'Try successful request' : 'Run failed checkout'); });
     expect(onAddItem).toHaveBeenCalledTimes(1);
-    expect(addTrackLog).toHaveBeenCalledWith(expect.objectContaining({ eventName, status }));
+    expect(debug.track).toHaveBeenCalledWith(eventName, expect.objectContaining({ status }));
     expect(JSON.stringify(tree.toJSON())).toContain(String(status));
   } finally {
     await Renderer.act(async () => tree.unmount());
@@ -45,7 +45,7 @@ test('gives a retry instruction when the local API is unavailable', async () => 
     await Renderer.act(async () => { tree = Renderer.create(<Showcase onAddItem={() => {}} />); });
     await Renderer.act(async () => { await press(tree.root, 'Run failed checkout'); });
     expect(JSON.stringify(tree.toJSON())).toContain('API offline.');
-    expect(addTrackLog).not.toHaveBeenCalledWith(expect.objectContaining({ eventName: 'checkout_completed' }));
+    expect(debug.track).not.toHaveBeenCalledWith('checkout_completed', expect.anything());
   } finally {
     await Renderer.act(async () => tree.unmount());
     jest.restoreAllMocks();

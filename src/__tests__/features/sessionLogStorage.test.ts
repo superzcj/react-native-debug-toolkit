@@ -1,5 +1,5 @@
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
-import { addTrackLog, createTrackFeature, _resetTrackForTesting } from '../../features/track';
+import { createTrackFeature } from '../../features/track';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import { SessionManager } from '../../utils/SessionManager';
 import { createLogRuntime } from '../../utils/logRuntime';
@@ -7,7 +7,6 @@ import { createLogRuntime } from '../../utils/logRuntime';
 describe('session log storage for built-in features', () => {
   afterEach(() => {
     jest.useRealTimers();
-    _resetTrackForTesting();
   });
 
   it('persists track logs under the current session key and cleanup does not clear storage', async () => {
@@ -19,7 +18,7 @@ describe('session log storage for built-in features', () => {
     const storageKey = sessionManager.getLogStorageKey('track_logs');
 
     feature.setup();
-    addTrackLog({ eventName: 'opened_screen' });
+    feature.record({ eventName: 'opened_screen' });
     jest.advanceTimersByTime(2000);
 
     const persistedBeforeCleanup = await logStorage.getItem(storageKey);
@@ -70,10 +69,10 @@ test('persisted logs keep the latest entries within maxLogs and snapshot busines
   feature.setup();
   const toJSON = jest.fn();
   const data = { value: 1, toJSON };
-  addTrackLog({ eventName: 'first' });
-  addTrackLog({ eventName: 'second', data });
+  feature.record({ eventName: 'first' });
+  feature.record({ eventName: 'second', data });
   data.value = 2;
-  addTrackLog({ eventName: 'third' });
+  feature.record({ eventName: 'third' });
   jest.advanceTimersByTime(2000);
   const saved = JSON.parse(logDisk.getItem(runtime.sessionManager.getLogStorageKey('track_logs'))!);
   expect(saved.map((entry: { eventName: string }) => entry.eventName)).toEqual(['second', 'third']);

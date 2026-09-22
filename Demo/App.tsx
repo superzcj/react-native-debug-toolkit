@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ScrollView,
@@ -10,16 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  addNavigationLog,
-  addTrackLog,
-  addZustandLog,
-  createDebugTab,
-  type DebugFeature,
-  type DebugFeatureRenderProps,
-  DebugView,
-  DebugToolkit,
-} from 'react-native-debug-toolkit';
+import { debug, withDebugToolkit, type DebugSource } from 'react-native-debug-toolkit';
 
 import { Showcase } from './Showcase';
 import { DEMO_API, DEMO_HOST } from './demoApi';
@@ -192,7 +183,7 @@ function getActiveRootTab(route: Route): RootScreen {
 
 // ─── Custom Tab Renderers ────────────────────────────────
 
-function CartDebugTab({ snapshot }: DebugFeatureRenderProps<CartTabSnapshot>) {
+function CartDebugTab({ snapshot }: { snapshot: CartTabSnapshot }) {
   return (
     <ScrollView style={s.tabScroll} contentContainerStyle={s.tabContent}>
       <View style={[s.tabCard, { backgroundColor: T.hero }]}>
@@ -219,7 +210,7 @@ function CartDebugTab({ snapshot }: DebugFeatureRenderProps<CartTabSnapshot>) {
   );
 }
 
-function FlowDebugTab({ snapshot }: DebugFeatureRenderProps<FlowTabSnapshot>) {
+function FlowDebugTab({ snapshot }: { snapshot: FlowTabSnapshot }) {
   return (
     <ScrollView style={s.tabScroll} contentContainerStyle={s.tabContent}>
       <View style={[s.tabCard, { backgroundColor: T.hero }]}>
@@ -243,6 +234,18 @@ function FlowDebugTab({ snapshot }: DebugFeatureRenderProps<FlowTabSnapshot>) {
   );
 }
 
+function createDemoSource<T>(initial: T): DebugSource<T> & { publish(value: T): void } {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => snapshot,
+    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    publish(value) { snapshot = value; listeners.forEach(listener => listener()); },
+  };
+}
+const cartSource = createDemoSource<CartTabSnapshot>({ items: [], total: 0 });
+const flowSource = createDemoSource<FlowTabSnapshot>({ screen: 'Explore', viewedProducts: [] });
+
 // ─── App ─────────────────────────────────────────────────
 
 function App(): React.JSX.Element {
@@ -262,61 +265,17 @@ function App(): React.JSX.Element {
   const profileLoadedRef = useRef(false);
   const requestedReviewIdsRef = useRef<Set<string>>(new Set());
 
-  // Shared listener pool — both tabs subscribe here
-  const debugListeners = useRef(new Set<() => void>());
-
   const notifyTabs = useCallback(() => {
-    debugListeners.current.forEach((fn) => fn());
+    const { cartItems, recentlyViewed } = storeRef.current;
+    cartSource.publish({
+      items: cartItems.map(item => ({ id: item.id, title: item.title, qty: item.quantity, lineTotal: item.price * item.quantity })),
+      total: cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    });
+    flowSource.publish({
+      screen: getRouteLabel(routeRef.current),
+      viewedProducts: recentlyViewed.map(id => getProduct(id)?.title ?? id),
+    });
   }, []);
-
-  // ── Custom features (created once) ──────────────────────
-
-  const cartFeatureRef = useRef<DebugFeature<CartTabSnapshot> | null>(null);
-  const flowFeatureRef = useRef<DebugFeature<FlowTabSnapshot> | null>(null);
-
-  if (!cartFeatureRef.current) {
-    cartFeatureRef.current = createDebugTab<CartTabSnapshot>({
-      name: 'my-cart',
-      label: 'My Cart',
-      getSnapshot: () => {
-        const { cartItems } = storeRef.current;
-        return {
-          items: cartItems.map((i) => ({ id: i.id, title: i.title, qty: i.quantity, lineTotal: i.price * i.quantity })),
-          total: cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
-        };
-      },
-      render: CartDebugTab,
-      subscribe: (listener) => {
-        debugListeners.current.add(listener);
-        return () => { debugListeners.current.delete(listener); };
-      },
-      badge: () => {
-        const count = storeRef.current.cartItems.reduce((sum, i) => sum + i.quantity, 0);
-        return count > 0 ? { label: String(count), color: T.primary } : null;
-      },
-    });
-  }
-
-  if (!flowFeatureRef.current) {
-    flowFeatureRef.current = createDebugTab<FlowTabSnapshot>({
-      name: 'user-flow',
-      label: 'User Flow',
-      getSnapshot: () => ({
-        screen: getRouteLabel(routeRef.current),
-        viewedProducts: storeRef.current.recentlyViewed.map((id) => getProduct(id)?.title ?? id),
-      }),
-      render: FlowDebugTab,
-      subscribe: (listener) => {
-        debugListeners.current.add(listener);
-        return () => { debugListeners.current.delete(listener); };
-      },
-    });
-  }
-
-  const customFeatures = useMemo(
-    () => [cartFeatureRef.current!, flowFeatureRef.current!],
-    [],
-  );
 
   // ── Sync refs + notify tabs ─────────────────────────────
 
@@ -333,19 +292,12 @@ function App(): React.JSX.Element {
     updater: (prevState: StoreState) => StoreState,
   ): StoreState => {
     const previousState = storeRef.current;
-    const startTime = Date.now();
     const nextState = updater(previousState);
 
     storeRef.current = nextState;
     setStoreState(nextState);
     notifyTabs();
-    addZustandLog(
-      action,
-      previousState,
-      nextState,
-      Math.max(1, Date.now() - startTime),
-      'shopStore',
-    );
+    debug.state('shopStore', { action, before: previousState, after: nextState });
 
     return nextState;
   };
@@ -454,14 +406,7 @@ function App(): React.JSX.Element {
     routeRef.current = nextRoute;
     setRoute(nextRoute);
     notifyTabs();
-    addNavigationLog(
-      'navigate',
-      from,
-      to,
-      Date.now(),
-      120,
-      JSON.stringify({ source: 'demo-app', from, to }),
-    );
+    debug.navigation({ action: 'navigate', from, to, state: { source: 'demo-app' } });
   };
 
   const openProduct = (product: Product) => {
@@ -470,8 +415,7 @@ function App(): React.JSX.Element {
       recentlyViewed: [product.id, ...prevState.recentlyViewed.filter((id) => id !== product.id)]
         .slice(0, 4),
     }));
-    addTrackLog({
-      eventName: 'product_viewed',
+    debug.track('product_viewed', {
       productId: product.id,
       productName: product.title,
     });
@@ -511,8 +455,7 @@ function App(): React.JSX.Element {
       productName: product.title,
       cartCount: nextState.cartItems.reduce((total, item) => total + item.quantity, 0),
     });
-    addTrackLog({
-      eventName: 'add_to_cart',
+    debug.track('add_to_cart', {
       productId: product.id,
       productName: product.title,
       cartCount: nextState.cartItems.reduce((total, item) => total + item.quantity, 0),
@@ -527,7 +470,7 @@ function App(): React.JSX.Element {
     );
 
     console.warn('[Demo] Checkout pending: inventory check required', { itemCount, totalPrice });
-    addTrackLog({ eventName: 'checkout_started', itemCount, totalPrice });
+    debug.track('checkout_started', { itemCount, totalPrice });
 
     try {
       const res = await fetch(`${DEMO_API}/posts`, {
@@ -542,7 +485,7 @@ function App(): React.JSX.Element {
       const data = await res.json();
       console.info('[Demo] Order placed:', data);
       updateStore('cart/clear', () => INITIAL_STORE);
-      addTrackLog({ eventName: 'checkout_completed', itemCount, totalPrice });
+      debug.track('checkout_completed', { itemCount, totalPrice });
     } catch (e) {
       console.error('[Demo] Checkout failed:', e);
     }
@@ -564,7 +507,7 @@ function App(): React.JSX.Element {
   };
 
   const resetDemo = () => {
-    DebugToolkit.clearAll();
+    debug.clear();
     routeRef.current = { screen: 'Explore' };
     storeRef.current = INITIAL_STORE;
     requestedReviewIdsRef.current = new Set();
@@ -830,7 +773,7 @@ function App(): React.JSX.Element {
         <View style={styles.devToolsRow}>
           <TouchableOpacity
             style={[styles.devToolBtn, { backgroundColor: T.primary }]}
-            onPress={() => DebugToolkit.openPanel()}
+            onPress={() => debug.open()}
             activeOpacity={0.8}
           >
             <Text style={styles.devToolBtnText}>Open Panel</Text>
@@ -887,15 +830,7 @@ function App(): React.JSX.Element {
   );
 
   return (
-    <DebugView
-      locale="zh-CN"
-      features={{ devConnect: DEMO_HUB }}
-      customFeatures={customFeatures}
-      environments={[
-        { id: 'dev', label: 'Development', host: `${DEMO_HOST}:3801`, color: '#34C759' },
-        { id: 'staging', label: 'Staging', host: `${DEMO_HOST}:3802`, color: '#FF9500' },
-      ]}
-    >
+    <>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: T.background }]}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.appShell}>
@@ -936,7 +871,7 @@ function App(): React.JSX.Element {
         </View>
       </View>
       </SafeAreaView>
-    </DebugView>
+    </>
   );
 }
 
@@ -1373,4 +1308,20 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default withDebugToolkit(App, {
+  locale: 'zh-CN',
+  connect: DEMO_HUB,
+  environment: {
+    items: [
+      { id: 'dev', title: 'Development', urls: { api: `${DEMO_HOST}:3801` } },
+      { id: 'staging', title: 'Staging', urls: { api: `${DEMO_HOST}:3802` } },
+    ],
+  },
+  tabs: {
+    items: [
+      { id: 'my-cart', title: 'My Cart', source: cartSource, component: CartDebugTab,
+        badge: snapshot => snapshot.items.length ? { label: String(snapshot.items.length), color: T.primary } : null },
+      { id: 'user-flow', title: 'User Flow', source: flowSource, component: FlowDebugTab },
+    ],
+  },
+});

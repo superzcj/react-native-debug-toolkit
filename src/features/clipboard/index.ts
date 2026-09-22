@@ -19,7 +19,7 @@ export const createClipboardFeature = (config: FeatureConfig<{}> = {}, copy?: Co
       : copyToComputer(text, { ...options, enabled: false, channels: {} }),
   };
   return {
-    name: 'clipboard', label: 'Clipboard', renderContent: ClipboardTab,
+    name: 'clipboard', label: 'Clipboard', status: { phase: 'initializing', issues: [] }, renderContent: ClipboardTab,
     setup() {}, getSnapshot: () => snapshot, cleanup: dispose, dispose,
     start(next) {
       if (context || next.signal.aborted || !next.isCurrent() || config.enabled === false) { return; }

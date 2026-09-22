@@ -25,16 +25,6 @@ export interface ConsoleLogEntry {
   data: unknown[];
 }
 
-export interface ZustandLogEntry {
-  id: string;
-  timestamp: number;
-  action: string;
-  prevState: unknown;
-  nextState: unknown;
-  actionCompleteTime?: number;
-  storeName?: string;
-}
-
 export interface StateEvent {
   action: string;
   before: unknown;

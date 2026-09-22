@@ -1,90 +1,25 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { DebugToolkit } from './DebugToolkit';
+import React, { useSyncExternalStore } from 'react';
+import type { ReactNode } from 'react';
+import type { ToolkitHost, ToolkitHostSnapshot } from './DebugToolkit';
 import { FloatPanelView } from '../ui/panel/FloatPanelView';
-import type { AnyDebugFeature } from '../types';
+import { CopyActionContext } from '../ui/shared/CopyButton';
+import { copyToComputer } from '../utils/copyToComputer';
 
-interface ToolkitContextValue {
-  features: AnyDebugFeature[];
-  showLauncher: () => void;
-  hideLauncher: () => void;
-  clearAll: () => void;
-}
+const empty: ToolkitHostSnapshot = { features: [], panelOpen: false };
+const emptySnapshot = () => empty;
+const noSubscription = () => () => {};
+const disabledCopy = (text: string) => copyToComputer(text, { enabled: false, channels: {} });
 
-const ToolkitContext = createContext<ToolkitContextValue | null>(null);
-
-interface ProviderState {
-  launcherVisible: boolean;
-  panelOpen: boolean;
-  features: AnyDebugFeature[];
-}
-
-interface DebugToolkitProviderProps {
-  children: ReactNode;
-}
-
-export function DebugToolkitProvider({ children }: DebugToolkitProviderProps) {
-  const [state, setState] = useState<ProviderState>(() => ({
-    launcherVisible: DebugToolkit.launcherVisible,
-    panelOpen: DebugToolkit.panelOpen,
-    features: DebugToolkit.features,
-  }));
-
-  useEffect(() => {
-    // Sync current state — initializeDebugToolkit() may have been called
-    // in a child useEffect that runs before this parent effect subscribes.
-    setState({
-      launcherVisible: DebugToolkit.launcherVisible,
-      panelOpen: DebugToolkit.panelOpen,
-      features: DebugToolkit.features,
-    });
-
-    const unsubscribe = DebugToolkit.subscribe(() => {
-      setState({
-        launcherVisible: DebugToolkit.launcherVisible,
-        panelOpen: DebugToolkit.panelOpen,
-        features: DebugToolkit.features,
-      });
-    });
-    return unsubscribe;
-  }, []);
-
-  const showLauncher = useCallback(() => { DebugToolkit.showLauncher(); }, []);
-  const hideLauncher = useCallback(() => { DebugToolkit.hideLauncher(); }, []);
-  const clearAll = useCallback(() => { DebugToolkit.clearAll(); }, []);
-
-  const contextValue = useMemo<ToolkitContextValue>(
-    () => ({
-      features: state.features,
-      showLauncher,
-      hideLauncher,
-      clearAll,
-    }),
-    [state.features, showLauncher, hideLauncher, clearAll],
-  );
-
+/** Internal view binding. Only withDebugToolkit owns the host lifecycle. */
+export function DebugToolkitProvider({ host, children }: { host: ToolkitHost | null; children: ReactNode }) {
+  const state = useSyncExternalStore(host?.subscribe ?? noSubscription, host?.getSnapshot ?? emptySnapshot, emptySnapshot);
   return (
-    <ToolkitContext.Provider value={contextValue}>
+    <CopyActionContext.Provider value={host?.actions.copyToComputer ?? disabledCopy}>
       {children}
-      {state.launcherVisible && (
-        <FloatPanelView
-          features={state.features}
-          panelOpen={state.panelOpen}
-          onOpenPanel={() => DebugToolkit.openPanel()}
-          onClosePanel={() => DebugToolkit.closePanel()}
-          onClearAll={() => DebugToolkit.clearAll()}
-        />
+      {!!host && state.features.length > 0 && (
+        <FloatPanelView features={state.features} panelOpen={state.panelOpen}
+          onOpenPanel={host.actions.open} onClosePanel={host.actions.close} onClearAll={() => host.actions.clear()} />
       )}
-    </ToolkitContext.Provider>
+    </CopyActionContext.Provider>
   );
-}
-
-export function useDebugToolkit(): ToolkitContextValue {
-  const context = useContext(ToolkitContext);
-  if (!context) {
-    throw new Error(
-      'useDebugToolkit must be used within a <DebugToolkitProvider>. ' +
-        'Wrap your app with <DebugToolkitProvider>.',
-    );
-  }
-  return context;
 }

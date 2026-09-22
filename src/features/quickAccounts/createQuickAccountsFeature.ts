@@ -31,19 +31,19 @@ export const DEFAULT_QUICK_ACCOUNTS_COPY: QuickAccountsCopy = {
 
 function getDefaultQuickAccountsCopy(): QuickAccountsCopy {
   return {
-    tabLabel: t('quickAccounts.tab'),
-    title: t('quickAccounts.title'),
-    description: t('quickAccounts.description'),
-    emptyTitle: t('quickAccounts.emptyTitle'),
-    emptyDescription: t('quickAccounts.emptyDescription'),
-    unauthenticatedTitle: t('quickAccounts.unauthenticatedTitle'),
-    unauthenticatedDescription: t('quickAccounts.unauthenticatedDescription'),
-    currentLabel: t('quickAccounts.current'),
-    lastUsedLabel: t('quickAccounts.recent'),
-    switchLabel: t('quickAccounts.switch'),
-    switchingLabel: t('quickAccounts.switching'),
-    successMessage: t('quickAccounts.success'),
-    errorMessage: t('quickAccounts.error'),
+    tabLabel: t('accounts.tab'),
+    title: t('accounts.title'),
+    description: t('accounts.description'),
+    emptyTitle: t('accounts.emptyTitle'),
+    emptyDescription: t('accounts.emptyDescription'),
+    unauthenticatedTitle: t('accounts.unauthenticatedTitle'),
+    unauthenticatedDescription: t('accounts.unauthenticatedDescription'),
+    currentLabel: t('accounts.current'),
+    lastUsedLabel: t('accounts.recent'),
+    switchLabel: t('accounts.switch'),
+    switchingLabel: t('accounts.switching'),
+    successMessage: t('accounts.success'),
+    errorMessage: t('accounts.error'),
   };
 }
 
@@ -282,6 +282,7 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
   };
   return {
     name: 'accounts',
+    get status() { return status; },
     get label() { return getDefaultQuickAccountsCopy().tabLabel; },
     renderContent: QuickAccountsTab, start, dispose, actions,
     setup: () => start({ owner: Symbol('accounts'), signal: new AbortController().signal, isCurrent: () => true, setStatus: () => undefined }),

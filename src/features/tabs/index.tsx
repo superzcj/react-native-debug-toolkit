@@ -47,7 +47,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
     }
   };
   const feature: TabsFeature = {
-    name: 'tabs', label: 'Custom', renderContent: TabsTab,
+    name: 'tabs', label: 'Custom', status: { phase: 'initializing', issues: [] }, renderContent: TabsTab,
     setup() {}, cleanup: dispose, dispose,
     getSnapshot: () => snapshot,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },

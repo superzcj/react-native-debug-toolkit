@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { addTrackLog, DebugToolkit } from 'react-native-debug-toolkit';
+import { debug } from 'react-native-debug-toolkit';
 import { checkoutRequest, DEMO_API } from './demoApi';
 
 export function Showcase({ onAddItem }: { onAddItem: () => void }) {
@@ -14,14 +14,14 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
     setBusy(true);
     setResult(null);
     onAddItem();
-    addTrackLog({ eventName: 'checkout_started', scenario, source: 'showcase' });
+    debug.track('checkout_started', { scenario, source: 'showcase' });
     try {
       const response = await checkoutRequest(scenario);
       const { data } = response;
       const failed = !response.ok;
       if (failed) console.warn('[Checkout] Inventory conflict', data);
       else console.info('[Checkout] Order confirmed', data);
-      addTrackLog({ eventName: failed ? 'checkout_failed' : 'checkout_completed', status: response.status, scenario });
+      debug.track(failed ? 'checkout_failed' : 'checkout_completed', { status: response.status, scenario });
       setResult({ failed, text: failed
         ? `${response.status} · ${data.message ?? 'Checkout rejected.'}`
         : `${response.status} · Order ${data.orderId} confirmed.` });
@@ -53,7 +53,7 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
         <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => runCheckout('available')} style={s.secondary}>
           <Text style={s.secondaryText}>Try successful request</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={() => DebugToolkit.openPanel()} style={s.secondary}>
+        <TouchableOpacity accessibilityRole="button" onPress={() => debug.open()} style={s.secondary}>
           <Text style={s.secondaryText}>Open inspector ↗</Text>
         </TouchableOpacity>
       </View>

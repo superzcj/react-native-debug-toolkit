@@ -1,6 +1,5 @@
 export type {
   AnyDebugFeature,
-  BuiltInFeatureName,
   DebugFeature,
   DebugFeatureListener,
   DebugFeatureRenderProps,
@@ -15,7 +14,9 @@ export type {
   NativeLogSource,
   NetworkLogEntry,
   TrackLogEntry,
-  ZustandLogEntry,
+  StateLogEntry,
+  StateEvent,
+  NavigationEvent,
 } from './logs';
 
 export type {
@@ -24,14 +25,7 @@ export type {
   EnvironmentState,
 } from './environment';
 
-export type {
-  NavigationContainerRef,
-} from './navigation';
-
-export type {
-  ThirdPartyLib,
-  ThirdPartyLibAction,
-} from './thirdPartyLibs';
+export type { DebugNavigationRef } from './navigation';
 
 export type {
   StorageAdapter,

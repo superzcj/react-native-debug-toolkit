@@ -7,6 +7,7 @@ function mockFeature(name: string): AnyDebugFeature {
   return {
     name,
     label: name,
+    status: { phase: 'ready', issues: [] },
     setup() {},
     getSnapshot: () => null,
     cleanup() {},
@@ -72,11 +73,11 @@ describe('buildFeatureSummary', () => {
     expect(s.supportsBadFilter).toBe(false);
   });
 
-  it('zustand: latest action and store', () => {
-    const f = mockFeature('zustand');
+  it('state: latest action and store', () => {
+    const f = mockFeature('state');
     const snap = [
-      { action: 'increment', storeName: 'counterStore' },
-      { action: 'addItem', storeName: 'cartStore' },
+      { action: 'increment', storeId: 'counterStore' },
+      { action: 'addItem', storeId: 'cartStore' },
     ];
     const s = buildFeatureSummary(f, snap);
     expect(s.count).toBe(2);
@@ -98,8 +99,8 @@ describe('buildFeatureSummary', () => {
     const f = mockFeature('environment');
     const snap = {
       environments: [
-        { id: 'dev', label: 'Development', host: 'dev.api' },
-        { id: 'prod', label: 'Production', host: 'api.prod' },
+        { id: 'dev', title: 'Development', host: 'dev.api' },
+        { id: 'prod', title: 'Production', host: 'api.prod' },
       ],
       currentEnvironmentId: 'dev',
     };
@@ -114,8 +115,8 @@ describe('buildFeatureSummary', () => {
     const f = mockFeature('environment');
     const snap = {
       environments: [
-        { id: 'dev', label: 'Development', mode: 'managed', urls: { api: 'dev.api' } },
-        { id: 'qa', label: 'QA', mode: 'managed', urls: { api: 'qa.api' } },
+        { id: 'dev', title: 'Development', mode: 'managed', urls: { api: 'dev.api' } },
+        { id: 'qa', title: 'QA', mode: 'managed', urls: { api: 'qa.api' } },
       ],
       currentEnvironmentId: 'qa',
       mode: 'managed',
@@ -128,7 +129,7 @@ describe('buildFeatureSummary', () => {
   });
 
   it('quick accounts: summarizes only the safe count and operation state', () => {
-    const f = mockFeature('quick-accounts');
+    const f = mockFeature('accounts');
     const s = buildFeatureSummary(f, {
       accountCount: 3,
       busy: true,
@@ -138,12 +139,12 @@ describe('buildFeatureSummary', () => {
 
     expect(s.count).toBe(3);
     expect(s.statusLabel).toBe('Switching');
-    expect(s.capabilityText).toBe('Opt-in debug account switching');
+    expect(s.capabilityText).toBe('Inspect and switch debug accounts');
     expect(s.supportsBadFilter).toBe(false);
   });
 
   it('devConnect: shows its configured Hub endpoint', () => {
-    const f = mockFeature('devConnect');
+    const f = mockFeature('connect');
     const snap = { canonicalEndpoint: 'http://192.168.1.5:3800' };
     const s = buildFeatureSummary(f, snap);
     expect(s.latestLabel).toBe('http://192.168.1.5:3800');
@@ -152,7 +153,7 @@ describe('buildFeatureSummary', () => {
   });
 
   it('devConnect: shows when no Hub is configured', () => {
-    const f = mockFeature('devConnect');
+    const f = mockFeature('connect');
     const snap = {};
     const s = buildFeatureSummary(f, snap);
     expect(s.statusLabel).toBe('Hub not configured');
@@ -216,7 +217,7 @@ describe('filterFeatureSnapshot', () => {
   });
 
   it('non-array snapshot returned unchanged', () => {
-    const f = mockFeature('devConnect');
+    const f = mockFeature('connect');
     const snap = { canonicalEndpoint: 'http://192.168.1.5:3800' };
     const result = filterFeatureSnapshot(f, snap, 'anything', 'bad');
     expect(result).toBe(snap);

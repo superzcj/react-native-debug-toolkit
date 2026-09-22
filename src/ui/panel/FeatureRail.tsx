@@ -9,13 +9,14 @@ const LABEL_MAP: Record<string, TranslationKey> = {
   console: 'feature.short.console',
   native: 'feature.short.native',
   navigation: 'feature.short.navigation',
-  zustand: 'feature.short.zustand',
+  state: 'feature.short.state',
   track: 'feature.short.track',
   clipboard: 'feature.short.clipboard',
   environment: 'feature.short.environment',
-  devConnect: 'feature.short.devConnect',
-  sessionHistory: 'feature.short.sessionHistory',
-  thirdPartyLibs: 'feature.short.thirdPartyLibs',
+  connect: 'feature.short.connect',
+  history: 'feature.short.history',
+  accounts: 'feature.short.accounts',
+  tabs: 'feature.short.tabs',
 };
 
 const DEFAULT_LABELS: Record<string, string> = {
@@ -23,18 +24,14 @@ const DEFAULT_LABELS: Record<string, string> = {
   console: 'Console',
   native: 'Native',
   navigation: 'Navigation',
-  zustand: 'Zustand',
+  state: 'State',
   track: 'Track',
   clipboard: 'Clipboard',
   environment: 'Environment',
-  devConnect: 'DevConnect',
-  sessionHistory: 'Sessions',
-  thirdPartyLibs: 'Debug Libraries',
-};
-
-const DEFAULT_LABEL_ALIASES: Record<string, string[]> = {
-  sessionHistory: ['Session'],
-  thirdPartyLibs: ['Third Party'],
+  connect: 'Connect',
+  history: 'History',
+  accounts: 'Accounts',
+  tabs: 'Custom',
 };
 
 const FULL_LABEL_KEYS: Record<string, TranslationKey> = {
@@ -42,13 +39,14 @@ const FULL_LABEL_KEYS: Record<string, TranslationKey> = {
   console: 'feature.console',
   native: 'feature.native',
   navigation: 'feature.navigation',
-  zustand: 'feature.zustand',
+  state: 'feature.state',
   track: 'feature.track',
   clipboard: 'feature.clipboard',
   environment: 'feature.environment',
-  devConnect: 'feature.devConnect',
-  sessionHistory: 'feature.sessionHistory',
-  thirdPartyLibs: 'feature.thirdPartyLibs',
+  connect: 'feature.connect',
+  history: 'feature.history',
+  accounts: 'feature.accounts',
+  tabs: 'feature.tabs',
 };
 
 export function shortLabelForFeature(label: string, id: string): string {
@@ -56,7 +54,6 @@ export function shortLabelForFeature(label: string, id: string): string {
   const fullKey = FULL_LABEL_KEYS[id];
   if (mapped && (
     label.trim() === DEFAULT_LABELS[id]
-    || DEFAULT_LABEL_ALIASES[id]?.includes(label.trim())
     || (fullKey && label.trim() === t(fullKey))
   )) {
     return t(mapped);
@@ -95,6 +92,7 @@ export function FeatureRail({ items, activeIndex, onSelectTab }: FeatureRailProp
           return (
             <Pressable
               key={item.id}
+              testID={`debug-tab-${item.id}`}
               onPress={() => onSelectTab(index)}
               style={[styles.item, isActive && styles.activeItem]}
               accessibilityRole="tab"

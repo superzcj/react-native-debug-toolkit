@@ -18,7 +18,7 @@ export interface DevConnectV4State {
   configuredEndpoint: string;
   subnetPrefix: string | null;
   reason?: string;
-  client?: HubClient;
+  client: HubClient;
   resolveEndpoint?: () => Promise<string | null>;
   isCurrent?: () => boolean;
 }

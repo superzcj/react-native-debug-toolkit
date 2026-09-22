@@ -34,6 +34,7 @@ function createFeatureProviderWithConsoleEntry(): FeatureDataProvider {
     features: [{
       name: 'console',
       label: 'Console',
+      status: { phase: 'ready', issues: [] },
       setup: () => undefined,
       cleanup: () => undefined,
       getSnapshot: () => [{
@@ -52,6 +53,7 @@ function createFeatureProviderWithFractionalNativeTimestamp(): FeatureDataProvid
     features: [{
       name: 'native',
       label: 'Native',
+      status: { phase: 'ready', issues: [] },
       setup: () => undefined,
       cleanup: () => undefined,
       getSnapshot: () => [{

@@ -2,7 +2,6 @@ export {
   createQuickAccountsFeature,
   DEFAULT_QUICK_ACCOUNTS_COPY,
 } from './createQuickAccountsFeature';
-export { useQuickAccountsFeature } from './useQuickAccountsFeature';
 export type { AccountsActions, AccountSwitchResult } from '../../types/debug';
 export type { AccountsOptions, AccountsSnapshot, DebugAccount } from '../../types/config';
 export type { AccountsRuntimeContext } from './types';

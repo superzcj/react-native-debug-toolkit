@@ -13,7 +13,6 @@ import type { DebugFeatureRenderProps } from '../../types';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import {
-  hubClient,
   type HubConnectionState,
   type HubStatus,
 } from '../../utils/HubClient';
@@ -48,19 +47,19 @@ const STATE_COLORS: Record<HubConnectionState, string> = {
 };
 
 const STATE_LABEL_KEYS: Record<HubConnectionState, TranslationKey | null> = {
-  connecting: 'devConnect.connecting',
-  connected: 'devConnect.connected',
-  paused: 'devConnect.paused',
-  retrying: 'devConnect.retrying',
-  hub_unreachable: 'devConnect.hubUnreachable',
-  hub_not_ready: 'devConnect.hubStarting',
-  storage_full: 'devConnect.storageFull',
-  protocol_mismatch: 'devConnect.versionMismatch',
-  invalid_config: 'devConnect.notConfigured',
+  connecting: 'connect.connecting',
+  connected: 'connect.connected',
+  paused: 'connect.paused',
+  retrying: 'connect.retrying',
+  hub_unreachable: 'connect.hubUnreachable',
+  hub_not_ready: 'connect.hubStarting',
+  storage_full: 'connect.storageFull',
+  protocol_mismatch: 'connect.versionMismatch',
+  invalid_config: 'connect.notConfigured',
 };
 
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
-  const client = snapshot.client ?? hubClient;
+  const client = snapshot.client;
   const { appId, resolveEndpoint: resolveFromSnapshot, isCurrent: isOwnerCurrent } = snapshot;
   const mounted = useRef(true);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -123,7 +122,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       return;
     }
     if (submission.kind === 'invalid') {
-      setInputError(t('devConnect.invalidAddress'));
+      setInputError(t('connect.invalidAddress'));
       return;
     }
     setInputError(null);
@@ -176,7 +175,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     setSyncing(true);
     try {
       if (!client.getEffectiveEndpoint()) {
-        const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null));
+        const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null, { client, isCurrent: current }));
         if (!resolved) return;
       }
       if (!current()) { return; }
@@ -191,7 +190,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       if (!current() || !appId) { return; }
       if (client.isSyncPaused() || !client.isActive()) {
         if (!client.getEffectiveEndpoint()) {
-          const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null));
+          const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null, { client, isCurrent: current }));
           if (!resolved) return;
         }
         if (!current()) { return; }
@@ -220,9 +219,9 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   };
 
   const uploadButtonText = (() => {
-    if (syncing) return t('devConnect.uploading');
-    if (isLoading && !syncing) return t('devConnect.connecting');
-    return t('devConnect.uploadOnce');
+    if (syncing) return t('connect.uploading');
+    if (isLoading && !syncing) return t('connect.connecting');
+    return t('connect.uploadOnce');
   })();
 
   return (
@@ -237,7 +236,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       {status.error ? <Text style={styles.stateHint}>{status.error}</Text> : null}
       {/* Hub Endpoint Input */}
       <View style={styles.section}>
-        <Text style={styles.label}>{t('devConnect.hubAddress')}</Text>
+        <Text style={styles.label}>{t('connect.hubAddress')}</Text>
         <View style={[styles.inputShell, inputError ? styles.inputError : null]}>
           <Text style={styles.affix}>http://</Text>
           <TextInput
@@ -313,7 +312,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
                 activeOpacity={0.7}
               >
                 <Text style={styles.recommendationLabel}>
-                  {recommendation.kind === 'subnet' ? t('devConnect.lan') : t('devConnect.environment')}
+                  {recommendation.kind === 'subnet' ? t('connect.lan') : t('connect.environment')}
                 </Text>
                 <Text style={styles.recommendationText}>
                   {recommendation.kind === 'subnet'
@@ -356,7 +355,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
           activeOpacity={0.75}
         >
           <Text style={styles.pauseButtonText}>
-            {isPaused || !isConnected ? t('devConnect.startLiveLogs') : t('devConnect.stopLiveLogs')}
+            {isPaused || !isConnected ? t('connect.startLiveLogs') : t('connect.stopLiveLogs')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -365,8 +364,8 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       {isErrorState ? (
         <Text style={styles.stateHint}>
           {STATE_LABEL_KEYS[status.state] ? t(STATE_LABEL_KEYS[status.state]!) : ''}
-          {status.state === 'protocol_mismatch' ? ` ${t('devConnect.upgrade')}` : ''}
-          {status.state === 'storage_full' ? ` ${t('devConnect.storageFullHint')}` : ''}
+          {status.state === 'protocol_mismatch' ? ` ${t('connect.upgrade')}` : ''}
+          {status.state === 'storage_full' ? ` ${t('connect.storageFullHint')}` : ''}
         </Text>
       ) : null}
     </ScrollView>

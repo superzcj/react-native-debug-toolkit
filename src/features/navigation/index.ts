@@ -9,27 +9,6 @@ import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
 
 type NavigationLogPayload = Omit<NavigationLogEntry, 'id'>;
 
-let navigationChannel = createEventChannel<NavigationLogPayload>();
-
-export const addNavigationLog = (
-  action: string,
-  from: string,
-  to: string,
-  startTime?: number,
-  duration?: number,
-  debugLog?: string,
-): void => {
-  navigationChannel.emit({
-    timestamp: Date.now(),
-    action,
-    from,
-    to,
-    startTime,
-    duration,
-    debugLog,
-  });
-};
-
 export interface NavigationFeatureConfig {
   /** Maximum number of navigation logs to keep (default: 200) */
   maxLogs?: number;
@@ -49,7 +28,6 @@ export const createNavigationLogFeature = (config?: NavigationFeatureConfig): Na
   );
   let context: FeatureContext | undefined;
   let active = false;
-  let removeLegacy: (() => void) | undefined;
   let removeListener: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let finish: (() => void) | undefined;
@@ -78,7 +56,6 @@ export const createNavigationLogFeature = (config?: NavigationFeatureConfig): Na
     if (active) {return;}
     active = true;
     base.setup();
-    removeLegacy = navigationChannel.subscribe(payload => { if (current()) { channel.emit(payload); status(); } });
   };
   const dispose = () => {
     active = false;
@@ -86,7 +63,6 @@ export const createNavigationLogFeature = (config?: NavigationFeatureConfig): Na
     settle();
     const release = removeListener; removeListener = undefined;
     try { release?.(); } catch { /* Remaining cleanup must always run. */ }
-    removeLegacy?.(); removeLegacy = undefined;
     base.cleanup();
   };
   return {
@@ -138,8 +114,3 @@ export const createNavigationLogFeature = (config?: NavigationFeatureConfig): Na
     },
   };
 };
-
-/** Reset module-level state for testing */
-export function _resetNavigationForTesting(): void {
-  navigationChannel = createEventChannel<NavigationLogPayload>();
-}

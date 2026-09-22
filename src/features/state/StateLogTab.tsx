@@ -74,7 +74,7 @@ export function resolveStateLogTitle(item: StateLogEntry): {
     };
   }
   return {
-    title: t('zustand.stateChange'),
+    title: t('state.stateChange'),
     colorKey: 'update',
     namedAction: null,
     changes,
@@ -117,7 +117,7 @@ export const StateLogTab: React.FC<DebugFeatureRenderProps<StateLogEntry[]>> = R
 }) => (
   <LogListScreen
     data={snapshot}
-    emptyText={t('zustand.noChanges')}
+    emptyText={t('state.noChanges')}
     renderRow={renderStateLogRow}
     renderDetailHeader={(item) => {
       const { title, colorKey } = resolveStateLogTitle(item);

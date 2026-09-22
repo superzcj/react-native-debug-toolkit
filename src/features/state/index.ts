@@ -40,7 +40,7 @@ export function createStateFeature(config: StateFeatureConfig = {}): StateFeatur
     store.clear();
   };
   return {
-    name: 'state', label: 'State', renderContent: StateLogTab,
+    name: 'state', label: 'State', status: { phase: 'initializing', issues: [] }, renderContent: StateLogTab,
     setup() {}, cleanup: dispose, dispose,
     getSnapshot: store.getData, subscribe: store.subscribe,
     clear() { store.clear(); status(); }, record,

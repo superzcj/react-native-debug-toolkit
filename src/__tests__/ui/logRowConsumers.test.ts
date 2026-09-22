@@ -4,7 +4,7 @@ import { renderConsoleLogRow } from '../../features/console/ConsoleLogTab';
 import { renderNativeLogRow } from '../../features/nativeLogs/NativeLogTab';
 import { renderNetworkLogRow } from '../../features/network/NetworkLogTab';
 import { renderTrackLogRow } from '../../features/track/TrackLogTab';
-import { renderZustandLogRow } from '../../features/zustand/ZustandLogTab';
+import { renderStateLogRow } from '../../features/state/StateLogTab';
 import { renderNavigationLogRow } from '../../features/navigation/NavigationLogTab';
 import { renderSessionLogRow } from '../../features/sessionHistory/SessionHistoryTab';
 import { CopyButton } from '../../ui/shared/CopyButton';
@@ -111,30 +111,29 @@ describe('live log row consumers', () => {
   });
 
   it('puts changed keys in the title and store name in the footer', () => {
-    const props = rowProps(renderZustandLogRow({
-      id: 'zustand-1',
+    const props = rowProps(renderStateLogRow({
+      id: 'state-1',
       timestamp: 1,
-      action: 'setState',
-      prevState: { id: null, setUser: () => undefined },
-      nextState: { id: 1, setUser: () => undefined },
-      storeName: 'auth',
-      actionCompleteTime: 12,
+      action: 'change',
+      before: { id: null, setUser: () => undefined },
+      after: { id: 1, setUser: () => undefined },
+      storeId: 'auth',
     }));
 
     expect(props.content).toBe('id');
     expect(textContent(props.metadata)).toContain('auth');
-    expect(textContent(props.metadata)).not.toContain('setState');
-    expect(textContent(props.trailingMetadata)).toContain('12ms');
+    expect(textContent(props.metadata)).not.toContain('change');
+    expect(props.trailingMetadata).toBeDefined();
   });
 
-  it('keeps a named Zustand action as a footer badge when title is changed keys', () => {
-    const props = rowProps(renderZustandLogRow({
-      id: 'zustand-2',
+  it('keeps a named state action as a footer badge when title is changed keys', () => {
+    const props = rowProps(renderStateLogRow({
+      id: 'state-2',
       timestamp: 1,
       action: 'setUser',
-      prevState: { id: null },
-      nextState: { id: 1 },
-      storeName: 'auth',
+      before: { id: null },
+      after: { id: 1 },
+      storeId: 'auth',
     }));
 
     expect(props.content).toBe('id');
@@ -143,13 +142,13 @@ describe('live log row consumers', () => {
   });
 
   it('falls back to named action as title when there is no key diff', () => {
-    const props = rowProps(renderZustandLogRow({
-      id: 'zustand-3',
+    const props = rowProps(renderStateLogRow({
+      id: 'state-3',
       timestamp: 1,
       action: 'hydrate',
-      prevState: null,
-      nextState: { id: 1 },
-      storeName: 'auth',
+      before: null,
+      after: { id: 1 },
+      storeId: 'auth',
     }));
 
     expect(props.content).toBe('hydrate');

@@ -1,110 +1,115 @@
-import { DebugToolkit } from '../../core/DebugToolkit';
-import type { DebugFeature } from '../../types';
+import { NativeModules } from 'react-native';
+import { createDefaultLogStorage } from '../../utils/StorageAdapter';
+import { FEATURE_KEYS } from '../../core/featureCatalog';
+import { getPreference } from '../../utils/debugPreferences';
 
-function createFeature(name: string): DebugFeature<string> {
-  return {
-    name,
-    label: name,
-    setup: jest.fn(),
-    getSnapshot: () => 'snapshot',
-    cleanup: jest.fn(),
-  };
+const diagnostics = jest.spyOn(console, 'error').mockImplementation(() => {});
+const { createToolkitHost } = require('../../core/DebugToolkit') as typeof import('../../core/DebugToolkit');
+
+const hosts: ReturnType<typeof createToolkitHost>[] = [];
+function host(config?: Parameters<typeof createToolkitHost>[0]) {
+  const value = createToolkitHost(config); hosts.push(value); return value;
 }
+beforeEach(() => { diagnostics.mockClear(); NativeModules.DebugToolkitDevConnect = { isDebugBuild: jest.fn(async () => true) }; });
+afterEach(() => { hosts.splice(0).forEach(value => value.dispose()); jest.useRealTimers(); });
+afterAll(() => { diagnostics.mockRestore(); });
 
-describe('DebugToolkit feature management', () => {
-  afterEach(() => {
-    DebugToolkit.destroy();
-    DebugToolkit.setEnabled(true);
-  });
-
-  it('adds and removes runtime features', () => {
-    const feature = createFeature('custom');
-
-    DebugToolkit.addFeature(feature);
-    expect(feature.setup).toHaveBeenCalledTimes(1);
-    expect(DebugToolkit.features.map((f) => f.name)).toEqual(['custom']);
-
-    DebugToolkit.removeFeature('custom');
-    expect(feature.cleanup).toHaveBeenCalledTimes(1);
-    expect(DebugToolkit.features).toEqual([]);
-  });
-
-  it('replaces an existing feature with the same name', () => {
-    const first = createFeature('custom');
-    const second = createFeature('custom');
-
-    DebugToolkit.addFeature(first);
-    DebugToolkit.addFeature(second);
-
-    expect(first.cleanup).toHaveBeenCalledTimes(1);
-    expect(second.setup).toHaveBeenCalledTimes(1);
-    expect(DebugToolkit.features).toEqual([second]);
-  });
-
-  it('uses launcher visibility names for the floating entry', () => {
-    DebugToolkit.hideLauncher();
-    expect(DebugToolkit.launcherVisible).toBe(false);
-
-    DebugToolkit.showLauncher();
-    expect(DebugToolkit.launcherVisible).toBe(true);
-
-    DebugToolkit.hideLauncher();
-    expect(DebugToolkit.launcherVisible).toBe(false);
-  });
-
-  it('does not expose legacy panel visibility aliases', () => {
-    expect('panelVisible' in DebugToolkit).toBe(false);
-    expect('showPanel' in DebugToolkit).toBe(false);
-    expect('hidePanel' in DebugToolkit).toBe(false);
-  });
+test('constructing the host is pure and disposing it before start is cancelled', async () => {
+  const value = host();
+  expect(NativeModules.DebugToolkitDevConnect.isDebugBuild).not.toHaveBeenCalled();
+  expect(value.features).toEqual([]);
+  expect((await value.ready).status).toBe('not_started');
+  value.dispose(); value.start();
+  expect((await value.ready).status).toBe('cancelled');
 });
 
-describe('DebugToolkit panel open API', () => {
-  afterEach(() => {
-    DebugToolkit.destroy();
-    DebugToolkit.setEnabled(true);
-  });
+test('panel open, close and subscriptions are idempotent and owner-scoped', async () => {
+  const value = host(); value.start(); await value.ready;
+  const listener = jest.fn(); const unsubscribe = value.subscribe(listener);
+  value.actions.open(); value.actions.open();
+  expect(value.getSnapshot().panelOpen).toBe(true);
+  expect(listener).toHaveBeenCalledTimes(1);
+  value.actions.close(); value.actions.close();
+  expect(value.getSnapshot().panelOpen).toBe(false);
+  expect(listener).toHaveBeenCalledTimes(2);
+  unsubscribe(); value.dispose();
+  expect(listener).toHaveBeenCalledTimes(2);
+  expect(value.getSnapshot().features).toEqual([]);
+});
 
-  it('opens and closes panel', () => {
-    expect(DebugToolkit.panelOpen).toBe(false);
-    DebugToolkit.openPanel();
-    expect(DebugToolkit.panelOpen).toBe(true);
-    DebugToolkit.closePanel();
-    expect(DebugToolkit.panelOpen).toBe(false);
-  });
+test('configuration errors keep their page while the other eleven start', async () => {
+  const value = host({ network: { maxLogs: 0 } }); value.start();
+  expect((await value.ready).status).toBe('partial');
+  expect(value.features.map(feature => feature.name)).toEqual(FEATURE_KEYS);
+  expect(value.features[0]!.status).toEqual({ phase: 'error', issues: [expect.objectContaining({ path: 'network.maxLogs' })] });
+  value.actions.track('still-works');
+  expect(value.actions.getReport().logs.track).toHaveLength(1);
+});
 
-  it('togglePanel switches state', () => {
-    expect(DebugToolkit.panelOpen).toBe(false);
-    DebugToolkit.togglePanel();
-    expect(DebugToolkit.panelOpen).toBe(true);
-    DebugToolkit.togglePanel();
-    expect(DebugToolkit.panelOpen).toBe(false);
-  });
+test('invalid top-level input initializes no storage and leaves no pages', async () => {
+  const disk = createDefaultLogStorage(); const read = jest.spyOn(disk, 'getItem');
+  try {
+    const value = host({ locale: 'invalid' } as never); value.start();
+    expect((await value.ready).status).toBe('error');
+    expect(value.features).toEqual([]); expect(read).not.toHaveBeenCalled();
+    expect(diagnostics).toHaveBeenCalledWith('[DebugToolkit] Invalid configuration:', expect.arrayContaining([expect.objectContaining({ path: 'locale' })]));
+  } finally { read.mockRestore(); }
+});
 
-  it('openPanel is no-op when disabled', () => {
-    DebugToolkit.setEnabled(false);
-    DebugToolkit.openPanel();
-    expect(DebugToolkit.panelOpen).toBe(false);
-  });
+test('panel preferences are bound while local history initialization is still pending', async () => {
+  const disk = createDefaultLogStorage();
+  let finish!: (value: string | null) => void;
+  const read = jest.spyOn(disk, 'getItem').mockImplementation(key => key.endsWith('/sessions')
+    ? new Promise(resolve => { finish = resolve; }) : 'saved-tab');
+  try {
+    const value = host(); value.start();
+    for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+    expect(await getPreference('panel-tab')).toBe('saved-tab');
+    value.dispose(); finish(null);
+    expect((await value.ready).status).toBe('cancelled');
+  } finally { read.mockRestore(); }
+});
 
-  it('openPanel is no-op when already open', () => {
-    DebugToolkit.openPanel();
-    const listener = jest.fn();
-    DebugToolkit.subscribe(listener);
-    DebugToolkit.openPanel();
-    expect(listener).not.toHaveBeenCalled();
-  });
+test('a pending native startup holds ready and cancels without leaking capture', async () => {
+  let finish!: (value: { ok: boolean }) => void;
+  const stop = jest.fn(async () => undefined);
+  NativeModules.DebugToolkitNativeLogs = { startCapture: jest.fn(() => new Promise(resolve => { finish = resolve; })), stopCapture: stop, drainLogs: async () => [] };
+  try {
+    const value = host(); value.start();
+    for (let i = 0; i < 30; i++) { await Promise.resolve(); }
+    let settled = false; const ready = value.ready.then(result => { settled = true; return result; });
+    await Promise.resolve(); expect(settled).toBe(false);
+    value.dispose(); expect((await ready).status).toBe('cancelled');
+    finish({ ok: true });
+    for (let i = 0; i < 10; i++) { await Promise.resolve(); }
+    expect(stop).toHaveBeenCalled();
+  } finally { delete NativeModules.DebugToolkitNativeLogs; }
+});
 
-  it('closePanel is no-op when already closed', () => {
-    const listener = jest.fn();
-    DebugToolkit.subscribe(listener);
-    DebugToolkit.closePanel();
-    expect(listener).not.toHaveBeenCalled();
-  });
+test('a ten-second detection timeout discards late startup and a new host can initialize', async () => {
+  jest.useFakeTimers();
+  let finish!: (value: boolean) => void;
+  NativeModules.DebugToolkitDevConnect.isDebugBuild = () => new Promise(resolve => { finish = resolve; });
+  const first = host(); first.start();
+  await jest.advanceTimersByTimeAsync(10_000);
+  expect((await first.ready).status).toBe('initialization_timeout');
+  first.dispose();
+  NativeModules.DebugToolkitDevConnect.isDebugBuild = async () => true;
+  const replacement = host(); replacement.start(); await replacement.ready;
+  finish(true); await Promise.resolve();
+  expect(first.features).toEqual([]);
+  expect(replacement.features).toHaveLength(12);
+});
 
-  it('reset clears panelOpen', () => {
-    DebugToolkit.openPanel();
-    DebugToolkit.reset();
-    expect(DebugToolkit.panelOpen).toBe(false);
-  });
+test('local release opt-in and unknown builds never discover or upload automatically', async () => {
+  const previousFetch = global.fetch;
+  const fetch = jest.fn(); global.fetch = fetch;
+  try {
+    NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => false, getAppInfo: async () => ({ nativeApplicationId: 'com.release' }) };
+    const release = host({ enabled: true }); release.start(); await release.ready;
+    expect(release.features).toHaveLength(12); expect(fetch).not.toHaveBeenCalled(); release.dispose();
+    delete NativeModules.DebugToolkitDevConnect;
+    const unknown = host({ enabled: true }); unknown.start(); await unknown.ready;
+    expect(fetch).not.toHaveBeenCalled();
+  } finally { global.fetch = previousFetch; }
 });

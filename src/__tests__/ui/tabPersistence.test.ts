@@ -5,6 +5,7 @@ function feature(name: string): AnyDebugFeature {
   return {
     name,
     label: name,
+    status: { phase: 'ready', issues: [] },
     setup: jest.fn(),
     getSnapshot: () => null,
     cleanup: jest.fn(),
