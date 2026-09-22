@@ -44,6 +44,7 @@ const animation = () => ({
 
 module.exports = {
   View: createComponent('View'),
+  Button: createComponent('Button'),
   KeyboardAvoidingView: createComponent('KeyboardAvoidingView'),
   Text: createComponent('Text'),
   ScrollView: createComponent('ScrollView'),
@@ -65,6 +66,8 @@ module.exports = {
     ),
   useColorScheme: () => 'light',
   NativeModules: {},
+  AppRegistry: { registerComponent: jest.fn() },
+  LogBox: { ignoreLogs: jest.fn() },
   DevSettings: {
     reload: jest.fn(),
   },

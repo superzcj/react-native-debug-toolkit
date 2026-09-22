@@ -4,7 +4,8 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
 import { NativeModules } from 'react-native';
-import { debug } from '../../src/core/debug';
+import { debug } from 'react-native-debug-toolkit';
+import { RootApp } from '../index';
 
 jest.mock('react-native-mmkv', () => ({
   createMMKV: () => ({
@@ -135,6 +136,29 @@ afterAll(() => {
 });
 
 beforeEach(() => { NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true }; });
+
+test('switches demo modes with a single active root host', async () => {
+  global.fetch = mockHubFetch() as jest.MockedFunction<typeof fetch>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<RootApp />); });
+    await ReactTestRenderer.act(async () => { await debug.ready(); });
+    expect(debug.getReport().features.accounts?.phase).toBe('empty');
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByProps({ title: '完整 Showcase' }).props.onPress();
+    });
+    await ReactTestRenderer.act(async () => { await debug.ready(); });
+    expect(debug.getReport().features.accounts?.phase).toBe('ready');
+    expect(Object.keys(debug.getReport().features)).toHaveLength(12);
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByProps({ title: '零配置' }).props.onPress();
+    });
+    await ReactTestRenderer.act(async () => { await debug.ready(); });
+    expect(debug.getReport().features.accounts?.phase).toBe('empty');
+    expect(debug.getReport().features.environment?.phase).toBe('empty');
+    expect(debug.getReport().features.tabs?.phase).toBe('empty');
+  } finally { await ReactTestRenderer.act(async () => { renderer?.unmount(); }); }
+});
 
 
 test('opens the v4 local Hub controls', async () => {

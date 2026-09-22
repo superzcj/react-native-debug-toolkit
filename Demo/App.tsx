@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   ScrollView,
@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { debug, withDebugToolkit, type DebugSource } from 'react-native-debug-toolkit';
+import { debug, withDebugToolkit } from 'react-native-debug-toolkit';
 
 import { Showcase } from './Showcase';
-import { DEMO_API, DEMO_HOST } from './demoApi';
+import { getDemoApi } from './demoApi';
+import { demoDebugConfig, flowSource, INITIAL_STORE, shopSource, type StoreState } from './debug.config';
 
 // ─── App Types ───────────────────────────────────────────
 
@@ -37,19 +38,6 @@ type Product = {
   tag: string;
 };
 
-type CartItem = {
-  id: string;
-  title: string;
-  subtitle: string;
-  price: number;
-  quantity: number;
-};
-
-type StoreState = {
-  cartItems: CartItem[];
-  recentlyViewed: string[];
-};
-
 type FeedItem = {
   id: number;
   title: string;
@@ -67,20 +55,6 @@ type ProfileData = {
   email: string;
   company: string;
   city: string;
-};
-
-// ─── Custom Tab Snapshot Types ───────────────────────────
-// Each custom tab defines its own lightweight snapshot shape.
-// Keep snapshots small — they are read on every state change.
-
-type CartTabSnapshot = {
-  items: Array<{ id: string; title: string; qty: number; lineTotal: number }>;
-  total: number;
-};
-
-type FlowTabSnapshot = {
-  screen: string;
-  viewedProducts: string[];
 };
 
 // ─── Constants ───────────────────────────────────────────
@@ -132,11 +106,6 @@ const PRODUCTS: Product[] = [
   },
 ];
 
-const INITIAL_STORE: StoreState = {
-  cartItems: [],
-  recentlyViewed: [],
-};
-
 const T = {
   background: '#F4EEE4',
   hero: '#1B3653',
@@ -151,11 +120,6 @@ const T = {
   success: '#19925A',
   warning: '#C67A18',
 } as const;
-
-// Demo Debug builds omit endpoint and auto-discover the local Hub.
-const DEMO_HUB = {
-  appId: 'com.reactnativedebugtoolkit.demo',
-};
 
 function formatPrice(price: number): string {
   return `¥${price.toFixed(0)}`;
@@ -181,76 +145,11 @@ function getActiveRootTab(route: Route): RootScreen {
   return route.screen;
 }
 
-// ─── Custom Tab Renderers ────────────────────────────────
-
-function CartDebugTab({ snapshot }: { snapshot: CartTabSnapshot }) {
-  return (
-    <ScrollView style={s.tabScroll} contentContainerStyle={s.tabContent}>
-      <View style={[s.tabCard, { backgroundColor: T.hero }]}>
-        <Text style={[s.tabCardLabel, { color: T.textOnHero }]}>CART TOTAL</Text>
-        <Text style={[s.tabCardValue, { color: T.textOnHero }]}>{formatPrice(snapshot.total)}</Text>
-        <Text style={[s.tabCardMeta, { color: T.textOnHero }]}>
-          {snapshot.items.length} item{snapshot.items.length !== 1 ? 's' : ''}
-        </Text>
-      </View>
-
-      {snapshot.items.length > 0 ? (
-        snapshot.items.map((item) => (
-          <View key={item.id} style={[s.tabRow, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
-            <Text style={[s.tabRowTitle, { color: T.text }]}>{item.title}</Text>
-            <Text style={[s.tabRowMeta, { color: T.textMuted }]}>
-              x{item.qty}  {formatPrice(item.lineTotal)}
-            </Text>
-          </View>
-        ))
-      ) : (
-        <Text style={[s.tabEmpty, { color: T.textMuted }]}>Cart is empty — add some products.</Text>
-      )}
-    </ScrollView>
-  );
-}
-
-function FlowDebugTab({ snapshot }: { snapshot: FlowTabSnapshot }) {
-  return (
-    <ScrollView style={s.tabScroll} contentContainerStyle={s.tabContent}>
-      <View style={[s.tabCard, { backgroundColor: T.hero }]}>
-        <Text style={[s.tabCardLabel, { color: T.textOnHero }]}>CURRENT SCREEN</Text>
-        <Text style={[s.tabCardValue, { color: T.textOnHero }]}>{snapshot.screen}</Text>
-      </View>
-
-      <View style={[s.tabSection, { backgroundColor: T.surfaceSoft, borderColor: T.border }]}>
-        <Text style={[s.tabSectionTitle, { color: T.text }]}>Viewed Products</Text>
-        {snapshot.viewedProducts.length > 0 ? (
-          snapshot.viewedProducts.map((title) => (
-            <Text key={title} style={[s.tabBullet, { color: T.text }]}>
-              • {title}
-            </Text>
-          ))
-        ) : (
-          <Text style={[s.tabEmpty, { color: T.textMuted }]}>No products viewed yet.</Text>
-        )}
-      </View>
-    </ScrollView>
-  );
-}
-
-function createDemoSource<T>(initial: T): DebugSource<T> & { publish(value: T): void } {
-  let snapshot = initial;
-  const listeners = new Set<() => void>();
-  return {
-    getSnapshot: () => snapshot,
-    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    publish(value) { snapshot = value; listeners.forEach(listener => listener()); },
-  };
-}
-const cartSource = createDemoSource<CartTabSnapshot>({ items: [], total: 0 });
-const flowSource = createDemoSource<FlowTabSnapshot>({ screen: 'Explore', viewedProducts: [] });
-
 // ─── App ─────────────────────────────────────────────────
 
 function App(): React.JSX.Element {
   const [route, setRoute] = useState<Route>({ screen: 'Explore' });
-  const [storeState, setStoreState] = useState<StoreState>(INITIAL_STORE);
+  const storeState = useSyncExternalStore(shopSource.subscribe, shopSource.getSnapshot);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [reviewsByProduct, setReviewsByProduct] = useState<Record<string, Review[]>>({});
@@ -260,17 +159,13 @@ function App(): React.JSX.Element {
 
   // Refs for getSnapshot (reads latest state outside React render cycle)
   const routeRef = useRef<Route>({ screen: 'Explore' });
-  const storeRef = useRef<StoreState>(INITIAL_STORE);
+  const storeRef = useRef<StoreState>(shopSource.getSnapshot());
   const exploreLoadedRef = useRef(false);
   const profileLoadedRef = useRef(false);
   const requestedReviewIdsRef = useRef<Set<string>>(new Set());
 
   const notifyTabs = useCallback(() => {
-    const { cartItems, recentlyViewed } = storeRef.current;
-    cartSource.publish({
-      items: cartItems.map(item => ({ id: item.id, title: item.title, qty: item.quantity, lineTotal: item.price * item.quantity })),
-      total: cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    });
+    const { recentlyViewed } = storeRef.current;
     flowSource.publish({
       screen: getRouteLabel(routeRef.current),
       viewedProducts: recentlyViewed.map(id => getProduct(id)?.title ?? id),
@@ -288,16 +183,14 @@ function App(): React.JSX.Element {
   // ── Store helpers ───────────────────────────────────────
 
   const updateStore = (
-    action: string,
     updater: (prevState: StoreState) => StoreState,
   ): StoreState => {
     const previousState = storeRef.current;
     const nextState = updater(previousState);
 
     storeRef.current = nextState;
-    setStoreState(nextState);
+    shopSource.publish(nextState);
     notifyTabs();
-    debug.state('shopStore', { action, before: previousState, after: nextState });
 
     return nextState;
   };
@@ -306,7 +199,7 @@ function App(): React.JSX.Element {
     setFeedLoading(true);
 
     try {
-      const response = await fetch(`${DEMO_API}/posts?_limit=2`);
+      const response = await fetch(`${getDemoApi()}/posts?_limit=2`);
       const data = (await response.json()) as Array<{ id: number; title: string; body: string }>;
 
       setFeedItems(
@@ -331,7 +224,7 @@ function App(): React.JSX.Element {
 
     try {
       const response = await fetch(
-        `${DEMO_API}/comments?postId=${Math.max(
+        `${getDemoApi()}/comments?postId=${Math.max(
           1,
           PRODUCTS.findIndex((item) => item.id === productId) + 1,
         )}`,
@@ -359,7 +252,7 @@ function App(): React.JSX.Element {
     setProfileLoading(true);
 
     try {
-      const response = await fetch(`${DEMO_API}/users/1`);
+      const response = await fetch(`${getDemoApi()}/users/1`);
       const data = (await response.json()) as {
         name: string;
         email: string;
@@ -410,7 +303,7 @@ function App(): React.JSX.Element {
   };
 
   const openProduct = (product: Product) => {
-    updateStore('product/viewed', (prevState) => ({
+    updateStore((prevState) => ({
       ...prevState,
       recentlyViewed: [product.id, ...prevState.recentlyViewed.filter((id) => id !== product.id)]
         .slice(0, 4),
@@ -423,7 +316,7 @@ function App(): React.JSX.Element {
   };
 
   const addToCart = (product: Product) => {
-    const nextState = updateStore('cart/addItem', (prevState) => {
+    const nextState = updateStore((prevState) => {
       const existingItem = prevState.cartItems.find((item) => item.id === product.id);
 
       if (existingItem) {
@@ -473,7 +366,7 @@ function App(): React.JSX.Element {
     debug.track('checkout_started', { itemCount, totalPrice });
 
     try {
-      const res = await fetch(`${DEMO_API}/posts`, {
+      const res = await fetch(`${getDemoApi()}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -484,7 +377,7 @@ function App(): React.JSX.Element {
       });
       const data = await res.json();
       console.info('[Demo] Order placed:', data);
-      updateStore('cart/clear', () => INITIAL_STORE);
+      updateStore(() => INITIAL_STORE);
       debug.track('checkout_completed', { itemCount, totalPrice });
     } catch (e) {
       console.error('[Demo] Checkout failed:', e);
@@ -493,11 +386,11 @@ function App(): React.JSX.Element {
 
   const runRawXhrSmoke = () => {
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', `${DEMO_API}/todos/1`);
+    xhr.open('GET', `${getDemoApi()}/todos/1`);
     xhr.onloadend = () => {
       console.info('[Demo] XHR GET completed', {
         status: xhr.status,
-        url: `${DEMO_API}/todos/1`,
+        url: `${getDemoApi()}/todos/1`,
       });
     };
     xhr.onerror = () => {
@@ -514,7 +407,8 @@ function App(): React.JSX.Element {
     exploreLoadedRef.current = false;
     profileLoadedRef.current = false;
     setRoute({ screen: 'Explore' });
-    setStoreState(INITIAL_STORE);
+    shopSource.publish(INITIAL_STORE);
+    notifyTabs();
     setFeedItems([]);
     setReviewsByProduct({});
     setProfile(null);
@@ -721,7 +615,7 @@ function App(): React.JSX.Element {
               onPress={async () => {
                 if (!profile) return;
                 try {
-                  const res = await fetch(`${DEMO_API}/users/1`, {
+                  const res = await fetch(`${getDemoApi()}/users/1`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...profile, city: 'Updated City' }),
@@ -789,7 +683,7 @@ function App(): React.JSX.Element {
             style={[styles.devToolBtn, { backgroundColor: T.warning }]}
             onPress={async () => {
               try {
-                await fetch(`${DEMO_API}/posts/1`, { method: 'DELETE' });
+                await fetch(`${getDemoApi()}/posts/1`, { method: 'DELETE' });
                 console.info('[Demo] DELETE /posts/1 succeeded');
               } catch (e) {
                 console.error('[Demo] DELETE failed:', e);
@@ -926,22 +820,6 @@ function BottomNavItem({
 }
 
 // ─── Styles ──────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  tabScroll: { flex: 1, backgroundColor: T.background },
-  tabContent: { padding: 16, gap: 12 },
-  tabCard: { borderRadius: 18, padding: 16, gap: 6 },
-  tabCardLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.7, opacity: 0.75 },
-  tabCardValue: { fontSize: 24, fontWeight: '800', lineHeight: 30 },
-  tabCardMeta: { fontSize: 13, fontWeight: '600', opacity: 0.8 },
-  tabSection: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
-  tabSectionTitle: { fontSize: 15, fontWeight: '800' },
-  tabRow: { borderRadius: 14, borderWidth: 1, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tabRowTitle: { fontSize: 14, fontWeight: '700', flex: 1 },
-  tabRowMeta: { fontSize: 13, fontWeight: '600' },
-  tabBullet: { fontSize: 13, fontWeight: '600', lineHeight: 20 },
-  tabEmpty: { fontSize: 13, lineHeight: 18 },
-});
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -1308,20 +1186,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default withDebugToolkit(App, {
-  locale: 'zh-CN',
-  connect: DEMO_HUB,
-  environment: {
-    items: [
-      { id: 'dev', title: 'Development', urls: { api: `${DEMO_HOST}:3801` } },
-      { id: 'staging', title: 'Staging', urls: { api: `${DEMO_HOST}:3802` } },
-    ],
-  },
-  tabs: {
-    items: [
-      { id: 'my-cart', title: 'My Cart', source: cartSource, component: CartDebugTab,
-        badge: snapshot => snapshot.items.length ? { label: String(snapshot.items.length), color: T.primary } : null },
-      { id: 'user-flow', title: 'User Flow', source: flowSource, component: FlowDebugTab },
-    ],
-  },
-});
+export default withDebugToolkit(App, demoDebugConfig);

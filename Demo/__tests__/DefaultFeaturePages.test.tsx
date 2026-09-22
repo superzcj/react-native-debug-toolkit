@@ -1,9 +1,8 @@
 import React from 'react';
 import { NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
-import { withDebugToolkit } from '../../src/withDebugToolkit';
-import { debug } from '../../src/core/debug';
-import { FEATURE_KEYS } from '../../src/core/featureCatalog';
+import { withDebugToolkit, debug } from 'react-native-debug-toolkit';
+import ZeroConfigApp from '../ZeroConfigApp';
 import { getActiveRuntime } from '../../src/core/host';
 import type { ToolkitHost } from '../../src/core/DebugToolkit';
 
@@ -13,16 +12,22 @@ jest.mock('react-native-mmkv', () => ({ createMMKV: () => ({
 
 test('every default page really opens with zero business inputs', async () => {
   NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true };
-  const Wrapped = withDebugToolkit(() => null);
   let tree!: ReturnType<typeof create>;
   try {
-    await act(async () => { tree = create(<Wrapped />); });
+    await act(async () => { tree = create(<ZeroConfigApp />); });
     await act(async () => { await debug.ready(); debug.open(); });
-    for (const key of FEATURE_KEYS) {
+    const defaultPages = ['network', 'console', 'native', 'state', 'navigation', 'track',
+      'connect', 'clipboard', 'history', 'environment', 'accounts', 'tabs'];
+    expect(Object.keys(debug.getReport().features).sort()).toEqual([...defaultPages].sort());
+    for (const key of defaultPages) {
       const tab = tree.root.findByProps({ testID: `debug-tab-${key}` });
       await act(async () => { tab.props.onPress(); });
       expect(tree.root.findAllByProps({ testID: `debug-page-${key}` }).length).toBeGreaterThan(0);
     }
+    expect(debug.getReport().features).toMatchObject({
+      state: { phase: 'empty' }, navigation: { phase: 'empty' }, track: { phase: 'empty' },
+      environment: { phase: 'empty' }, accounts: { phase: 'empty' }, tabs: { phase: 'empty' },
+    });
   } finally { await act(async () => { tree?.unmount(); }); }
 });
 

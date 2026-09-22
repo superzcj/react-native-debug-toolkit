@@ -29,7 +29,7 @@ test('mixed components receive only declared props; selection unmounts component
   const release = jest.fn(); const deactivate = jest.fn(); const activate = jest.fn();
   const unmount = jest.fn(); const plainProps = jest.fn();
   const feature = createTabsFeature({ items: [
-    { id: 'plain', title: 'Plain', onActivate: activate, onDeactivate: deactivate, component: (props: {}) => {
+    { id: 'plain', title: 'Plain', onActivate: activate, onDeactivate: deactivate, component: function Plain(props: {}) {
       plainProps(props); useEffect(() => unmount, []); return <Text>Plain content</Text>;
     } },
     { id: 'data', title: 'Data', source: { getSnapshot: () => value, subscribe: (notify: () => void) => {

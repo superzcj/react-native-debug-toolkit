@@ -1,18 +1,35 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { debug } from 'react-native-debug-toolkit';
-import { checkoutRequest, DEMO_API } from './demoApi';
+import { debug, type CopyResult } from 'react-native-debug-toolkit';
+import { checkoutRequest, demoSession, getDemoApi } from './demoApi';
 
 export function Showcase({ onAddItem }: { onAddItem: () => void }) {
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const [result, setResult] = useState<{ failed: boolean; text: string } | null>(null);
+  const session = useSyncExternalStore(demoSession.subscribe, demoSession.getSnapshot);
+  const [accountResult, setAccountResult] = useState('');
+  const [copyResult, setCopyResult] = useState<CopyResult | null>(null);
+
+  const switchAccount = async () => {
+    await debug.ready();
+    const outcome = await debug.accounts.switchTo(session.account.id === 'personal' ? 'studio' : 'personal');
+    setAccountResult(`Account switch: ${outcome.status}`);
+  };
+
+  const copyCheckout = async () => {
+    if (!result) { return; }
+    await debug.ready();
+    setCopyResult(await debug.copyToComputer(result.text, { label: 'Checkout result' }));
+  };
 
   const runCheckout = async (scenario: 'sold-out' | 'available') => {
     if (running.current) return;
     running.current = true;
     setBusy(true);
     setResult(null);
+    setCopyResult(null);
+    await debug.ready();
     onAddItem();
     debug.track('checkout_started', { scenario, source: 'showcase' });
     try {
@@ -26,7 +43,7 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
         ? `${response.status} · ${data.message ?? 'Checkout rejected.'}`
         : `${response.status} · Order ${data.orderId} confirmed.` });
     } catch {
-      console.warn('[Showcase] Demo API unavailable', { endpoint: DEMO_API });
+      console.warn('[Showcase] Demo API unavailable', { endpoint: getDemoApi() });
       setResult({ failed: true, text: 'API offline. Run npm run demo:api in Demo, then retry.' });
     } finally {
       running.current = false;
@@ -42,6 +59,7 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
       </View>
       <Text style={s.title}>Every action.{ '\n' }A clearer picture.</Text>
       <Text style={s.description}>Reproduce a checkout failure. See the evidence in your app, local Hub and AI workflow.</Text>
+      <Text style={s.footnote}>{`${session.environmentTitle} · ${session.account.title}`}</Text>
       <View style={s.steps}>
         <Text style={s.step}>01  Reproduce</Text><Text style={s.step}>02  Inspect</Text><Text style={s.step}>03  Connect</Text>
       </View>
@@ -53,15 +71,25 @@ export function Showcase({ onAddItem }: { onAddItem: () => void }) {
         <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => runCheckout('available')} style={s.secondary}>
           <Text style={s.secondaryText}>Try successful request</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" onPress={() => debug.open()} style={s.secondary}>
+        <TouchableOpacity accessibilityRole="button" onPress={async () => { await debug.ready(); debug.open(); }} style={s.secondary}>
           <Text style={s.secondaryText}>Open inspector ↗</Text>
         </TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={switchAccount} style={s.secondary}>
+          <Text style={s.secondaryText}>{session.account.id === 'personal' ? 'Switch to studio account' : 'Switch to personal account'}</Text>
+        </TouchableOpacity>
       </View>
+      {accountResult ? <Text accessibilityLiveRegion="polite" style={s.footnote}>{accountResult}</Text> : null}
       {result && <View accessibilityLiveRegion="polite" style={[s.result, result.failed && s.failure]}>
         <Text style={s.resultText}>{result.text}</Text>
         <Text style={s.resultHint}>Open Net for the response, State for the cart, or Track for analytics events.</Text>
+        <TouchableOpacity accessibilityRole="button" onPress={copyCheckout} style={s.secondary}>
+          <Text style={s.secondaryText}>Copy checkout result</Text>
+        </TouchableOpacity>
       </View>}
-      <Text style={s.footnote}>Real HTTP traffic · Synthetic shop data · No account</Text>
+      {copyResult ? <Text accessibilityLiveRegion="polite" style={s.footnote}>
+        {`Phone: ${copyResult.phone.status} · Console: ${copyResult.console.status} · Hub: ${copyResult.hub.status}`}
+      </Text> : null}
+      <Text style={s.footnote}>Real HTTP traffic · Synthetic shop data · Local demo accounts</Text>
     </View>
   );
 }

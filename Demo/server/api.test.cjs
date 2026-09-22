@@ -29,3 +29,26 @@ test('staging serves the same fixture with a distinct environment header', async
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('x-demo-environment'), 'staging');
 });
+
+test('development conflict and staging retry remain real HTTP results with the selected account', async (t) => {
+  const development = createDemoServer({ environment: 'development' });
+  const staging = createDemoServer({ environment: 'staging' });
+  for (const server of [development, staging]) {
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    t.after(() => new Promise((resolve) => server.close(resolve)));
+  }
+  const checkout = (server, scenario) => fetch(`http://127.0.0.1:${server.address().port}/checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario, accountId: 'studio' }),
+  });
+  const conflict = await checkout(development, 'sold-out');
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.headers.get('x-demo-environment'), 'development');
+  const retry = await checkout(staging, 'available');
+  assert.equal(retry.status, 201);
+  assert.equal(retry.headers.get('x-demo-environment'), 'staging');
+  assert.equal((await retry.json()).accountId, 'studio');
+  const stillUnavailable = await checkout(staging, 'sold-out');
+  assert.equal(stillUnavailable.status, 409);
+});
