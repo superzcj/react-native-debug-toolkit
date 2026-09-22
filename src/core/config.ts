@@ -160,7 +160,42 @@ function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
         if (field !== 'enabled' && !FEATURE_FIELDS[key].includes(field)) {
           issues.push({ path, message: 'Unknown configuration field.' });
         } else if (value !== undefined) {
-          if (!validField(key, field, value)) {
+          if (key === 'tabs' && field === 'items' && Array.isArray(value)) {
+            const ids = new Set<string>(FEATURE_KEYS);
+            const items: unknown[] = [];
+            Array.from(value).forEach((item: unknown, index: number) => {
+              const itemPath = `tabs.items[${index}]`;
+              if (isRecord(item) && item.enabled === false) { return; }
+              if (!isConfigObject(item)) {
+                issues.push({ path: itemPath, message: 'Expected a custom page configuration object.' }); return;
+              }
+              const allowed = ['id', 'title', 'enabled', 'component', 'source', 'onActivate', 'onDeactivate', 'onClear', 'badge'];
+              for (const name of Object.keys(item)) {
+                if (!allowed.includes(name)) { issues.push({ path: `${itemPath}.${name}`, message: 'Unknown custom page field.' }); }
+              }
+              for (const name of ['id', 'title']) {
+                if (typeof item[name] !== 'string' || !(item[name] as string).trim()) {
+                  issues.push({ path: `${itemPath}.${name}`, message: 'Expected a non-empty string.' });
+                }
+              }
+              if (typeof item.id === 'string') {
+                if (ids.has(item.id)) { issues.push({ path: `${itemPath}.id`, message: 'Custom page IDs must be unique and cannot use built-in IDs.' }); }
+                ids.add(item.id);
+              }
+              if (!(typeof item.component === 'function' || (isRecord(item.component) && typeof item.component.$$typeof === 'symbol'))) {
+                issues.push({ path: `${itemPath}.component`, message: 'Expected a React component.' });
+              }
+              for (const name of ['onActivate', 'onDeactivate', 'onClear', 'badge']) {
+                if (item[name] !== undefined && typeof item[name] !== 'function') {
+                  issues.push({ path: `${itemPath}.${name}`, message: 'Expected a function.' });
+                }
+              }
+              if (item.source !== undefined && !isSource(item.source)) { issues.push({ path: `${itemPath}.source`, message: 'Expected a source.' }); }
+              if (item.enabled !== undefined && typeof item.enabled !== 'boolean') { issues.push({ path: `${itemPath}.enabled`, message: 'Expected a boolean.' }); }
+              items.push(Object.freeze({ ...item }));
+            });
+            options.items = Object.freeze(items);
+          } else if (!validField(key, field, value)) {
             issues.push({ path, message: 'Invalid configuration value.' });
           } else if (field === 'enabled') {
             enabled = value === true;

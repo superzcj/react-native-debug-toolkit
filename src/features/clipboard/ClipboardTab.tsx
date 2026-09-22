@@ -1,25 +1,14 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
-import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
-import { copyToComputer } from '../../utils/copyToComputer';
+import { FontSize, Radius, Spacing } from '../../ui/theme/layout';
+import { CopyButton } from '../../ui/shared/CopyButton';
+import type { ClipboardSnapshot } from './index';
 import type { DebugFeatureRenderProps } from '../../types';
 import { t } from '../../i18n';
 
-export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(() => {
+export const ClipboardTab: React.FC<DebugFeatureRenderProps<ClipboardSnapshot>> = React.memo(({ snapshot }) => {
   const [text, setText] = useState('');
-  const [feedback, setFeedback] = useState<string | null>(null);
-
-  const handleCopy = useCallback(() => {
-    if (!text) return;
-    try {
-      const result = copyToComputer(text, { label: 'Clipboard' });
-      setFeedback(result.method === 'clipboard' ? t('common.copied') : t('common.sent'));
-    } catch {
-      setFeedback(t('common.sent'));
-    }
-    setTimeout(() => setFeedback(null), 2000);
-  }, [text]);
 
   return (
     <View style={s.container}>
@@ -34,9 +23,7 @@ export const ClipboardTab: React.FC<DebugFeatureRenderProps<null>> = React.memo(
       />
       <View style={s.footer}>
         {text ? (
-          <TouchableOpacity style={s.copyBtn} onPress={handleCopy} activeOpacity={0.7}>
-            <Text style={s.copyBtnText}>{feedback ?? t('common.copy')}</Text>
-          </TouchableOpacity>
+          <CopyButton text={text} label="Clipboard" copy={snapshot.copy} />
         ) : (
           <Text style={s.hint}>{t('clipboard.hint')}</Text>
         )}
@@ -68,16 +55,5 @@ const s = StyleSheet.create({
   hint: {
     fontSize: FontSize.XS,
     color: Colors.textMuted,
-  },
-  copyBtn: {
-    backgroundColor: Colors.surfaceElevated,
-    paddingHorizontal: Spacing.LG,
-    paddingVertical: Spacing.XS,
-    borderRadius: Radius.SM,
-  },
-  copyBtnText: {
-    fontSize: FontSize.SM,
-    color: Colors.primary,
-    fontWeight: FontWeight.semibold,
   },
 });

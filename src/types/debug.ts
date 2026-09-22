@@ -24,3 +24,11 @@ export interface ReadyResult {
   features: Partial<Record<FeatureKey, FeatureStatus>>;
   issues: readonly ConfigIssue[];
 }
+export type DeliveryStatus = 'success' | 'unavailable' | 'disabled' | 'error';
+export interface CopyResult {
+  status: 'completed' | 'disabled';
+  phone: { status: DeliveryStatus; reason?: string };
+  console: { status: DeliveryStatus; reason?: string };
+  hub: { status: DeliveryStatus; reason?: string };
+}
+export type CopyAction = (text: string, options?: { label?: string }) => Promise<CopyResult>;

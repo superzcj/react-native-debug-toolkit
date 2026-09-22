@@ -4,7 +4,7 @@ let clipboardModule: ClipboardModule | null = null;
 let clipboardChecked = false;
 
 function getClipboardModule(): ClipboardModule | null {
-  if (clipboardChecked) return clipboardModule;
+  if (clipboardChecked) { return clipboardModule; }
   clipboardChecked = true;
   try {
     // Check native module exists first — getEnforcing() inside the clipboard
@@ -24,18 +24,22 @@ export function hasClipboard(): boolean {
   return getClipboardModule() !== null;
 }
 
-export type CopyMethod = 'clipboard' | 'console' | 'none';
-
-export interface CopyResult {
-  success: boolean;
-  method: CopyMethod;
+export interface CopyChannels {
+  copyPhone?: (text: string) => void | Promise<void>;
+  recordConsole?: (text: string, label?: string) => void;
+  sendHub?: (text: string, label?: string) => Promise<'delivered' | 'unavailable'>;
 }
 
 export interface CopyOptions {
-  /** Descriptive label for console.log identification */
   label?: string;
-  /** If true, only copy to clipboard without console.log */
-  silent?: boolean;
+  enabled: boolean;
+  channels: CopyChannels;
+}
+
+/** Resolve this optional capability when the host builds its explicit channels. */
+export function phoneCopyChannel(): CopyChannels['copyPhone'] {
+  const clipboard = getClipboardModule();
+  return clipboard ? (text) => clipboard.setString(text) : undefined;
 }
 
 const MAX_LOG_SIZE = 10 * 1024; // 10KB
@@ -44,7 +48,7 @@ const MAX_LOG_SIZE = 10 * 1024; // 10KB
  * Format data for copying (pretty JSON or raw string).
  */
 export function fmt(data: unknown): string {
-  if (!data) return '';
+  if (!data) { return ''; }
   try {
     return JSON.stringify(typeof data === 'string' ? JSON.parse(data) : data, null, 2);
   } catch {
@@ -75,34 +79,34 @@ export function logToComputer(content: string, label?: string): void {
   }
 }
 
-/**
- * Copy content to computer via the best available method.
- *
- * 1. Attempts device clipboard (if @react-native-clipboard/clipboard is installed)
- * 2. Always console.logs with structured prefix (appears in Metro terminal)
- * 3. Returns result indicating what succeeded
- */
-export function copyToComputer(content: string, options?: CopyOptions): CopyResult {
-  let method: CopyMethod = 'none';
-
-  // Try clipboard
-  try {
-    const clipboard = getClipboardModule();
-    if (clipboard) {
-      clipboard.setString(content);
-      method = 'clipboard';
-    }
-  } catch {
-    // Clipboard may fail, continue
+/** User-triggered delivery. Each channel reports only its own observed result. */
+export async function copyToComputer(content: string, options: CopyOptions): Promise<CopyResult> {
+  if (!options.enabled) {
+    return { status: 'disabled', phone: { status: 'disabled' }, console: { status: 'disabled' }, hub: { status: 'disabled' } };
   }
-
-  // Always log to computer console (unless silent)
-  if (!options?.silent) {
-    logToComputer(content, options?.label);
-    if (method === 'none') {
-      method = 'console';
+  const deliver = async (channel: (() => unknown) | undefined, confirmed = false): Promise<CopyResult['phone']> => {
+    if (!channel) { return { status: 'unavailable', reason: 'Channel is not configured.' }; }
+    try {
+      const result = await channel();
+      return confirmed && result !== 'delivered'
+        ? { status: 'unavailable', reason: 'Computer delivery was not confirmed.' }
+        : { status: 'success' };
+    } catch (error) {
+      return { status: 'error', reason: error instanceof Error ? error.message : 'Delivery failed.' };
     }
-  }
-
-  return { success: true, method };
+  };
+  const { copyPhone, recordConsole, sendHub } = options.channels;
+  const [phone, consoleResult, hub] = await Promise.all([
+    deliver(copyPhone && (() => copyPhone(content))),
+    deliver(recordConsole && (() => recordConsole(content, options.label))),
+    deliver(sendHub && (() => sendHub(content, options.label)), true),
+  ]);
+  return { status: 'completed', phone, console: consoleResult, hub };
 }
+
+export function describeCopyResult(result: CopyResult): string {
+  const describe = (channel: CopyResult['phone']) => `${channel.status}${channel.reason ? ` (${channel.reason})` : ''}`;
+  return `Phone: ${describe(result.phone)}\nConsole: ${describe(result.console)}\nHub: ${describe(result.hub)}`;
+}
+import type { CopyResult } from '../types/debug';
+export type { CopyResult } from '../types/debug';

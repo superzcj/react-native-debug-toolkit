@@ -1,44 +1,53 @@
-import React, { useCallback, useState } from 'react';
+import React, { createContext, useContext, useCallback, useState, useEffect, useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
-import { copyToComputer, hasClipboard } from '../../utils/copyToComputer';
+import { copyToComputer, describeCopyResult } from '../../utils/copyToComputer';
+import type { CopyAction } from '../../types/debug';
 import { t } from '../../i18n';
 
 interface CopyButtonProps {
   text: string;
   label?: string;
   compact?: boolean;
+  copy?: CopyAction;
 }
 
-export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact }) => {
-  const [feedback, setFeedback] = useState<'copied' | 'logged' | null>(null);
+/** The active host injects the same action used by its public facade. */
+export const CopyActionContext = createContext<CopyAction>((text, options) =>
+  copyToComputer(text, { ...options, enabled: false, channels: {} }));
 
-  const handleCopy = useCallback(() => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact, copy }) => {
+  const hostCopy = useContext(CopyActionContext);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
+  const handleCopy = useCallback(async () => {
+    if (busy) { return; }
+    setBusy(true);
     try {
-      const result = copyToComputer(text, { label });
-      setFeedback(result.method === 'clipboard' ? 'copied' : 'logged');
+      const result = await (copy ?? hostCopy)(text, { label });
+      if (mounted.current) { setFeedback(describeCopyResult(result)); }
     } catch {
-      setFeedback('logged');
+      if (mounted.current) { setFeedback('Copy failed'); }
+    } finally {
+      if (mounted.current) { setBusy(false); }
     }
-    setTimeout(() => setFeedback(null), 2000);
-  }, [text, label]);
+  }, [text, label, busy, copy, hostCopy]);
 
-  if (!text) return null;
-
-  const feedbackLabel =
-    feedback === 'copied' ? t('common.copied') :
-    feedback === 'logged' ? t('common.sent') :
-    null;
+  if (!text) { return null; }
 
   return (
     <TouchableOpacity
       style={[s.copyBtn, compact && s.copyBtnCompact, feedback && s.copyBtnFeedback]}
       onPress={handleCopy}
+      disabled={busy}
       activeOpacity={0.7}
     >
       <Text style={[s.copyBtnText, feedback && s.copyBtnTextFeedback]}>
-        {feedbackLabel ?? (hasClipboard() ? t('common.copy') : t('common.send'))}
+        {feedback ?? t('common.copy')}
       </Text>
     </TouchableOpacity>
   );

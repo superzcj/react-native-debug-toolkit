@@ -57,7 +57,7 @@ export { safeStringify } from './utils/safeStringify';
 export { createDebugTab } from './utils/createDebugTab';
 export type { CreateDebugTabOptions } from './utils/createDebugTab';
 export { copyToComputer, logToComputer, fmt } from './utils/copyToComputer';
-export type { CopyResult, CopyOptions, CopyMethod } from './utils/copyToComputer';
+export type { CopyResult, CopyOptions } from './utils/copyToComputer';
 export { createDebugDeviceReport } from './utils/deviceReport';
 export type { DebugDeviceReport, DebugDeviceReportOptions } from './utils/deviceReport';
 export {
