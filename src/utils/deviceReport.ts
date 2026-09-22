@@ -116,6 +116,22 @@ function sanitizeValue(
   seen = new WeakSet<object>(),
   key = '',
 ): unknown {
+  try {
+    return snapshotValue(value, maxBodyBytes, depth, seen, key);
+  } catch {
+    // Proxies and other hostile objects can throw during reflection. Logging
+    // must never let that inspection failure escape into the business call.
+    return '[Unserializable]';
+  }
+}
+
+function snapshotValue(
+  value: unknown,
+  maxBodyBytes: number,
+  depth: number,
+  seen: WeakSet<object>,
+  key: string,
+): unknown {
   if (typeof value === 'string') {
     return truncateUtf8(value, maxBodyBytes);
   }
@@ -129,12 +145,14 @@ function sanitizeValue(
     return value;
   }
 
-  if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+  if (typeof value === 'function') { return '[Function]'; }
+
+  if (typeof value === 'symbol' || typeof value === 'bigint') {
     return String(value);
   }
 
   if (value instanceof Date) {
-    return value.toISOString();
+    return Date.prototype.toISOString.call(value);
   }
 
   if (typeof value !== 'object') {
@@ -157,17 +175,18 @@ function sanitizeValue(
 
   seen.add(value);
 
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item, maxBodyBytes, depth + 1, seen));
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const result: Record<string, unknown> | unknown[] = Array.isArray(value) ? [] : Object.create(null);
+  for (const entryKey of Object.keys(descriptors)) {
+    const descriptor = descriptors[entryKey]!;
+    if (!descriptor.enumerable) { continue; }
+    const entryValue = 'value' in descriptor
+      ? sanitizeValue(descriptor.value, maxBodyBytes, depth + 1, seen, entryKey)
+      : '[Accessor]';
+    // Defining a property also avoids special setters such as __proto__.
+    Object.defineProperty(result, entryKey, { value: entryValue, enumerable: true, configurable: true, writable: true });
   }
-
-  return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
-    (acc, [entryKey, entryValue]) => {
-      acc[entryKey] = sanitizeValue(entryValue, maxBodyBytes, depth + 1, seen, entryKey);
-      return acc;
-    },
-    {},
-  );
+  return result;
 }
 
 export function createDebugDeviceReport(

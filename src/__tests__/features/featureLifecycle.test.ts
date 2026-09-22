@@ -191,3 +191,58 @@ describe('console ownership and snapshots', () => {
 });
 
 function testRuntime() { return createLogRuntime({ history: { enabled: false, maxSessions: 5 }, logDisk: new MemoryStorageAdapter(), preferenceDisk: new MemoryStorageAdapter() }); }
+
+
+describe('collection isolates hostile business values', () => {
+  afterEach(() => { _resetConsoleForTesting(); _resetTrackForTesting(); });
+
+  it('does not invoke enumerable getters while collecting console and track data', () => {
+    const getter = jest.fn(() => 123);
+    const throwingGetter = jest.fn(() => { throw new Error('business getter'); });
+    const data = Object.defineProperties({}, {
+      value: { enumerable: true, get: getter },
+      failure: { enumerable: true, get: throwingGetter },
+    });
+    const original = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleFeature = createConsoleLogFeature(undefined, testRuntime());
+    const trackFeature = createTrackFeature(undefined, testRuntime());
+    consoleFeature.setup(); trackFeature.setup();
+    try {
+      expect(() => console.log(data)).not.toThrow();
+      expect(() => addTrackLog({ eventName: 'accessors', data })).not.toThrow();
+      expect(getter).not.toHaveBeenCalled();
+      expect(throwingGetter).not.toHaveBeenCalled();
+      expect(consoleFeature.getSnapshot()[0]!.data).toEqual([{ value: '[Accessor]', failure: '[Accessor]' }]);
+      expect(trackFeature.getSnapshot()[0]).toMatchObject({ data: { value: '[Accessor]', failure: '[Accessor]' } });
+    } finally { consoleFeature.cleanup(); trackFeature.cleanup(); original.mockRestore(); }
+  });
+
+  it('snapshots top-level track accessors before constructing a channel payload', () => {
+    const getter = jest.fn(() => { throw new Error('top-level getter'); });
+    const event = Object.defineProperty({ eventName: 'safe' }, 'payload', { enumerable: true, get: getter });
+    const feature = createTrackFeature(undefined, testRuntime());
+    feature.setup();
+    try {
+      expect(() => addTrackLog(event)).not.toThrow();
+      expect(getter).not.toHaveBeenCalled();
+      expect(feature.getSnapshot()[0]).toMatchObject({ eventName: 'safe', payload: '[Accessor]' });
+    } finally { feature.cleanup(); }
+  });
+
+  it('keeps collecting when object inspection throws and does not invoke coercion hooks', () => {
+    const hostile = new Proxy({}, { ownKeys() { throw new Error('cannot inspect'); } });
+    const revoked = Proxy.revocable({}, {}); revoked.revoke();
+    const fn = Object.assign(() => {}, { toString: jest.fn(() => { throw new Error('coercion'); }) });
+    const date = Object.assign(new Date(0), { toISOString: jest.fn(() => { throw new Error('override'); }) });
+    const original = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const feature = createConsoleLogFeature(undefined, testRuntime());
+    feature.setup();
+    try {
+      expect(() => console.log(hostile, revoked.proxy, fn, date)).not.toThrow();
+      expect(feature.getSnapshot()).toHaveLength(1);
+      expect(feature.getSnapshot()[0]!.data).toEqual(['[Unserializable]', '[Unserializable]', '[Function]', '1970-01-01T00:00:00.000Z']);
+      expect(fn.toString).not.toHaveBeenCalled();
+      expect(date.toISOString).not.toHaveBeenCalled();
+    } finally { feature.cleanup(); original.mockRestore(); }
+  });
+});

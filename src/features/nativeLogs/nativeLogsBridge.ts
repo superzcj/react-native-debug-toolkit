@@ -49,3 +49,71 @@ export async function getNativeLogsStatus(): Promise<{ available: boolean; captu
     return { available: true, capturing: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
+
+
+interface CaptureState {
+  owners: Set<symbol>;
+  capturing: boolean;
+  stopping?: Promise<void>;
+}
+let captureStates = new WeakMap<NativeLogsModule, CaptureState>();
+
+/** A lease owns the right to keep shared native capture running. A stale start
+ * may stop capture only when no live lease needs it. Starts wait for an older
+ * asynchronous stop so a retiring owner cannot stop its replacement afterward.
+ */
+export function acquireNativeLogCapture(): { ready: Promise<boolean>; release(): void } {
+  const mod = getNativeModule();
+  if (!mod) { return { ready: Promise.resolve(false), release() {} }; }
+  let state = captureStates.get(mod);
+  if (!state) { state = { owners: new Set(), capturing: false }; captureStates.set(mod, state); }
+  const shared = state;
+  const owner = Symbol('native-capture');
+  shared.owners.add(owner);
+  let released = false;
+  let started = false;
+
+  function stopIfUnused(): void {
+    if (shared.owners.size || shared.stopping || !shared.capturing) { return; }
+    shared.capturing = false;
+    let result: Promise<unknown>;
+    try { result = Promise.resolve(mod!.stopCapture!()); } catch { result = Promise.resolve(); }
+    const pending = result.then(() => {}, () => {});
+    shared.stopping = pending;
+    void pending.then(() => {
+      if (shared.stopping === pending) { shared.stopping = undefined; }
+      stopIfUnused();
+    });
+  }
+
+  async function start(): Promise<boolean> {
+    if (shared.stopping) { await shared.stopping; }
+    if (released) { return false; }
+    try {
+      // Each feature filters locally; shared capture must not exclude another
+      // owner's levels/tags, including when starts complete out of order.
+      started = (await mod!.startCapture!({}))?.ok === true;
+    } catch { started = false; }
+    if (started) { shared.capturing = true; }
+    if (released) {
+      if (started) { stopIfUnused(); }
+      return false;
+    }
+    if (!started) { shared.owners.delete(owner); stopIfUnused(); }
+    return started;
+  }
+
+  return {
+    ready: start(),
+    release() {
+      if (released) { return; }
+      released = true;
+      shared.owners.delete(owner);
+      if (started) { stopIfUnused(); }
+    },
+  };
+}
+
+export function resetNativeCaptureOwners(): void {
+  captureStates = new WeakMap();
+}

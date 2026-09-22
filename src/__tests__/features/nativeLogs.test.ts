@@ -88,6 +88,75 @@ describe('createNativeLogsFeature', () => {
     expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalled();
   });
 
+  it('late startup from a released owner cannot stop its replacement', async () => {
+    let resolveFirst!: (value: { ok: boolean }) => void;
+    NativeModules.DebugToolkitNativeLogs.startCapture.mockImplementationOnce(() => new Promise(r => { resolveFirst = r; }));
+    const first = createNativeLogsFeature(undefined, testRuntime());
+    const second = createNativeLogsFeature(undefined, testRuntime());
+    first.setup();
+    first.cleanup();
+    second.setup();
+    await flushPromises(10);
+    expect(jest.getTimerCount()).toBe(1);
+    NativeModules.DebugToolkitNativeLogs.stopCapture.mockClear();
+    resolveFirst({ ok: true });
+    await flushPromises(10);
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(500);
+    await flushPromises(10);
+    expect(second.getSnapshot()).toHaveLength(2);
+    expect(first.getSnapshot()).toHaveLength(0);
+    second.cleanup();
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('releasing one mounted owner leaves the other owner capturing', async () => {
+    const first = createNativeLogsFeature(undefined, testRuntime());
+    const second = createNativeLogsFeature(undefined, testRuntime());
+    first.setup(); second.setup();
+    await flushPromises(10);
+    NativeModules.DebugToolkitNativeLogs.stopCapture.mockClear();
+    first.cleanup();
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).not.toHaveBeenCalled();
+    second.cleanup();
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a retiring stop before starting a replacement', async () => {
+    const first = createNativeLogsFeature(undefined, testRuntime());
+    first.setup();
+    await flushPromises(10);
+    let finishStop!: (value: { ok: boolean }) => void;
+    NativeModules.DebugToolkitNativeLogs.stopCapture.mockImplementationOnce(() => new Promise(r => { finishStop = r; }));
+    first.cleanup();
+    NativeModules.DebugToolkitNativeLogs.startCapture.mockClear();
+    const second = createNativeLogsFeature(undefined, testRuntime());
+    second.setup();
+    await flushPromises(10);
+    expect(NativeModules.DebugToolkitNativeLogs.startCapture).not.toHaveBeenCalled();
+    finishStop({ ok: true });
+    await flushPromises(10);
+    expect(NativeModules.DebugToolkitNativeLogs.startCapture).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(1);
+    second.cleanup();
+  });
+
+  it('stops the retained capture when its replacement fails to start', async () => {
+    const first = createNativeLogsFeature(undefined, testRuntime());
+    first.setup();
+    await flushPromises(10);
+    let failStart!: (value: { ok: boolean }) => void;
+    NativeModules.DebugToolkitNativeLogs.startCapture.mockImplementationOnce(() => new Promise(r => { failStart = r; }));
+    const second = createNativeLogsFeature(undefined, testRuntime());
+    second.setup();
+    first.cleanup();
+    NativeModules.DebugToolkitNativeLogs.stopCapture.mockClear();
+    failStart({ ok: false });
+    await flushPromises(10);
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalledTimes(1);
+    second.cleanup();
+  });
+
   it('reports a failed native start without polling', async () => {
     NativeModules.DebugToolkitNativeLogs.startCapture.mockResolvedValue({ ok: false });
     const runtime = testRuntime();

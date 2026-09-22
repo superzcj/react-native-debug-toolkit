@@ -1,3 +1,4 @@
+import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
 import { TrackLogTab } from './TrackLogTab';
 import type { DebugFeature, TrackLogEntry } from '../../types';
 import { createEventChannel } from '../../utils/createEventChannel';
@@ -14,7 +15,8 @@ type TrackLogPayload = TrackEventData & { timestamp: number };
 let trackChannel = createEventChannel<TrackLogPayload>();
 
 export const addTrackLog = (eventData: TrackEventData): void => {
-  trackChannel.emit({ timestamp: Date.now(), ...eventData });
+  const snapshot = sanitizeDebugLogEntry(eventData) as TrackEventData;
+  trackChannel.emit({ timestamp: Date.now(), ...snapshot });
 };
 
 export interface TrackFeatureConfig {

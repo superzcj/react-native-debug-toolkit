@@ -2,7 +2,7 @@ import { NativeLogTab } from './NativeLogTab';
 import type { DebugFeature, DebugFeatureListener, NativeLogEntry } from '../../types';
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
 import { persistedLogLimit, type LogRuntimeContext } from '../../utils/logRuntime';
-import { drainNativeLogs, isNativeLogsAvailable, startNativeLogCapture, stopNativeLogCapture } from './nativeLogsBridge';
+import { acquireNativeLogCapture, drainNativeLogs, isNativeLogsAvailable, resetNativeCaptureOwners, stopNativeLogCapture } from './nativeLogsBridge';
 
 const DEFAULT_MAX_LOGS = 200;
 const DEFAULT_POLL_INTERVAL_MS = 500;
@@ -50,6 +50,7 @@ export const createNativeLogsFeature = (
   let timer: ReturnType<typeof setInterval> | null = null;
   let draining = false;
   let generation = 0;
+  let capture: ReturnType<typeof acquireNativeLogCapture> | null = null;
 
   async function drainOnce(): Promise<void> {
     if (draining || !initialized || !runtime.active) return;
@@ -76,13 +77,11 @@ export const createNativeLogsFeature = (
       }
       initialized = true;
       const epoch = ++generation;
-      void startNativeLogCapture({
-        minLevel: config?.minLevel,
-        includeTags: config?.includeTags?.filter((p) => typeof p === 'string'),
-        excludeTags: config?.excludeTags?.filter((p) => typeof p === 'string'),
-      }).then(started => {
+      const lease = acquireNativeLogCapture();
+      capture = lease;
+      void lease.ready.then(started => {
         if (!initialized || !runtime.active) {
-          if (started) { void stopNativeLogCapture(); }
+          lease.release();
           return;
         }
         if (epoch !== generation) { return; }
@@ -100,7 +99,8 @@ export const createNativeLogsFeature = (
       generation += 1;
       if (timer) clearInterval(timer);
       timer = null;
-      stopNativeLogCapture().catch(() => {});
+      capture?.release();
+      capture = null;
       logStore.dispose();
       initialized = false;
       draining = false;
@@ -110,5 +110,6 @@ export const createNativeLogsFeature = (
 };
 
 export function _resetNativeLogsForTesting(): void {
+  resetNativeCaptureOwners();
   stopNativeLogCapture().catch(() => {});
 }

@@ -80,7 +80,8 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
         return;
       }
       unsubscribe = getChannel().subscribe((payload) => {
-        const filtered = options.beforePush ? options.beforePush(payload) : payload;
+        const snapshot = sanitizeDebugLogEntry(payload) as TPayload;
+        const filtered = options.beforePush ? options.beforePush(snapshot) : snapshot;
         if (filtered == null) {
           return;
         }
