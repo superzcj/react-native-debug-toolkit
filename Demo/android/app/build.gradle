@@ -115,7 +115,6 @@ dependencies {
     implementation("com.facebook.react:react-android")
 
     // Toolkit native Android module
-    implementation project(':react-native-debug-toolkit')
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

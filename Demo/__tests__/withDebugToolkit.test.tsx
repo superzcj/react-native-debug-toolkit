@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import { NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
-import { debug } from '../../src/core/debug';
-import { FEATURE_KEYS } from '../../src/core/featureCatalog';
+const FEATURE_KEYS = ['network', 'console', 'native', 'state', 'navigation', 'track', 'connect', 'clipboard', 'history', 'environment', 'accounts', 'tabs'];
 
 jest.mock('react-native-mmkv', () => ({ createMMKV: jest.fn(() => ({
   getString: () => undefined, set: () => undefined, remove: () => true,
@@ -10,7 +9,7 @@ jest.mock('react-native-mmkv', () => ({ createMMKV: jest.fn(() => ({
 
 // Capture before loading the HOC: its diagnostic deliberately bypasses collectors.
 const diagnostics = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-const { withDebugToolkit }: typeof import('../../src/withDebugToolkit') = require('../../src/withDebugToolkit');
+const { withDebugToolkit, debug }: typeof import('react-native-debug-toolkit') = require('react-native-debug-toolkit');
 afterAll(() => diagnostics.mockRestore());
 
 let tree: ReturnType<typeof create> | undefined;

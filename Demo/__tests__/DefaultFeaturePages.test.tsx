@@ -3,8 +3,9 @@ import { NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { withDebugToolkit, debug } from 'react-native-debug-toolkit';
 import ZeroConfigApp from '../ZeroConfigApp';
-import { getActiveRuntime } from '../../src/core/host';
-import type { ToolkitHost } from '../../src/core/DebugToolkit';
+import type { ToolkitHost } from '../node_modules/react-native-debug-toolkit/lib/typescript/src/core/DebugToolkit';
+// White-box fault injection uses the installed build, sharing the public host.
+const { getActiveRuntime }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/core/host') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/core/host');
 
 jest.mock('react-native-mmkv', () => ({ createMMKV: () => ({
   getString: () => undefined, set: () => undefined, remove: () => true,

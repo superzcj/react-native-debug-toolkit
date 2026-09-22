@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
-import { createTabsFeature } from '../../src/features/tabs';
-import { TabsTab } from '../../src/features/tabs/TabsTab';
-import { CopyButton, CopyActionContext } from '../../src/ui/shared/CopyButton';
-import { copyToComputer } from '../../src/utils/copyToComputer';
-import type { CopyResult } from '../../src/types/debug';
+const { createTabsFeature }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/features/tabs') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/features/tabs');
+const { TabsTab }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/features/tabs/TabsTab') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/features/tabs/TabsTab');
+const { CopyButton, CopyActionContext }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/ui/shared/CopyButton') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/ui/shared/CopyButton');
+const { copyToComputer }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/utils/copyToComputer') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/utils/copyToComputer');
+import type { CopyResult } from 'react-native-debug-toolkit';
 
 const ctx = () => ({ owner: Symbol(), signal: new AbortController().signal, isCurrent: () => true, setStatus: jest.fn() });
 function Host({ feature }: { feature: ReturnType<typeof createTabsFeature> }) {

@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.author       = package['author']
   s.source       = { :git => package['repository']['url'], :tag => s.version.to_s }
 
-  s.platforms    = { :ios => '12.0' }
+  s.platforms    = { :ios => '15.1' }
   s.source_files = 'ios/**/*.{h,m,mm}'
   s.dependency 'React-Core'
 end

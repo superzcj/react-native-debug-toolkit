@@ -4,7 +4,7 @@ PODS:
     - hermes-engine/Pre-built (= 250829098.0.10)
   - hermes-engine/Pre-built (250829098.0.10)
   - MMKVCore (2.4.0)
-  - NitroMmkv (4.3.1):
+  - NitroMmkv (4.3.2):
     - hermes-engine
     - MMKVCore (= 2.4.0)
     - NitroModules
@@ -29,7 +29,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - NitroModules (0.35.9):
+  - NitroModules (0.35.10):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1411,7 +1411,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-  - react-native-debug-toolkit (4.0.0):
+  - react-native-debug-toolkit (5.0.0):
     - React-Core
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
@@ -1933,7 +1933,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
-  - react-native-debug-toolkit (from `/Users/zcj/Documents/project/react-native-debug-toolkit/Demo/ios/../..`)
+  - react-native-debug-toolkit (from `../node_modules/react-native-debug-toolkit`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
@@ -2059,7 +2059,7 @@ EXTERNAL SOURCES:
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   react-native-debug-toolkit:
-    :path: "/Users/zcj/Documents/project/react-native-debug-toolkit/Demo/ios/../.."
+    :path: "../node_modules/react-native-debug-toolkit"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   React-NativeModulesApple:
@@ -2137,10 +2137,10 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   FBLazyVector: ed7eadee1965b0b918ca9d0f2c2328f7eb3fd095
-  hermes-engine: 7161805f0795ed7ad354baf1f2b56d670388d98f
+  hermes-engine: 08f5e8e60c519f71470ac5738a1c1a593b64f966
   MMKVCore: 3d16ce9f7d411e135020915fde98a056859a1efa
-  NitroMmkv: 4b4f95387a15161b346a6a93b9c7072c179e0e88
-  NitroModules: 16bc17a076b12304d608f7c915b9d321f56dfc19
+  NitroMmkv: 85a251e15c39d7c95fe58cf40786fa126b8d143c
+  NitroModules: 994eaa7fc39d1fb4b76bb61054312c9796c4a649
   RCTDeprecation: d69f6f20a20f669a0aa3115ab1109f28e98ae03e
   RCTRequired: 305a8212b9d90fa335b6a6a960e5212bbb434484
   RCTSwiftUI: 00bb3e8491b1368a47563ef0c8824601d9875ed3
@@ -2149,7 +2149,7 @@ SPEC CHECKSUMS:
   React: 6dbd7825a18782848e8c62f1feb16b344cb17ac6
   React-callinvoker: 90c70d14c7ca646fdae3e25e8d9fbb0fbb20459c
   React-Core: 9dce76263f670de254e896f317676e7e95369ac2
-  React-Core-prebuilt: 3432c7b1a144567bb0bbeffbc861effee02e0631
+  React-Core-prebuilt: 8e551750bc68d22ba73565a9206572bc47c9c097
   React-CoreModules: b9fadb43261b88cb0d3a2d59808603567e995095
   React-cxxreact: 6b36616248fea28ce6dfbffcf09322321eb96186
   React-debug: 8f85c5da52e386c83482e45744f6e61b39b9493d
@@ -2177,7 +2177,7 @@ SPEC CHECKSUMS:
   React-logger: 4e7583fb51ef2aa76b298c88e1b9a5cff83e03f7
   React-Mapbuffer: 820bc13d35de93c05aacefb3ab43f061b247c64e
   React-microtasksnativemodule: d8115c4d1035b8671c036a47d82fe75d1ca44e44
-  react-native-debug-toolkit: 5cd83d5ae968c3115ee3034abe688fdc96038e0c
+  react-native-debug-toolkit: 14110b3b811aa351a728fba29a9886381b7a5cd0
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
   React-NativeModulesApple: 647d3ab78e02b3a40fedffd856744215219ff0a6
   React-networking: 8d40769c4823a7e26ae98ca5cd691edc87828743
@@ -2210,12 +2210,12 @@ SPEC CHECKSUMS:
   React-utils: aaf9b3d810f6fbc359ff6a6fb0dd6ea739f0b9f8
   React-webperformancenativemodule: 349b21612ebbbc42316cc849d1942af519eef9b1
   ReactAppDependencyProvider: 52da2413bc956c40a4de19ad32a92b87248f7ce8
-  ReactCodegen: ac66dec0207aa594df45d4271e38f738f92441d9
+  ReactCodegen: aac672d7021359dc55fbd6d63f56192651664f09
   ReactCommon: 66763e5bd1b778828ff6cb82d771b7162a5215c2
-  ReactNativeDependencies: d1e5a877b2f973f85783caae65165f018fe492ae
+  ReactNativeDependencies: 010675bfb95adf249f818ea3a9e7b96764813c69
   RNCClipboard: 715fa7c6c8366f17d00f05a439ee7488f390fa5f
   Yoga: b1085f68c014785350a2afdc95eaef0d49f23ccb
 
-PODFILE CHECKSUM: 3acb71e4cddc9c14da92e76fef50060331d801a5
+PODFILE CHECKSUM: dbdad812f326742f93f0b95b6bb214cbb4fe94f0
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0

@@ -10,10 +10,10 @@ jest.mock('react-native-mmkv', () => ({
   }),
 }), { virtual: true });
 
-import { DevConnectTabV4 } from '../../src/features/devConnect/DevConnectTabV4';
-import type { DevConnectV4State } from '../../src/features/devConnect/types';
-import type { DebugFeature } from '../../src/types';
-import { HubClient } from '../../src/utils/HubClient';
+const { DevConnectTabV4 }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/features/devConnect/DevConnectTabV4') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/features/devConnect/DevConnectTabV4');
+import type { DevConnectV4State } from '../node_modules/react-native-debug-toolkit/lib/typescript/src/features/devConnect/types';
+import type { DebugFeature } from '../node_modules/react-native-debug-toolkit/lib/typescript/src/types';
+const { HubClient }: typeof import('../node_modules/react-native-debug-toolkit/lib/typescript/src/utils/HubClient') = require('../node_modules/react-native-debug-toolkit/lib/commonjs/utils/HubClient');
 const hubClient = new HubClient({ featureProvider: { features: [], subscribe: () => () => {} } });
 
 const snapshot: DevConnectV4State = {

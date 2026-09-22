@@ -1,10 +1,27 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "4.1.1",
+  "version": "5.0.0",
   "description": "AI-first local runtime log Hub for React Native — debug with CLI and Web Console",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/typescript/src/index.d.ts",
+      "react-native": "./src/index.ts",
+      "import": "./lib/module/index.js",
+      "require": "./lib/commonjs/index.js",
+      "default": "./lib/commonjs/index.js"
+    },
+    "./adapters/zustand": {
+      "types": "./lib/typescript/src/adapters/zustand.d.ts",
+      "react-native": "./src/adapters/zustand.ts",
+      "import": "./lib/module/adapters/zustand.js",
+      "require": "./lib/commonjs/adapters/zustand.js",
+      "default": "./lib/commonjs/adapters/zustand.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "src",
     "lib",
@@ -14,6 +31,12 @@
     "android",
     "react-native-debug-toolkit.podspec",
     "README.md",
+    "README.zh-CN.md",
+    "docs/integration*.md",
+    "docs/configuration*.md",
+    "docs/examples/integration",
+    "docs/setup*.md",
+    "docs/usage*.md",
     "LICENSE",
     "!**/__tests__",
     "!**/__fixtures__",
@@ -31,6 +54,8 @@
     "typecheck:api": "tsc -p type-tests/tsconfig.json",
     "typescript": "npm run typecheck",
     "test": "jest",
+    "test:package": "node --test scripts/__tests__/verify-package.test.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
     "eval:runtime-skill": "node node/hub/evals/runtime-diagnostics/run.js --model gpt-5.5 --reasoning high --runs 5",
     "build": "bob build",
     "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"node/**/*.js\" \"bin/**/*.js\"",
@@ -67,7 +92,8 @@
   "peerDependencies": {
     "@react-native-clipboard/clipboard": ">=1.0.0",
     "react": ">=18.0.0",
-    "react-native": ">=0.72.0"
+    "react-native": ">=0.76.6 <=0.85.1",
+    "react-native-nitro-modules": "0.35.10"
   },
   "peerDependenciesMeta": {
     "@react-native-clipboard/clipboard": {
@@ -100,8 +126,8 @@
     "source": "src",
     "output": "lib",
     "targets": [
-      "commonjs",
-      "module",
+      ["commonjs", {"esm": true}],
+      ["module", {"esm": true}],
       [
         "typescript",
         {
@@ -112,6 +138,6 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.29.2",
-    "react-native-mmkv": "^4.3.1"
+    "react-native-mmkv": "4.3.2"
   }
 }
