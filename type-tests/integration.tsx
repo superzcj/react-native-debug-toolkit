@@ -22,6 +22,9 @@ const validApp = <Wrapped greeting="hello" />;
 const missingProps = <Wrapped />;
 // @ts-expect-error App prop types survive wrapping.
 const invalidProps = <Wrapped greeting={42} />;
+declare const TypedApp: React.ComponentType<{ greeting: string }>;
+const TypedWrapped = withDebugToolkit(TypedApp);
+const typedApp = <TypedWrapped greeting="hello" />;
 interface MyAccount extends DebugAccount { tenantId: number }
 interface CartSnapshot { total: number }
 const cartSource: DebugSource<CartSnapshot> = { getSnapshot: () => ({ total: 10 }), subscribe: () => () => {} };
@@ -70,9 +73,14 @@ debug.clear('state');
 debug.clear('environment');
 // @ts-expect-error Old log feature key is unsupported.
 debug.clear('zustand');
-class ClassApp extends React.Component<{ title: string }> { render() { return null; } }
+class ClassApp extends React.Component<{ title: string }> { title() { return this.props.title; } render() { return null; } }
 const ClassWrapped = withDebugToolkit(ClassApp);
 const classApp = <ClassWrapped title="Shop" ref={React.createRef<ClassApp>()} />;
+declare const classInstance: React.ComponentRef<typeof ClassWrapped>;
+const classTitle: string = classInstance.title();
+const callbackClassApp = <ClassWrapped title="Shop" ref={instance => { instance?.title().toUpperCase(); }} />;
+// @ts-expect-error A class ref must preserve the specific App instance methods.
+const wrongClassRef = <ClassWrapped title="Shop" ref={React.createRef<React.Component<{ title: string }>>()} />;
 const RefApp = React.forwardRef<{ reload(): void }, { title: string }>(() => null);
 const RefWrapped = withDebugToolkit(RefApp);
 const refApp = <RefWrapped title="Shop" ref={React.createRef<{ reload(): void }>()} />;

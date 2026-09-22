@@ -76,6 +76,51 @@ const openBody = {
 };
 
 describe('HubClient transport', () => {
+  it('delivers an explicit copy while paused without promoting the live mode', async () => {
+    const fetch = jest.fn(async (url: string) => url.endsWith('/events')
+      ? response(200, { ok: true, ackThrough: 1 }) : response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect({ live: false });
+    await flushPromises();
+    try {
+      expect(await client.sendCopy('explicit copy', 'Text')).toBe('delivered');
+      expect(client.isSyncPaused()).toBe(true);
+      expect(client.getStatus().state).toBe('paused');
+    } finally { client.disconnect(); }
+  });
+
+  it('does not claim delivery when the acknowledgement does not cover the copy', async () => {
+    jest.useFakeTimers();
+    const fetch = jest.fn(async (url: string) => url.endsWith('/events')
+      ? response(200, { ok: true, ackThrough: 0 }) : response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect(); await flushPromises();
+    try {
+      const copy = expect(client.sendCopy('unconfirmed')).rejects.toThrow('not acknowledged');
+      await jest.advanceTimersByTimeAsync(10_000);
+      await copy;
+    } finally { client.disconnect(); }
+  });
+
+  it('settles pending copy delivery on disconnect and ignores a late acknowledgement', async () => {
+    let finish!: (value: ReturnType<typeof response>) => void;
+    const fetch = jest.fn(async (url: string) => url.endsWith('/events')
+      ? new Promise<ReturnType<typeof response>>(resolve => { finish = resolve; }) : response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect(); await flushPromises();
+    const copy = client.sendCopy('cancelled');
+    await flushPromises();
+    client.disconnect();
+    expect(await copy).toBe('unavailable');
+    finish(response(200, { ok: true, ackThrough: 1 }));
+    await flushPromises();
+    expect(client.getStatus().session).toBeNull();
+    expect(await client.sendCopy('disconnected')).toBe('unavailable');
+  });
+
   it('keeps a failed Release Upload Once paused when the session retry succeeds', async () => {
     jest.useFakeTimers();
     const fetch = jest.fn()

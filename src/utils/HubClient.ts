@@ -1,5 +1,6 @@
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import type { FeatureDataProvider } from '../types';
+import type { ConsoleLogEntry } from '../types/logs';
 import { addToBlacklist } from '../features/network';
 import { safeStringify } from './safeStringify';
 import { normalizeHubValue } from './hubCanonical';
@@ -68,12 +69,18 @@ type AbortControllerCtor = new () => AbortControllerLike;
 
 // ---- Pending Event ----
 
+interface EventDelivery {
+  complete(result: 'delivered' | 'unavailable'): void;
+  fail(message: string): void;
+}
+
 interface PendingEvent {
   timestamp: number;
   type: string;
   severity: string;
   data: unknown;
   estimatedBytes: number;
+  deliveries?: EventDelivery[];
 }
 
 interface InFlightEvent {
@@ -83,6 +90,7 @@ interface InFlightEvent {
   severity: string;
   data: unknown;
   wireBytes: number;
+  deliveries?: EventDelivery[];
 }
 
 // ---- Severity Helpers ----
@@ -191,6 +199,7 @@ export class HubClient {
   private _inFlightBytes = 0;
   private _overflowCount = 0;
   private _overflowByType: Record<string, number> = {};
+  private _deliveries = new Set<EventDelivery>();
 
   // Timers
   private _flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -449,6 +458,40 @@ export class HubClient {
 
   isSyncPaused(): boolean { return this._syncPaused; }
 
+  /** Explicit copy uses the normal event sequence and waits for its actual ACK. */
+  sendCopy(text: string, label?: string, consoleEntry?: ConsoleLogEntry): Promise<'delivered' | 'unavailable'> {
+    if (!this._active || !this._session) { return Promise.resolve('unavailable'); }
+    const entry = consoleEntry ?? {
+      id: generateUUIDv4(), timestamp: Date.now(), level: 'log', data: label ? [label, text] : [text],
+    };
+    return new Promise((resolve, reject) => {
+      const finish = (result: 'delivered' | 'unavailable', message?: string) => {
+        if (!this._deliveries.delete(delivery)) { return; }
+        clearTimeout(timeout);
+        if (message) { reject(new Error(message)); } else { resolve(result); }
+      };
+      const delivery: EventDelivery = {
+        complete: result => finish(result), fail: message => finish('unavailable', message),
+      };
+      const timeout = setTimeout(() => delivery.fail('Copy was not acknowledged by the Hub within 10 seconds.'), 10_000);
+      this._deliveries.add(delivery);
+      // Console subscription observers may already have queued this exact entry.
+      const existing = [...this._pending, ...this._inFlight].find(event => event.type === 'console'
+        && event.data !== null && typeof event.data === 'object' && 'id' in event.data && event.data.id === entry.id);
+      if (existing) { (existing.deliveries ??= []).push(delivery); }
+      else if (!this._enqueueEvent({ timestamp: entry.timestamp, type: 'console', severity: 'info', data: entry, deliveries: [delivery] })) {
+        delivery.fail('Copy was not acknowledged because the Hub event buffer could not accept it.');
+        return;
+      }
+      if (consoleEntry) {
+        const seen = this._lastFeatureIds.get('console') ?? new Set<string | number>();
+        seen.add(consoleEntry.id);
+        this._lastFeatureIds.set('console', seen);
+      }
+      void this._doFlush(true);
+    });
+  }
+
   async syncNow(): Promise<void> {
     const pauseAfterSync = !this._isDebugBuild() || this._syncPaused;
     if (!this._active) {
@@ -591,14 +634,14 @@ export class HubClient {
 
   // ---- Private: Events & Buffer ----
 
-  private _enqueueEvent(event: Omit<PendingEvent, 'estimatedBytes'>): void {
-    const serialized = safeStringify({ ...event, sequence: 0 });
+  private _enqueueEvent(event: Omit<PendingEvent, 'estimatedBytes'>): boolean {
+    const serialized = safeStringify({ timestamp: event.timestamp, type: event.type, severity: event.severity, data: event.data, sequence: 0 });
     const estimatedBytes = typeof serialized === 'string' ? serialized.length : 200;
 
     if (estimatedBytes > MAX_EVENT_WIRE_BYTES) {
       this._overflowCount++;
       this._overflowByType[event.type] = (this._overflowByType[event.type] || 0) + 1;
-      return;
+      return false;
     }
 
     const totalEvents = this._pending.length + this._inFlight.length;
@@ -610,7 +653,7 @@ export class HubClient {
           this._pendingBytes + this._inFlightBytes + estimatedBytes > MAX_BUFFER_BYTES) {
         this._overflowCount++;
         this._overflowByType[event.type] = (this._overflowByType[event.type] || 0) + 1;
-        return;
+        return false;
       }
     }
 
@@ -620,6 +663,7 @@ export class HubClient {
     if (!this._syncPaused && this._session) {
       this._scheduleFlush();
     }
+    return true;
   }
 
   private _evictPending(): void {
@@ -641,6 +685,7 @@ export class HubClient {
         this._pendingBytes -= evicted.estimatedBytes;
         this._overflowCount++;
         this._overflowByType[evicted.type] = (this._overflowByType[evicted.type] || 0) + 1;
+        evicted.deliveries?.forEach(delivery => delivery.fail('Copy was not acknowledged because its Hub event was evicted.'));
       }
     }
   }
@@ -694,11 +739,15 @@ export class HubClient {
 
   // ---- Private: Flush ----
 
+  private _hasPendingDelivery(): boolean {
+    return [...this._pending, ...this._inFlight].some(event => event.deliveries?.some(delivery => this._deliveries.has(delivery)));
+  }
+
   private _scheduleFlush(): void {
     if (!this._active || this._flushTimer) return;
     this._flushTimer = setTimeout(() => {
       this._flushTimer = null;
-      this._doFlush();
+      this._doFlush(this._hasPendingDelivery());
     }, FLUSH_INTERVAL_MS);
   }
 
@@ -742,6 +791,7 @@ export class HubClient {
             severity,
             data,
             wireBytes: pending.estimatedBytes,
+            deliveries: pending.deliveries,
           };
 
           if (batchBytes + event.wireBytes > MAX_BATCH_BYTES) break;
@@ -783,6 +833,7 @@ export class HubClient {
       if (!this._current(generation)) { return; }
 
       if (!response || !response.ok) {
+        batch.forEach(event => event.deliveries?.forEach(delivery => delivery.fail('Copy was not acknowledged because the Hub event request failed.')));
         const status = response?.status;
         if (status === 409) {
           // May need to re-open session
@@ -799,10 +850,11 @@ export class HubClient {
 
       const data = await response.json?.() as Record<string, unknown> | undefined;
       if (!this._current(generation)) { return; }
-      if (data?.ok) {
+      if (data?.ok && Number.isSafeInteger(data.ackThrough) && (data.ackThrough as number) >= 0 && (data.ackThrough as number) < this._nextSequence) {
         const ackThrough = data.ackThrough as number;
         this._ackThrough = Math.max(this._ackThrough, ackThrough);
         // Remove ACKed events from in-flight
+        this._inFlight.filter(event => event.sequence <= ackThrough).forEach(event => event.deliveries?.forEach(delivery => delivery.complete('delivered')));
         this._inFlight = this._inFlight.filter(e => e.sequence > ackThrough);
         this._inFlightBytes = this._inFlight.reduce((sum, e) => sum + e.wireBytes, 0);
         this._retryAttempt = 0;
@@ -811,13 +863,15 @@ export class HubClient {
           this._state = 'connected';
           this._emitStatus();
         }
+      } else {
+        batch.forEach(event => event.deliveries?.forEach(delivery => delivery.fail('Copy was not acknowledged by a valid Hub response.')));
       }
     } catch {
       if (this._current(generation)) { this._scheduleRetry(); }
     } finally {
       if (this._current(generation)) { this._sending = false; }
       if (this._current(generation) && (this._pending.length > 0 || this._inFlight.length > 0) &&
-          !this._syncPaused && !this._retryTimer) {
+          (!this._syncPaused || this._hasPendingDelivery()) && !this._retryTimer) {
         this._scheduleFlush();
       }
     }
@@ -886,7 +940,7 @@ export class HubClient {
       if (!this._session) {
         this._openSession();
       } else {
-        this._doFlush();
+        this._doFlush(this._hasPendingDelivery());
       }
     }, delay + jitter);
   }
@@ -1013,6 +1067,7 @@ export class HubClient {
 
   private _invalidateRequests(): void {
     this._generation++;
+    [...this._deliveries].forEach(delivery => delivery.complete('unavailable'));
     this._requests.forEach(cancel => cancel());
     this._requests.clear();
     this._openSessionPromise = null;

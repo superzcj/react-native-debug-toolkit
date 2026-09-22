@@ -18,6 +18,7 @@ import { createQuickAccountsFeature } from '../features/quickAccounts/createQuic
 import { createTabsFeature } from '../features/tabs';
 import { HubClient } from '../utils/HubClient';
 import { copyToComputer, phoneCopyChannel } from '../utils/copyToComputer';
+import type { ConsoleLogEntry } from '../types/logs';
 
 export interface FeatureDriverBinding extends FeatureDriver {
   feature: DebugFeature<any>;
@@ -32,15 +33,18 @@ export function createFeatureDrivers(services: {
 }): RuntimeDependencies['createDriver'] {
   const features = new Map<FeatureKey, DebugFeature<any>>();
   let consoleFeature: ReturnType<typeof createConsoleLogFeature> | undefined;
-  const copy: DebugActions['copyToComputer'] = (text, options) => copyToComputer(text, {
-    ...options, enabled: services.logs.active,
-    channels: {
-      copyPhone: services.logs.active ? phoneCopyChannel() : undefined,
-      recordConsole: consoleFeature ? (content, label) => consoleFeature!.record(content, label) : undefined,
-      // The current Hub protocol has no copy-specific delivery acknowledgement.
-      // A captured Console entry can follow normal live upload, but is not a confirmed copy.
-    },
-  });
+  let hubClient: HubClient | undefined;
+  const copy: DebugActions['copyToComputer'] = (text, options) => {
+    let entry: ConsoleLogEntry | undefined;
+    return copyToComputer(text, {
+      ...options, enabled: services.logs.active,
+      channels: {
+        copyPhone: services.logs.active ? phoneCopyChannel() : undefined,
+        recordConsole: consoleFeature ? (content, label) => { entry = consoleFeature!.record(content, label); } : undefined,
+        sendHub: hubClient ? (content, label) => hubClient!.sendCopy(content, label, entry) : undefined,
+      },
+    });
+  };
   const provider: FeatureDataProvider = {
     get features() { return [...features.values()]; },
     subscribe: () => () => {},
@@ -65,7 +69,9 @@ export function createFeatureDrivers(services: {
         const track = createTrackFeature(options, services.logs); feature = track;
         actions.track = (name, data) => track.record({ eventName: name, ...(data === undefined ? {} : { data }) }); break;
       }
-      case 'connect': feature = createDevConnectFeature(options, { client: new HubClient({ featureProvider: provider }), isDebugBuild: services.debugBuild }); break;
+      case 'connect':
+        hubClient = new HubClient({ featureProvider: provider });
+        feature = createDevConnectFeature(options, { client: hubClient, isDebugBuild: services.debugBuild }); break;
       case 'clipboard': feature = createClipboardFeature({}, copy); actions.copyToComputer = copy; break;
       case 'history': feature = createSessionHistoryFeature(services.logs); break;
       case 'environment': feature = createEnvironmentFeature(options, services.logs); break;

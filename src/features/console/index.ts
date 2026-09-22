@@ -52,7 +52,7 @@ export interface ConsoleFeatureConfig {
 }
 
 export interface ConsoleFeature extends DebugFeature<ConsoleLogEntry[]> {
-  record(text: string, label?: string): void;
+  record(text: string, label?: string): ConsoleLogEntry | undefined;
 }
 
 export const createConsoleLogFeature = (
@@ -88,7 +88,9 @@ export const createConsoleLogFeature = (
     },
     record(text, label) {
       if (!initialized || !runtime.active) { return; }
-      logStore.push({ id: logStore.nextId(), timestamp: Date.now(), level: 'log', data: label ? [label, text] : [text] }, maxLogs);
+      const entry: ConsoleLogEntry = { id: logStore.nextId(), timestamp: Date.now(), level: 'log', data: label ? [label, text] : [text] };
+      logStore.push(entry, maxLogs);
+      return entry;
     },
     getSnapshot: () => logStore.getData(),
     clear: () => { logStore.clearPersisted(); },

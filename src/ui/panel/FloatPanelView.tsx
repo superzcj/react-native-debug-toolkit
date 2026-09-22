@@ -233,11 +233,16 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
 
   // Active feature + summary
   const activeFeature = features[activeTab];
-  const activeSnapshot = activeFeature?.getSnapshot();
-  const activeSummary = activeFeature ? buildFeatureSummary(activeFeature, activeSnapshot) : null;
+  let activeSnapshot: unknown;
+  let snapshotIssue: { path: string; message: string } | undefined;
+  try { activeSnapshot = activeFeature?.getSnapshot(); }
+  catch (error) {
+    snapshotIssue = { path: `${activeFeature?.name}.snapshot`, message: error instanceof Error ? error.message : String(error) };
+  }
+  const activeSummary = activeFeature && !snapshotIssue ? buildFeatureSummary(activeFeature, activeSnapshot) : null;
 
   // Filtered snapshot — reuse activeSnapshot to avoid double getSnapshot()
-  const filteredSnapshot = activeFeature
+  const filteredSnapshot = activeFeature && !snapshotIssue
     ? filterFeatureSnapshot(activeFeature, activeSnapshot, searchQuery, filterBad ? 'bad' : 'all')
     : null;
 
@@ -298,8 +303,9 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
                 >
                   {activeFeature && <View testID={`debug-page-${activeFeature.name}`} style={styles.contentContainer}>
                     <DebugErrorBoundary key={activeFeature.name} name={activeFeature.name}>
-                      <FeatureStatusView name={activeFeature.name} status={activeFeature.status} />
-                      {renderFeatureContent()}
+                      <FeatureStatusView name={activeFeature.name} status={snapshotIssue
+                        ? { phase: 'error', issues: [snapshotIssue] } : activeFeature.status} />
+                      {!snapshotIssue && renderFeatureContent()}
                     </DebugErrorBoundary>
                   </View>}
                 </Animated.View>

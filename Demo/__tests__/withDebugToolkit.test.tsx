@@ -50,6 +50,17 @@ test('class refs reach the original app instance', async () => {
   expect(ref.current?.value()).toBe('shop');
 });
 
+test('forwarded refs retain their declared handle and reach the app', async () => {
+  const App = React.forwardRef<{ value(): string }, { title: string }>((props, ref) => {
+    React.useImperativeHandle(ref, () => ({ value: () => props.title }), [props.title]);
+    return null;
+  });
+  const Wrapped = withDebugToolkit(App);
+  const ref = React.createRef<React.ComponentRef<typeof Wrapped>>();
+  await act(async () => { tree = create(<Wrapped title="forwarded" ref={ref} />); });
+  expect(ref.current?.value()).toBe('forwarded');
+});
+
 test('StrictMode cleanup and a refresh remount leave one current recorder', async () => {
   const Wrapped = withDebugToolkit(() => null);
   await act(async () => { tree = create(<React.StrictMode><Wrapped /></React.StrictMode>); });

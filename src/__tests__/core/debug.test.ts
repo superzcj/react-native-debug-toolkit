@@ -4,6 +4,7 @@ import { claimHost } from '../../core/host';
 import { debug } from '../../core/debug';
 import { FEATURE_KEYS, LOG_FEATURE_KEYS } from '../../core/featureCatalog';
 import { createDefaultLogStorage } from '../../utils/StorageAdapter';
+import type { HubClient } from '../../utils/HubClient';
 
 let release: (() => void) | undefined;
 beforeEach(() => {
@@ -85,6 +86,34 @@ test('copy records in the owning console and reports an unconfirmed Hub honestly
   expect(result.console.status).toBe('success');
   expect(result.hub.status).toBe('unavailable');
   expect(debug.getReport().logs.console).toEqual([expect.objectContaining({ data: ['Payload', 'copied text'] })]);
+});
+
+test('copy reports Hub success only after its console event is acknowledged', async () => {
+  let finish!: (value: Response) => void;
+  const fetch = jest.spyOn(global, 'fetch').mockImplementation(async url => String(url).endsWith('/events')
+    ? new Promise<Response>(resolve => { finish = resolve; })
+    : new Response(JSON.stringify({ ok: true, sessionId: 'copy-session', deviceId: 'device', expectedSequence: 1, ackThrough: 0 }), { status: 201 }));
+  NativeModules.DebugToolkitDevConnect.isDebugBuild = async () => false;
+  const host = mount({ enabled: true, connect: { appId: 'copy-app', endpoint: 'http://hub:3800' } });
+  try {
+    await debug.ready();
+    const client: HubClient = host.features.find(feature => feature.name === 'connect')!.getSnapshot().client;
+    client.connect({ live: true });
+    for (let i = 0; i < 30; i++) { await Promise.resolve(); }
+    expect(client.getStatus().state).toBe('connected');
+    let completed = false;
+    const copy = debug.copyToComputer('acknowledged copy', { label: 'Receipt' }).then(result => { completed = true; return result; });
+    for (let i = 0; i < 30; i++) { await Promise.resolve(); }
+    const eventCalls = fetch.mock.calls.filter(([url]) => String(url).endsWith('/events'));
+    expect(eventCalls).toHaveLength(1);
+    const request = fetch.mock.calls.find(([url]) => String(url).endsWith('/events'));
+    const body = JSON.parse(String(request?.[1]?.body)) as { events: Array<{ sequence: number; type: string; data: { data: string[] } }> };
+    expect(body.events).toEqual([expect.objectContaining({ type: 'console', data: expect.objectContaining({ data: ['Receipt', 'acknowledged copy'] }) })]);
+    expect(completed).toBe(false);
+    finish(new Response(JSON.stringify({ ok: true, ackThrough: body.events[0]!.sequence }), { status: 200 }));
+    expect((await copy).hub.status).toBe('success');
+    expect(debug.getReport().logs.console).toHaveLength(1);
+  } finally { host.dispose(); fetch.mockRestore(); }
 });
 
 test('explicit per-feature false removes only that page and its actions', async () => {
