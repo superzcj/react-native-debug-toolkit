@@ -55,6 +55,7 @@ test('source failure cancels just that subscription and preserves other pages', 
   let notify = () => {};
   const unsubscribe = jest.fn();
   const feature = createTabsFeature({ items: [
+    { id: 'disabled', title: 'Disabled', component, enabled: false },
     { id: 'source', title: 'Source', component, source: {
       getSnapshot: () => { if (fail) { throw new Error('source failed'); } return 1; },
       subscribe: (listener) => { notify = listener; return unsubscribe; },
@@ -66,7 +67,7 @@ test('source failure cancels just that subscription and preserves other pages', 
   fail = true; notify();
   expect(feature.getSnapshot().items[0]?.error).toBe('source failed');
   expect(feature.getSnapshot().items[1]?.error).toBeUndefined();
-  const errorStatus = { phase: 'error', issues: [{ path: 'tabs.items[0].source', message: 'source failed' }] };
+  const errorStatus = { phase: 'error', issues: [{ path: 'tabs.items[1].source', message: 'source failed' }] };
   expect(ctx.setStatus).toHaveBeenLastCalledWith(errorStatus);
   expect(feature.status).toEqual(errorStatus);
   expect(unsubscribe).toHaveBeenCalledTimes(1);
@@ -92,6 +93,43 @@ test.each(['getSnapshot', 'subscribe'] as const)('source %s failure publishes fe
   expect(feature.getSnapshot().items[0]?.error).toBe('initial source failure');
   expect(feature.getSnapshot().items[1]?.snapshot).toBe(42);
   expect(feature.getSnapshot().items[1]?.error).toBeUndefined();
+  feature.dispose();
+});
+
+test.each([
+  ['getSnapshot', false], ['subscribe', false], ['getSnapshot', true], ['subscribe', true],
+] as const)('source %s preserves the original item path after filtering (normalized input: %s)', (failure, normalizedInput) => {
+  let failed = true;
+  let healthyValue = 1;
+  let notifyHealthy = () => {};
+  const config = { items: [
+    { id: 'disabled', title: 'Disabled', component, enabled: false },
+    { id: 'bad', title: 'Bad', component, source: {
+      getSnapshot: () => { if (failed && failure === 'getSnapshot') { throw new Error('source failed'); } return 2; },
+      subscribe: () => { if (failed && failure === 'subscribe') { throw new Error('source failed'); } return () => {}; },
+    } },
+    { id: 'good', title: 'Good', component, source: {
+      getSnapshot: () => healthyValue,
+      subscribe: (listener: () => void) => { notifyHealthy = listener; return () => {}; },
+    } },
+  ] };
+  const parsed = normalizeConfig({ tabs: config }).features.tabs;
+  expect(parsed.issues).toEqual([]);
+  expect(parsed.options.items).toHaveLength(2);
+  const feature = createTabsFeature(normalizedInput ? parsed.options : config);
+  const ctx = context();
+  feature.start(ctx);
+  const errorStatus = { phase: 'error', issues: [{ path: 'tabs.items[1].source', message: 'source failed' }] };
+  expect(feature.status).toEqual(errorStatus);
+  expect(ctx.setStatus).toHaveBeenLastCalledWith(errorStatus);
+  healthyValue = 3; notifyHealthy();
+  expect(feature.getSnapshot().items[1]?.snapshot).toBe(3);
+  expect(feature.status).toEqual(errorStatus);
+  feature.dispose();
+  failed = false;
+  feature.start(ctx);
+  expect(feature.status).toEqual({ phase: 'ready', issues: [] });
+  expect(feature.getSnapshot().items[0]?.error).toBeUndefined();
   feature.dispose();
 });
 

@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { normalizeConfig } from '../../core/config';
+import { getTabItemPath, normalizeConfig } from '../../core/config';
 import type { ConfigIssue } from '../../core/config';
 import type { FeatureContext, FeatureDriver } from '../../core/runtimeTypes';
 import type { DebugTab } from '../../types/config';
@@ -104,7 +104,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
             onError(error) {
               if (!current()) { return; }
               const reason = message(error);
-              sourceIssues.push({ path: `tabs.items[${index}].source`, message: reason });
+              sourceIssues.push({ path: `${getTabItemPath(item, index)}.source`, message: reason });
               update(item.id, { error: reason });
               publishStatus();
             },

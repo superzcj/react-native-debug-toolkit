@@ -4,6 +4,13 @@ import type { FeatureKey } from './featureCatalog';
 
 export interface ConfigIssue { path: string; message: string }
 
+// Keep provenance outside public configuration fields and preserve it when the
+// host passes already-normalized descriptors through a feature's own parser.
+const tabItemPaths = new WeakMap<object, string>();
+export function getTabItemPath(item: object, index: number): string {
+  return tabItemPaths.get(item) ?? `tabs.items[${index}]`;
+}
+
 export type NormalizedFeature = {
   key: FeatureKey;
   enabled: boolean;
@@ -164,7 +171,7 @@ function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
             const ids = new Set<string>(FEATURE_KEYS);
             const items: unknown[] = [];
             Array.from(value).forEach((item: unknown, index: number) => {
-              const itemPath = `tabs.items[${index}]`;
+              const itemPath = isRecord(item) ? getTabItemPath(item, index) : `tabs.items[${index}]`;
               if (isRecord(item) && item.enabled === false) { return; }
               if (!isConfigObject(item)) {
                 issues.push({ path: itemPath, message: 'Expected a custom page configuration object.' }); return;
@@ -192,7 +199,9 @@ function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
               }
               if (item.source !== undefined && !isSource(item.source)) { issues.push({ path: `${itemPath}.source`, message: 'Expected a source.' }); }
               if (item.enabled !== undefined && typeof item.enabled !== 'boolean') { issues.push({ path: `${itemPath}.enabled`, message: 'Expected a boolean.' }); }
-              items.push(Object.freeze({ ...item }));
+              const normalizedItem = Object.freeze({ ...item });
+              tabItemPaths.set(normalizedItem, itemPath);
+              items.push(normalizedItem);
             });
             options.items = Object.freeze(items);
           } else if (!validField(key, field, value)) {
