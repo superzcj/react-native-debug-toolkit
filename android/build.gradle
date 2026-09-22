@@ -18,6 +18,10 @@ android {
   namespace 'com.reactnativedebugtoolkit'
   compileSdkVersion safeExtGet('compileSdkVersion', 35)
 
+  buildFeatures {
+    buildConfig true
+  }
+
   defaultConfig {
     minSdkVersion safeExtGet('minSdkVersion', 23)
     targetSdkVersion safeExtGet('targetSdkVersion', 35)
