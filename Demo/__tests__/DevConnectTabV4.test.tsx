@@ -85,6 +85,20 @@ describe('DevConnectTabV4 Upload Once', () => {
     delete (globalThis as unknown as { fetch?: typeof fetchMock }).fetch;
   });
 
+  it('displays missing identity and the current App and Session', async () => {
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<DevConnectTabV4 snapshot={{ ...snapshot, appId: null, reason: 'Set connect.appId' }} feature={feature} />);
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('Set connect.appId');
+    await ReactTestRenderer.act(async () => {
+      renderer.update(<DevConnectTabV4 snapshot={snapshot} feature={feature} />);
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('com.example.audit');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Session:');
+    await ReactTestRenderer.act(async () => { renderer.unmount(); });
+  });
+
   it('retries an unreachable Hub instead of opening iOS Settings', async () => {
     hubClient.configure({
       appId: 'com.example.audit',

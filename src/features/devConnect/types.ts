@@ -1,18 +1,24 @@
-/** Shared Hub configuration supplied through DebugView.features.devConnect. */
+import type { HubClient } from '../../utils/HubClient';
+
+/** Unified Connect object configuration. */
 export interface DevConnectV4Config {
   /** Stable organization-wide product identifier. */
-  appId: string;
+  appId?: string;
   /**
    * Default Hub HTTP origin from the host App.
    * Optional in Debug builds (auto-discovery can find the local Hub).
-   * Required for Release/internal builds that explicitly enable Toolkit.
+   * Release builds require a configured or manually entered address to upload.
    */
   endpoint?: string;
 }
 
 export interface DevConnectV4State {
-  appId: string;
+  appId: string | null;
   canonicalEndpoint: string;
   configuredEndpoint: string;
   subnetPrefix: string | null;
+  reason?: string;
+  client?: HubClient;
+  resolveEndpoint?: () => Promise<string | null>;
+  isCurrent?: () => boolean;
 }

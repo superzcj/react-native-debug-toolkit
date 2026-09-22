@@ -74,6 +74,75 @@ const openBody = {
 };
 
 describe('HubClient transport', () => {
+  it('does not install a heartbeat after a connected observer disconnects the client', async () => {
+    jest.useFakeTimers();
+    const client = new HubClient({ fetch: jest.fn().mockResolvedValue(response(201, openBody)), featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.setOnStatusChange(status => { if (status.state === 'connected') { client.disconnect(); } });
+    client.connect();
+    await flushPromises();
+    expect(client.isActive()).toBe(false);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  it('uses the resolved native Release mode for one-shot uploads', async () => {
+    const fetch = jest.fn().mockResolvedValue(response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.setDebugBuild(false);
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    await client.syncNow();
+    expect(client.isSyncPaused()).toBe(true);
+    client.disconnect();
+  });
+
+  it('aborts an old endpoint request and keeps its late result out of the replacement session', async () => {
+    jest.useFakeTimers();
+    let finish!: (value: ReturnType<typeof response>) => void;
+    const fetch = jest.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+      .mockResolvedValue(response(201, { ...openBody, sessionId: 'new-session' }));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://original:3800' });
+    client.connect();
+    await flushPromises();
+    const oldSignal = fetch.mock.calls[0][1].signal;
+    client.setRuntimeEndpoint('http://replacement:3800');
+    await flushPromises();
+    finish(response(201, { ...openBody, sessionId: 'stale-session' }));
+    await flushPromises();
+    expect(oldSignal.aborted).toBe(true);
+    expect(client.getStatus().session?.sessionId).toBe('new-session');
+    expect(fetch.mock.calls[1][0]).toContain('http://replacement:3800/');
+    client.disconnect();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  it('keeps configured endpoints above discovered endpoints', () => {
+    const client = new HubClient({ featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://configured:3800' });
+    client.setDiscoveredEndpoint('http://automatic:3800');
+    expect(client.getEffectiveEndpoint()).toBe('http://configured:3800');
+    client.setRuntimeEndpoint('http://manual:3800');
+    expect(client.getEffectiveEndpoint()).toBe('http://manual:3800');
+    client.clearRuntimeEndpoint();
+    expect(client.getEffectiveEndpoint()).toBe('http://configured:3800');
+  });
+
+  it('ignores and aborts a session response completed after disconnect', async () => {
+    jest.useFakeTimers();
+    let finish!: (value: ReturnType<typeof response>) => void;
+    const fetch = jest.fn(() => new Promise<ReturnType<typeof response>>(resolve => { finish = resolve; }));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect();
+    await flushPromises();
+    const signal = (fetch.mock.calls[0] as unknown as [string, { signal: AbortSignal }])[1].signal;
+    client.disconnect();
+    expect(signal.aborted).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
+    finish(response(201, openBody));
+    await flushPromises();
+    expect(client.getStatus().session).toBeNull();
+    expect(jest.getTimerCount()).toBe(0);
+  });
   afterEach(() => {
     // @ts-expect-error __DEV__ is a React Native global
     global.__DEV__ = true;

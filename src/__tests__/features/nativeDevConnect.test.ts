@@ -4,9 +4,16 @@ import {
   getDeviceLocalIp,
   isNativeDevConnectAvailable,
   nativeIsDebugBuild,
+  resolveAppId,
 } from '../../features/devConnect/nativeDevConnect';
 
 describe('nativeDevConnect', () => {
+  it('prefers explicit app identity and never invents a fallback', () => {
+    expect(resolveAppId('product', 'com.native.app')).toBe('product');
+    expect(resolveAppId(undefined, 'com.native.app')).toBe('com.native.app');
+    expect(resolveAppId(undefined, undefined)).toBeNull();
+    expect(resolveAppId(' ', 'com.native.app')).toBeNull();
+  });
   beforeEach(() => {
     delete NativeModules.DebugToolkitDevConnect;
   });

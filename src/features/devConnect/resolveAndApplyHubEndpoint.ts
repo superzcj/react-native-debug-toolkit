@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { hubClient } from '../../utils/HubClient';
+import { hubClient, type HubClient } from '../../utils/HubClient';
 import {
   probeHubReady,
   resolveHubEndpoint,
@@ -11,22 +11,30 @@ function isDevRuntime(): boolean {
 
 export async function resolveAndApplyHubEndpoint(
   configuredEndpoint?: string | null,
+  options: { client?: HubClient; signal?: AbortSignal; isCurrent?: () => boolean; isDev?: boolean } = {},
 ): Promise<string | null> {
+  const client = options.client ?? hubClient;
+  const manual = client.getRuntimeEndpoint();
+  const current = () => !options.signal?.aborted && (options.isCurrent?.() ?? true)
+    && manual === client.getRuntimeEndpoint();
+  if (!current()) { return null; }
   const result = await resolveHubEndpoint({
-    isDev: isDevRuntime(),
+    isDev: options.isDev ?? isDevRuntime(),
+    signal: options.signal,
     platform: Platform.OS,
-    runtimeOverride: hubClient.getRuntimeEndpoint(),
-    configuredEndpoint: configuredEndpoint ?? hubClient.getConfiguredEndpoint(),
-    probeReady: (endpoint) => probeHubReady(endpoint),
+    runtimeOverride: manual,
+    configuredEndpoint: configuredEndpoint ?? client.getConfiguredEndpoint(),
+    probeReady: (endpoint) => probeHubReady(endpoint, { signal: options.signal }),
   });
 
+  if (!current()) { return null; }
   if (!result.endpoint) {
-    hubClient.markDiscoveryFailed(result.attempted);
+    client.markDiscoveryFailed(result.attempted);
     return null;
   }
 
-  if (!hubClient.getRuntimeEndpoint()) {
-    hubClient.setDiscoveredEndpoint(result.endpoint);
+  if (!manual && !configuredEndpoint && !client.getConfiguredEndpoint()) {
+    client.setDiscoveredEndpoint(result.endpoint);
   }
 
   return result.endpoint;

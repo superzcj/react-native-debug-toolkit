@@ -1,5 +1,10 @@
 import { NativeModules } from 'react-native';
 
+export function resolveAppId(explicit: string | undefined, nativeApplicationId: string | undefined): string | null {
+  const value = explicit ?? nativeApplicationId;
+  return typeof value === 'string' && /^[A-Za-z0-9._-]{1,128}$/.test(value) ? value : null;
+}
+
 interface DebugToolkitDevConnectNativeModule {
   isDebugBuild?: () => Promise<boolean>;
   getLocalIp?: () => Promise<string | null>;
@@ -18,7 +23,7 @@ export interface NativeAppInfo {
 
 function getNativeModule(): DebugToolkitDevConnectNativeModule | null {
   const nativeModule = NativeModules.DebugToolkitDevConnect as Partial<DebugToolkitDevConnectNativeModule> | undefined;
-  if (nativeModule && typeof nativeModule.isDebugBuild === 'function') {
+  if (nativeModule) {
     return nativeModule as DebugToolkitDevConnectNativeModule;
   }
   return null;

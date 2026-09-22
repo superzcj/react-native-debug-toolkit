@@ -16,6 +16,7 @@ export type HubReadyPayload = {
 export type ProbeReady = (endpoint: string) => Promise<HubReadyPayload | null>;
 
 export type ResolveHubEndpointOptions = {
+  signal?: AbortSignal;
   isDev: boolean;
   platform?: string;
   runtimeOverride?: string | null;
@@ -28,6 +29,15 @@ export type ResolveHubEndpointResult = {
   endpoint: string | null;
   attempted: string[];
 };
+
+export function selectEndpoint(input: { manual?: string; configured?: string; automatic?: string }): {
+  endpoint: string; origin: 'manual' | 'configured' | 'automatic';
+} | null {
+  for (const origin of ['manual', 'configured', 'automatic'] as const) {
+    if (input[origin]) { return { endpoint: input[origin], origin }; }
+  }
+  return null;
+}
 
 export function isCompatibleHubReadyPayload(payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') {
@@ -53,12 +63,12 @@ export function buildHubEndpointCandidates(options: {
   configuredEndpoint?: string | null;
   metroHost?: string | null;
 }): string[] {
-  const runtime = normalizeHubEndpoint(options.runtimeOverride || '') || null;
-  if (runtime) {
-    return [runtime];
+  const explicit = selectEndpoint({ manual: options.runtimeOverride ?? undefined, configured: options.configuredEndpoint ?? undefined });
+  if (explicit) {
+    const normalized = normalizeHubEndpoint(explicit.endpoint);
+    return normalized ? [normalized] : [];
   }
 
-  const configured = normalizeHubEndpoint(options.configuredEndpoint || '') || null;
   const candidates: string[] = [];
 
   if (options.isDev) {
@@ -74,7 +84,6 @@ export function buildHubEndpointCandidates(options: {
     }
   }
 
-  pushUnique(candidates, configured);
   return candidates;
 }
 
@@ -96,9 +105,11 @@ export async function resolveHubEndpoint(
 
   const attempted: string[] = [];
   for (const candidate of candidates) {
+    if (options.signal?.aborted) { break; }
     attempted.push(candidate);
     try {
       const payload = await options.probeReady(candidate);
+      if (options.signal?.aborted) { break; }
       if (isCompatibleHubReadyPayload(payload)) {
         return { endpoint: candidate, attempted };
       }
@@ -123,6 +134,7 @@ export async function probeHubReady(
     fetch?: FetchLike;
     timeoutMs?: number;
     AbortController?: AbortControllerCtor;
+    signal?: AbortSignal;
   },
 ): Promise<HubReadyPayload | null> {
   const fetchImpl = deps?.fetch
@@ -131,33 +143,36 @@ export async function probeHubReady(
     ?? (globalThis as { AbortController?: AbortControllerCtor }).AbortController;
   const timeoutMs = deps?.timeoutMs ?? HUB_READY_TIMEOUT_MS;
 
-  if (typeof fetchImpl !== 'function') {
+  if (typeof fetchImpl !== 'function' || deps?.signal?.aborted) {
     return null;
   }
 
   let controller: { abort: () => void; signal: unknown } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let cancel!: () => void;
+  const cancelled = new Promise<null>(resolve => { cancel = () => { controller?.abort(); resolve(null); }; });
   try {
     if (typeof AbortControllerImpl === 'function') {
       controller = new AbortControllerImpl();
-      timer = setTimeout(() => controller?.abort(), timeoutMs);
     }
+    timer = setTimeout(cancel, timeoutMs);
+    deps?.signal?.addEventListener('abort', cancel, { once: true });
+    return await Promise.race([cancelled, (async () => {
+      const response = await fetchImpl(`${endpoint}/ready`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller?.signal,
+      });
 
-    const response = await fetchImpl(`${endpoint}/ready`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal: controller?.signal,
-    });
+      if (!response.ok) { return null; }
 
-    if (!response.ok) {
-      return null;
-    }
-
-    const body = await response.json();
-    return body && typeof body === 'object' ? body as HubReadyPayload : null;
+      const body = await response.json();
+      return body && typeof body === 'object' ? body as HubReadyPayload : null;
+    })()]);
   } catch {
     return null;
   } finally {
+    deps?.signal?.removeEventListener('abort', cancel);
     if (timer) {
       clearTimeout(timer);
     }

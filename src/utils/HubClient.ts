@@ -169,6 +169,11 @@ export interface HubClientOptions {
 }
 
 export class HubClient {
+  private _debugBuild: boolean | undefined;
+  private _generation = 0;
+  private _requests = new Set<() => void>();
+  private _statusListeners = new Set<(status: HubStatus) => void>();
+  private _endpointListeners = new Set<() => void>();
   private _config: HubConfig | null = null;
   private _runtimeEndpoint: string | null = null;
   private _discoveredEndpoint: string | null = null;
@@ -219,7 +224,16 @@ export class HubClient {
 
   // ---- Configuration ----
 
+  setDebugBuild(value: boolean): void { this._debugBuild = value; }
+
+  private _isDebugBuild(): boolean { return this._debugBuild ?? isDevRuntime(); }
+
   configure(config: HubConfig): void {
+    this.disconnect();
+    this._config = null;
+    this._runtimeEndpoint = null;
+    this._discoveredEndpoint = null;
+    this._lastError = undefined;
     if (!isValidAppId(config.appId)) {
       this._state = 'invalid_config';
       this._emitStatus();
@@ -240,7 +254,7 @@ export class HubClient {
     if (endpoint) {
       addToBlacklist(endpoint);
     }
-    this._syncPaused = !isDevRuntime();
+    this._syncPaused = !this._isDebugBuild();
     this._state = this._syncPaused ? 'paused' : 'connecting';
     this._emitStatus();
   }
@@ -257,6 +271,7 @@ export class HubClient {
       // Endpoint changed: flush old, create new session
       this._flushAndSwitchEndpoint();
     }
+    this._endpointListeners.forEach(listener => listener());
   }
 
   clearRuntimeEndpoint(): void {
@@ -267,6 +282,7 @@ export class HubClient {
     if (oldEndpoint && oldEndpoint !== newEndpoint && this._active) {
       this._flushAndSwitchEndpoint();
     }
+    this._endpointListeners.forEach(listener => listener());
   }
 
   setDiscoveredEndpoint(value: string | null): void {
@@ -277,7 +293,7 @@ export class HubClient {
       addToBlacklist(normalized);
     }
 
-    if (oldEndpoint && normalized && oldEndpoint !== normalized && this._active) {
+    if (oldEndpoint && this.getEffectiveEndpoint() !== oldEndpoint && this._active) {
       this._flushAndSwitchEndpoint();
     } else if (!normalized && oldEndpoint && !this._runtimeEndpoint && this._active) {
       // Discovery cleared while active: keep using previous session until reconnect.
@@ -293,7 +309,17 @@ export class HubClient {
   }
 
   getEffectiveEndpoint(): string | null {
-    return this._runtimeEndpoint || this._discoveredEndpoint || this._config?.endpoint || null;
+    return this._runtimeEndpoint || this._config?.endpoint || this._discoveredEndpoint || null;
+  }
+
+  subscribeStatus(listener: (status: HubStatus) => void): () => void {
+    this._statusListeners.add(listener);
+    return () => { this._statusListeners.delete(listener); };
+  }
+
+  subscribeEndpoint(listener: () => void): () => void {
+    this._endpointListeners.add(listener);
+    return () => { this._endpointListeners.delete(listener); };
   }
 
   markDiscoveryFailed(attempted: string[]): void {
@@ -322,10 +348,11 @@ export class HubClient {
       return;
     }
 
-    const live = options?.live ?? isDevRuntime();
+    const live = options?.live ?? this._isDebugBuild();
     this._syncPaused = !live;
 
     this._active = true;
+    this._generation++;
     this._sessionId = generateUUIDv4();
     this._nextSequence = 1;
     this._ackThrough = 0;
@@ -356,8 +383,8 @@ export class HubClient {
   }
 
   disconnect(): void {
-    if (!this._active) return;
     this._active = false;
+    this._invalidateRequests();
     this._clearTimers();
     this._featureUnsubscribes.forEach(fn => fn());
     this._featureUnsubscribes = [];
@@ -369,6 +396,8 @@ export class HubClient {
     this._inFlight = [];
     this._pendingBytes = 0;
     this._inFlightBytes = 0;
+    this._lastFeatureIds.clear();
+    this._dirtyFeatures.clear();
     this._state = 'invalid_config';
     this._emitStatus();
   }
@@ -407,15 +436,18 @@ export class HubClient {
   isSyncPaused(): boolean { return this._syncPaused; }
 
   async syncNow(): Promise<void> {
-    const pauseAfterSync = !isDevRuntime() || this._syncPaused;
+    const pauseAfterSync = !this._isDebugBuild() || this._syncPaused;
     if (!this._active) {
       this.connect({ live: true });
     } else {
       this._syncPaused = false;
     }
+    const generation = this._generation;
     await this._ensureSession();
+    if (!this._current(generation) || !this._session) { return; }
     this._snapshotFeatures();
     await this._doFlush();
+    if (!this._current(generation)) { return; }
     if (pauseAfterSync && this._state === 'connected') {
       this.pauseSync();
     }
@@ -448,11 +480,13 @@ export class HubClient {
   }
 
   private async _openSessionInternal(): Promise<void> {
+    const generation = this._generation;
     const endpoint = this.getEffectiveEndpoint();
     const appId = this._config?.appId;
-    if (!endpoint || !appId || !this._sessionId) return;
+    if (!this._active || !endpoint || !appId || !this._sessionId) return;
 
     const device = await this._getDeviceInfo();
+    if (!this._current(generation)) { return; }
     const body = {
       protocolVersion: PROTOCOL_VERSION,
       canonicalVersion: CANONICAL_VERSION,
@@ -467,6 +501,8 @@ export class HubClient {
         `${endpoint}${API_PREFIX}/apps/${encodeURIComponent(appId)}/sessions`,
         body,
       );
+
+      if (!this._current(generation)) { return; }
 
       if (!response) {
         this._state = 'hub_unreachable';
@@ -503,6 +539,7 @@ export class HubClient {
       }
 
       const data = await response.json?.() as Record<string, unknown> | undefined;
+      if (!this._current(generation)) { return; }
       if (!data?.ok) {
         this._state = 'hub_unreachable';
         this._emitStatus();
@@ -520,6 +557,7 @@ export class HubClient {
 
       this._state = this._syncPaused ? 'paused' : 'connected';
       this._emitStatus();
+      if (!this._current(generation)) { return; }
 
       this._startHeartbeat();
       if (!this._syncPaused) {
@@ -527,6 +565,7 @@ export class HubClient {
         this._scheduleFlush();
       }
     } catch {
+      if (!this._current(generation)) { return; }
       this._state = 'hub_unreachable';
       this._emitStatus();
       this._scheduleRetry();
@@ -637,7 +676,7 @@ export class HubClient {
   // ---- Private: Flush ----
 
   private _scheduleFlush(): void {
-    if (this._flushTimer) return;
+    if (!this._active || this._flushTimer) return;
     this._flushTimer = setTimeout(() => {
       this._flushTimer = null;
       this._doFlush();
@@ -645,6 +684,7 @@ export class HubClient {
   }
 
   private async _doFlush(): Promise<void> {
+    const generation = this._generation;
     if (this._sending || !this._active || !this._session) return;
     if (this._syncPaused) return;
 
@@ -721,11 +761,14 @@ export class HubClient {
         },
       );
 
+      if (!this._current(generation)) { return; }
+
       if (!response || !response.ok) {
         const status = response?.status;
         if (status === 409) {
           // May need to re-open session
           await this._openSession();
+          if (!this._current(generation)) { return; }
         } else if (status === 507) {
           this._state = 'storage_full';
           this._emitStatus();
@@ -736,6 +779,7 @@ export class HubClient {
       }
 
       const data = await response.json?.() as Record<string, unknown> | undefined;
+      if (!this._current(generation)) { return; }
       if (data?.ok) {
         const ackThrough = data.ackThrough as number;
         this._ackThrough = Math.max(this._ackThrough, ackThrough);
@@ -750,10 +794,10 @@ export class HubClient {
         }
       }
     } catch {
-      this._scheduleRetry();
+      if (this._current(generation)) { this._scheduleRetry(); }
     } finally {
-      this._sending = false;
-      if ((this._pending.length > 0 || this._inFlight.length > 0) &&
+      if (this._current(generation)) { this._sending = false; }
+      if (this._current(generation) && (this._pending.length > 0 || this._inFlight.length > 0) &&
           !this._syncPaused && !this._retryTimer) {
         this._scheduleFlush();
       }
@@ -763,6 +807,7 @@ export class HubClient {
   // ---- Private: Heartbeat ----
 
   private _startHeartbeat(): void {
+    if (!this._active) { return; }
     this._stopHeartbeat();
     const jitter = Math.random() * 2000;
     this._heartbeatTimer = setInterval(() => this._sendHeartbeat(), HEARTBEAT_INTERVAL_MS + jitter);
@@ -776,6 +821,7 @@ export class HubClient {
   }
 
   private async _sendHeartbeat(): Promise<void> {
+    const generation = this._generation;
     if (!this._active || !this._session) return;
 
     const endpoint = this.getEffectiveEndpoint();
@@ -792,7 +838,7 @@ export class HubClient {
         },
       );
 
-      if (response?.status === 409) {
+      if (this._current(generation) && response?.status === 409) {
         await this._openSession();
       }
     } catch {
@@ -803,7 +849,8 @@ export class HubClient {
   // ---- Private: Retry ----
 
   private _scheduleRetry(): void {
-    if (this._retryTimer) return;
+    if (!this._active || this._retryTimer) return;
+    const generation = this._generation;
     const delay = Math.min(RETRY_BASE_MS * (2 ** this._retryAttempt), MAX_RETRY_DELAY_MS);
     const jitter = Math.random() * delay * 0.2;
     this._retryAttempt++;
@@ -813,6 +860,7 @@ export class HubClient {
       this._emitStatus();
     }
 
+    if (!this._current(generation)) { return; }
     this._retryTimer = setTimeout(() => {
       this._retryTimer = null;
       if (!this._active) return;
@@ -827,8 +875,13 @@ export class HubClient {
   // ---- Private: Endpoint Switch ----
 
   private _flushAndSwitchEndpoint(): void {
-    // Try to flush to old hub
-    this._doFlush().catch(() => {});
+    // Invalidate old traffic before opening a session at the selected endpoint.
+    this._invalidateRequests();
+    this._clearTimers();
+    this._pending = [];
+    this._pendingBytes = 0;
+    this._lastFeatureIds.clear();
+    this._dirtyFeatures.clear();
 
     // Discard in-flight for old hub
     this._inFlight = [];
@@ -878,27 +931,33 @@ export class HubClient {
         ? new GlobalAbortController()
         : undefined;
 
-    const timeout = controller
-      ? setTimeout(() => controller.abort(), 10000)
-      : undefined;
+    let cancel!: () => void;
+    const cancelled = new Promise<null>(resolve => { cancel = () => { controller?.abort(); clearTimeout(timeout); resolve(null); }; });
+    const timeout = setTimeout(cancel, 10000);
+    this._requests.add(cancel);
 
     try {
-      return await fetchImpl(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // React Native on iOS may otherwise replay a cached POST response
-          // after a Hub restart.
-          'Cache-Control': 'no-store',
-          Pragma: 'no-cache',
-        },
-        body: safeStringify(body) || '{}',
-        signal: controller?.signal,
-      });
+      return await Promise.race([cancelled, (async () => {
+        const response = await fetchImpl(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // React Native on iOS may otherwise replay a cached POST response
+            // after a Hub restart.
+            'Cache-Control': 'no-store',
+            Pragma: 'no-cache',
+          },
+          body: safeStringify(body) || '{}',
+          signal: controller?.signal,
+        });
+        const data = await response.json?.();
+        return { ok: response.ok, status: response.status, json: async () => data };
+      })()]);
     } catch {
       return null;
     } finally {
       if (timeout) clearTimeout(timeout);
+      this._requests.delete(cancel);
     }
   }
 
@@ -928,6 +987,17 @@ export class HubClient {
 
   private _emitStatus(): void {
     try { this._onStatusChange?.(this.getStatus()); } catch { /* ignore */ }
+    this._statusListeners.forEach(listener => { try { listener(this.getStatus()); } catch { /* isolated observer */ } });
+  }
+
+  private _current(generation: number): boolean { return this._active && generation === this._generation; }
+
+  private _invalidateRequests(): void {
+    this._generation++;
+    this._requests.forEach(cancel => cancel());
+    this._requests.clear();
+    this._openSessionPromise = null;
+    this._sending = false;
   }
 
   // ---- Private: Cleanup ----
@@ -946,6 +1016,7 @@ export class HubClient {
     this._runtimeEndpoint = null;
     this._discoveredEndpoint = null;
     this._lastError = undefined;
+    this._debugBuild = undefined;
   }
 }
 

@@ -2,6 +2,8 @@ import {
   buildHubEndpointCandidates,
   isCompatibleHubReadyPayload,
   resolveHubEndpoint,
+  selectEndpoint,
+  probeHubReady,
 } from '../../utils/HubEndpointResolver';
 
 describe('HubEndpointResolver', () => {
@@ -13,8 +15,6 @@ describe('HubEndpointResolver', () => {
       configuredEndpoint: 'http://10.20.4.10:3800',
       metroHost: '172.31.23.67',
     })).toEqual([
-      'http://172.31.23.67:3800',
-      'http://10.0.2.2:3800',
       'http://10.20.4.10:3800',
     ]);
 
@@ -73,7 +73,7 @@ describe('HubEndpointResolver', () => {
       isDev: true,
       platform: 'android',
       runtimeOverride: null,
-      configuredEndpoint: 'http://10.20.4.10:3800',
+      configuredEndpoint: null,
       getMetroHost: () => '172.31.23.67',
       probeReady,
     });
@@ -101,9 +101,39 @@ describe('HubEndpointResolver', () => {
     expect(result).toEqual({
       endpoint: null,
       attempted: [
-        'http://127.0.0.1:3800',
         'http://10.20.4.10:3800',
       ],
     });
+  });
+
+  it.each([
+    [{ manual: 'manual', configured: 'configured', automatic: 'auto' }, 'manual', 'manual'],
+    [{ configured: 'configured', automatic: 'auto' }, 'configured', 'configured'],
+    [{ automatic: 'auto' }, 'auto', 'automatic'],
+  ])('selects exactly one address source: %j', (input, endpoint, origin) => {
+    expect(selectEndpoint(input)).toEqual({ endpoint, origin });
+  });
+
+  it('does not fallback when an explicit address is invalid or unreachable', async () => {
+    const probeReady = jest.fn(async () => null);
+    expect(buildHubEndpointCandidates({ isDev: true, platform: 'ios', configuredEndpoint: 'https://invalid/path' })).toEqual([]);
+    const result = await resolveHubEndpoint({ isDev: true, configuredEndpoint: 'http://bad:3800', probeReady });
+    expect(result.attempted).toEqual(['http://bad:3800']);
+    expect(selectEndpoint({})).toBeNull();
+  });
+
+  it('aborts a pending ready probe and clears its deadline', async () => {
+    jest.useFakeTimers();
+    const owner = new AbortController();
+    let signal: AbortSignal | undefined;
+    const pending = probeHubReady('http://host:3800', {
+      signal: owner.signal,
+      fetch: async (_url, init) => { signal = init?.signal as AbortSignal; return new Promise(() => {}); },
+    });
+    owner.abort();
+    await expect(pending).resolves.toBeNull();
+    expect(signal?.aborted).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
+    jest.useRealTimers();
   });
 });

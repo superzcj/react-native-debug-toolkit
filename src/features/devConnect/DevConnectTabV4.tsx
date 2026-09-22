@@ -60,6 +60,15 @@ const STATE_LABEL_KEYS: Record<HubConnectionState, TranslationKey | null> = {
 };
 
 export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnectV4State>) {
+  const client = snapshot.client ?? hubClient;
+  const { appId, resolveEndpoint: resolveFromSnapshot, isCurrent: isOwnerCurrent } = snapshot;
+  const mounted = useRef(true);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const current = useCallback(() => mounted.current && (isOwnerCurrent?.() ?? true), [isOwnerCurrent]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; clearTimeout(blurTimer.current); };
+  }, []);
   const canonicalEndpoint = snapshot.canonicalEndpoint;
   const octetRef = useRef<TextInput>(null);
   const portRef = useRef<TextInput>(null);
@@ -71,7 +80,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   const fieldsRef = useRef(fields);
   fieldsRef.current = fields;
   const [inputError, setInputError] = useState<string | null>(null);
-  const [status, setStatus] = useState<HubStatus>(hubClient.getStatus());
+  const [status, setStatus] = useState<HubStatus>(client.getStatus());
   const [syncing, setSyncing] = useState(false);
 
   const replaceFields = useCallback((next: HubAddressFields) => {
@@ -84,17 +93,18 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       return;
     }
     replaceFields(splitHubAddressFields(
-      hubClient.getEffectiveEndpoint() || canonicalEndpoint || '',
+      client.getEffectiveEndpoint() || canonicalEndpoint || '',
       snapshot.subnetPrefix,
     ));
-  }, [canonicalEndpoint, replaceFields, snapshot.subnetPrefix, status.state]);
+  }, [client, canonicalEndpoint, replaceFields, snapshot.subnetPrefix, status.state]);
 
   useEffect(() => {
-    hubClient.setOnStatusChange(setStatus);
-    return () => hubClient.setOnStatusChange(undefined);
-  }, []);
+    setStatus(client.getStatus());
+    return client.subscribeStatus(setStatus);
+  }, [client]);
 
   const applyRawInput = useCallback(async (raw: string) => {
+    if (!current()) { return; }
     const submission = resolveHubAddressSubmission(
       raw,
       snapshot.configuredEndpoint,
@@ -102,7 +112,8 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     );
     if (submission.kind === 'clear') {
       await removePreference(KEYS.hubEndpoint);
-      hubClient.clearRuntimeEndpoint();
+      if (!current()) { return; }
+      client.clearRuntimeEndpoint();
       setInputError(null);
       replaceFields(splitHubAddressFields(submission.fallbackEndpoint, snapshot.subnetPrefix));
       return;
@@ -117,9 +128,10 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
     }
     setInputError(null);
     await setPreference(KEYS.hubEndpoint, submission.endpoint);
-    hubClient.setRuntimeEndpoint(submission.endpoint);
+    if (!current()) { return; }
+    client.setRuntimeEndpoint(submission.endpoint);
     replaceFields(splitHubAddressFields(submission.endpoint, snapshot.subnetPrefix));
-  }, [replaceFields, snapshot.configuredEndpoint, snapshot.subnetPrefix]);
+  }, [client, current, replaceFields, snapshot.configuredEndpoint, snapshot.subnetPrefix]);
 
   const handleEndpointSubmit = useCallback(() => {
     void applyRawInput(composeHubAddressInput(fieldsRef.current));
@@ -127,7 +139,9 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
 
   const handleInputBlur = useCallback(() => {
     focusedRef.current = false;
-    setTimeout(() => {
+    clearTimeout(blurTimer.current);
+    blurTimer.current = setTimeout(() => {
+      if (!current()) { return; }
       if (focusedRef.current) {
         return;
       }
@@ -137,7 +151,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       }
       void applyRawInput(composeHubAddressInput(fieldsRef.current));
     }, 50);
-  }, [applyRawInput]);
+  }, [applyRawInput, current]);
 
   const handleRecommendationPress = useCallback((
     recommendation: { kind: 'subnet' | 'configured'; value: string },
@@ -157,33 +171,36 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
   }, [applyRawInput, replaceFields]);
 
   const handleSyncNow = useCallback(async () => {
-    if (status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
+    if (!current() || !appId || status.state === 'protocol_mismatch' || status.state === 'invalid_config') return;
 
     setSyncing(true);
     try {
-      if (!hubClient.getEffectiveEndpoint()) {
-        const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
+      if (!client.getEffectiveEndpoint()) {
+        const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null));
         if (!resolved) return;
       }
-      await hubClient.syncNow();
+      if (!current()) { return; }
+      await client.syncNow();
     } finally {
-      setSyncing(false);
+      if (current()) { setSyncing(false); }
     }
-  }, [canonicalEndpoint, status.state]);
+  }, [client, current, appId, resolveFromSnapshot, canonicalEndpoint, status.state]);
 
   const handleTogglePause = useCallback(() => {
     void (async () => {
-      if (hubClient.isSyncPaused() || !hubClient.isActive()) {
-        if (!hubClient.getEffectiveEndpoint()) {
-          const resolved = await resolveAndApplyHubEndpoint(canonicalEndpoint || null);
+      if (!current() || !appId) { return; }
+      if (client.isSyncPaused() || !client.isActive()) {
+        if (!client.getEffectiveEndpoint()) {
+          const resolved = await (resolveFromSnapshot?.() ?? resolveAndApplyHubEndpoint(canonicalEndpoint || null));
           if (!resolved) return;
         }
-        hubClient.resumeSync();
+        if (!current()) { return; }
+        client.resumeSync();
         return;
       }
-      hubClient.pauseSync();
+      client.pauseSync();
     })();
-  }, [canonicalEndpoint]);
+  }, [client, current, appId, resolveFromSnapshot, canonicalEndpoint]);
 
   const stateColor = STATE_COLORS[status.state] || Colors.textMuted;
   const isPaused = status.state === 'paused';
@@ -214,6 +231,10 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.container}
     >
+      <Text style={styles.label}>App: {snapshot.appId || '—'}</Text>
+      <Text style={styles.label}>Session: {status.session?.sessionId || '—'}</Text>
+      {snapshot.reason ? <Text style={styles.stateHint}>{snapshot.reason}</Text> : null}
+      {status.error ? <Text style={styles.stateHint}>{status.error}</Text> : null}
       {/* Hub Endpoint Input */}
       <View style={styles.section}>
         <Text style={styles.label}>{t('devConnect.hubAddress')}</Text>
@@ -314,7 +335,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
             isLoading && styles.syncButtonLoading,
           ]}
           onPress={handleSyncNow}
-          disabled={status.state === 'protocol_mismatch' || status.state === 'invalid_config'}
+          disabled={!snapshot.appId || status.state === 'protocol_mismatch' || status.state === 'invalid_config'}
           activeOpacity={0.75}
         >
           <View style={styles.syncButtonContent}>
@@ -331,6 +352,7 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
         <TouchableOpacity
           style={styles.pauseButton}
           onPress={handleTogglePause}
+          disabled={!snapshot.appId}
           activeOpacity={0.75}
         >
           <Text style={styles.pauseButtonText}>
