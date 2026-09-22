@@ -74,6 +74,63 @@ const openBody = {
 };
 
 describe('HubClient transport', () => {
+  it('keeps a failed Release Upload Once paused when the session retry succeeds', async () => {
+    jest.useFakeTimers();
+    const fetch = jest.fn()
+      .mockResolvedValueOnce(response(503, { ok: false }))
+      .mockResolvedValue(response(201, openBody));
+    const provider = createFeatureProviderWithConsoleEntry();
+    let changed!: () => void;
+    provider.features[0]!.subscribe = listener => { changed = listener; return () => {}; };
+    const client = new HubClient({ fetch, featureProvider: provider });
+    client.setDebugBuild(false);
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    await client.syncNow();
+    expect(client.isSyncPaused()).toBe(true);
+    await jest.advanceTimersByTimeAsync(1300);
+    expect(client.getStatus().state).toBe('paused');
+    changed();
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/events'))).toHaveLength(0);
+    client.disconnect();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('opens a discovered session after clearing the only manual address', async () => {
+    jest.useFakeTimers();
+    const fetch = jest.fn().mockResolvedValue(response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProvider() });
+    client.configure({ appId: 'app' });
+    client.setRuntimeEndpoint('http://manual:3800');
+    client.connect({ live: true });
+    await flushPromises();
+    client.clearRuntimeEndpoint();
+    await flushPromises();
+    expect(client.isActive()).toBe(true);
+    expect(client.getStatus().session).toBeNull();
+    expect(jest.getTimerCount()).toBe(0);
+    client.setDiscoveredEndpoint('http://automatic:3800');
+    await flushPromises();
+    expect(client.getStatus().session).not.toBeNull();
+    expect(fetch.mock.calls.at(-1)[0]).toContain('http://automatic:3800/');
+    client.disconnect();
+  });
+
+  it.each(['discovery', 'manual', 'session'] as const)('clears old discovery errors after %s succeeds', async recovery => {
+    jest.useFakeTimers();
+    const client = new HubClient({ fetch: jest.fn().mockResolvedValue(response(201, openBody)), featureProvider: createFeatureProvider() });
+    const observed = jest.fn();
+    client.subscribeStatus(observed);
+    client.configure({ appId: 'app', endpoint: recovery === 'session' ? 'http://hub:3800' : undefined });
+    client.markDiscoveryFailed(['http://failed:3800']);
+    expect(client.getStatus().error).toContain('No compatible Hub');
+    if (recovery === 'discovery') { client.setDiscoveredEndpoint('http://automatic:3800'); }
+    if (recovery === 'manual') { client.setRuntimeEndpoint('http://manual:3800'); }
+    if (recovery === 'session') { client.connect(); await flushPromises(); }
+    expect(client.getStatus().error).toBeUndefined();
+    expect(observed).toHaveBeenLastCalledWith(expect.objectContaining({ error: undefined }));
+    client.disconnect();
+  });
   it('does not install a heartbeat after a connected observer disconnects the client', async () => {
     jest.useFakeTimers();
     const client = new HubClient({ fetch: jest.fn().mockResolvedValue(response(201, openBody)), featureProvider: createFeatureProvider() });

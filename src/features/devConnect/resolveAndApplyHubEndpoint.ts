@@ -37,5 +37,8 @@ export async function resolveAndApplyHubEndpoint(
     client.setDiscoveredEndpoint(result.endpoint);
   }
 
+  if (!current()) { return null; }
+  client.markDiscoverySucceeded();
+
   return result.endpoint;
 }

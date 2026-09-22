@@ -67,7 +67,7 @@ export function createDevConnectFeature(
     if (!current() || lifecycle?.signal !== signal || probe !== request) { return; }
     if (resolved) {
       retryAttempt = 0;
-      if (!client.isActive()) { client.connect({ live: true }); }
+      client.connect({ live: true });
     } else {
       retry = setTimeout(() => { retry = undefined; void discover(); }, Math.min(1000 * 2 ** retryAttempt++, 30000));
     }

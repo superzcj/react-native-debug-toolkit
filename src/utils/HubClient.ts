@@ -265,6 +265,7 @@ export class HubClient {
 
     const oldEndpoint = this.getEffectiveEndpoint();
     this._runtimeEndpoint = normalized;
+    this._lastError = undefined;
     addToBlacklist(normalized);
 
     if (oldEndpoint && oldEndpoint !== normalized && this._active) {
@@ -272,17 +273,20 @@ export class HubClient {
       this._flushAndSwitchEndpoint();
     }
     this._endpointListeners.forEach(listener => listener());
+    this._emitStatus();
   }
 
   clearRuntimeEndpoint(): void {
     const oldEndpoint = this.getEffectiveEndpoint();
     this._runtimeEndpoint = null;
+    this._lastError = undefined;
     const newEndpoint = this.getEffectiveEndpoint();
 
     if (oldEndpoint && oldEndpoint !== newEndpoint && this._active) {
       this._flushAndSwitchEndpoint();
     }
     this._endpointListeners.forEach(listener => listener());
+    this._emitStatus();
   }
 
   setDiscoveredEndpoint(value: string | null): void {
@@ -290,14 +294,16 @@ export class HubClient {
     const oldEndpoint = this.getEffectiveEndpoint();
     this._discoveredEndpoint = normalized;
     if (normalized) {
+      this._lastError = undefined;
       addToBlacklist(normalized);
     }
 
-    if (oldEndpoint && this.getEffectiveEndpoint() !== oldEndpoint && this._active) {
+    if (this.getEffectiveEndpoint() !== oldEndpoint && this._active) {
       this._flushAndSwitchEndpoint();
     } else if (!normalized && oldEndpoint && !this._runtimeEndpoint && this._active) {
       // Discovery cleared while active: keep using previous session until reconnect.
     }
+    this._emitStatus();
   }
 
   getRuntimeEndpoint(): string | null {
@@ -331,6 +337,11 @@ export class HubClient {
     this._emitStatus();
   }
 
+  markDiscoverySucceeded(): void {
+    this._lastError = undefined;
+    this._emitStatus();
+  }
+
   setOnStatusChange(fn: ((status: HubStatus) => void) | undefined): void {
     this._onStatusChange = fn;
   }
@@ -338,7 +349,10 @@ export class HubClient {
   // ---- Connection ----
 
   connect(options?: { live?: boolean }): void {
-    if (this._active) return;
+    if (this._active) {
+      if (!this._session && !this._retryTimer) { this._openSession(); }
+      return;
+    }
 
     const endpoint = this.getEffectiveEndpoint();
     const appId = this._config?.appId;
@@ -349,6 +363,7 @@ export class HubClient {
     }
 
     const live = options?.live ?? this._isDebugBuild();
+    this._lastError = undefined;
     this._syncPaused = !live;
 
     this._active = true;
@@ -438,15 +453,17 @@ export class HubClient {
   async syncNow(): Promise<void> {
     const pauseAfterSync = !this._isDebugBuild() || this._syncPaused;
     if (!this._active) {
-      this.connect({ live: true });
-    } else {
-      this._syncPaused = false;
+      this.connect({ live: !pauseAfterSync });
+    } else if (pauseAfterSync) {
+      this.pauseSync();
     }
     const generation = this._generation;
     await this._ensureSession();
     if (!this._current(generation) || !this._session) { return; }
     this._snapshotFeatures();
-    await this._doFlush();
+    // A one-shot flush never changes the persistent live/paused mode. Session
+    // failure and its background retry therefore cannot promote it to live.
+    await this._doFlush(pauseAfterSync);
     if (!this._current(generation)) { return; }
     if (pauseAfterSync && this._state === 'connected') {
       this.pauseSync();
@@ -554,6 +571,7 @@ export class HubClient {
       this._nextSequence = (data.expectedSequence as number) || 1;
       this._ackThrough = (data.ackThrough as number) || this._ackThrough;
       this._retryAttempt = 0;
+      this._lastError = undefined;
 
       this._state = this._syncPaused ? 'paused' : 'connected';
       this._emitStatus();
@@ -683,10 +701,10 @@ export class HubClient {
     }, FLUSH_INTERVAL_MS);
   }
 
-  private async _doFlush(): Promise<void> {
+  private async _doFlush(once = false): Promise<void> {
     const generation = this._generation;
     if (this._sending || !this._active || !this._session) return;
-    if (this._syncPaused) return;
+    if (this._syncPaused && !once) return;
 
     // Snapshot dirty features first
     if (this._dirtyFeatures.size > 0) {
