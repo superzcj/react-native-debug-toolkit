@@ -157,6 +157,30 @@ describe('createNativeLogsFeature', () => {
     second.cleanup();
   });
 
+  it.each(['false', 'reject'] as const)('releasing the last pending owner stops retained capture before its startup returns %s', async outcome => {
+    const first = createNativeLogsFeature(undefined, testRuntime());
+    first.setup();
+    await flushPromises(10);
+    let resolveStart!: (value: { ok: boolean }) => void;
+    let rejectStart!: (error: Error) => void;
+    NativeModules.DebugToolkitNativeLogs.startCapture.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      resolveStart = resolve;
+      rejectStart = reject;
+    }));
+    const second = createNativeLogsFeature(undefined, testRuntime());
+    second.setup();
+    NativeModules.DebugToolkitNativeLogs.stopCapture.mockClear();
+    first.cleanup();
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).not.toHaveBeenCalled();
+    second.cleanup();
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalledTimes(1);
+    if (outcome === 'false') { resolveStart({ ok: false }); }
+    else { rejectStart(new Error('cancelled startup failed')); }
+    await flushPromises(10);
+    expect(NativeModules.DebugToolkitNativeLogs.stopCapture).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it('reports a failed native start without polling', async () => {
     NativeModules.DebugToolkitNativeLogs.startCapture.mockResolvedValue({ ok: false });
     const runtime = testRuntime();

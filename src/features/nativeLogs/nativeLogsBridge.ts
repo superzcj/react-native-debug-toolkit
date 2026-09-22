@@ -96,7 +96,7 @@ export function acquireNativeLogCapture(): { ready: Promise<boolean>; release():
     } catch { started = false; }
     if (started) { shared.capturing = true; }
     if (released) {
-      if (started) { stopIfUnused(); }
+      stopIfUnused();
       return false;
     }
     if (!started) { shared.owners.delete(owner); stopIfUnused(); }
@@ -109,7 +109,7 @@ export function acquireNativeLogCapture(): { ready: Promise<boolean>; release():
       if (released) { return; }
       released = true;
       shared.owners.delete(owner);
-      if (started) { stopIfUnused(); }
+      stopIfUnused();
     },
   };
 }
