@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useCallback, useState, useLayoutEffect, useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
@@ -19,23 +19,36 @@ export const CopyActionContext = createContext<CopyAction>((text, options) =>
 
 export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact, copy }) => {
   const hostCopy = useContext(CopyActionContext);
+  const action = copy ?? hostCopy;
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const mounted = useRef(false);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const generation = useRef(0);
+  const pending = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    generation.current += 1;
+    pending.current = undefined;
+    setFeedback(null);
+    setBusy(false);
+    // Invalidate before any late completion can publish into changed props or an unmounted button.
+    return () => { generation.current += 1; };
+  }, [text, label, action]);
 
   const handleCopy = useCallback(async () => {
-    if (busy) { return; }
+    const request = generation.current;
+    if (pending.current === request) { return; }
+    pending.current = request;
     setBusy(true);
+    setFeedback(null);
+    const current = () => generation.current === request;
     try {
-      const result = await (copy ?? hostCopy)(text, { label });
-      if (mounted.current) { setFeedback(describeCopyResult(result)); }
+      const result = await action(text, { label });
+      if (current()) { setFeedback(describeCopyResult(result)); }
     } catch {
-      if (mounted.current) { setFeedback('Copy failed'); }
+      if (current()) { setFeedback('Copy failed'); }
     } finally {
-      if (mounted.current) { setBusy(false); }
+      if (current()) { pending.current = undefined; setBusy(false); }
     }
-  }, [text, label, busy, copy, hostCopy]);
+  }, [text, label, action]);
 
   if (!text) { return null; }
 

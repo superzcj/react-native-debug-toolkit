@@ -5,6 +5,7 @@ import { createTabsFeature } from '../../src/features/tabs';
 import { TabsTab } from '../../src/features/tabs/TabsTab';
 import { CopyButton, CopyActionContext } from '../../src/ui/shared/CopyButton';
 import { copyToComputer } from '../../src/utils/copyToComputer';
+import type { CopyResult } from '../../src/types/debug';
 
 const ctx = () => ({ owner: Symbol(), signal: new AbortController().signal, isCurrent: () => true, setStatus: jest.fn() });
 function Host({ feature }: { feature: ReturnType<typeof createTabsFeature> }) {
@@ -94,5 +95,57 @@ test('copy feedback displays separate channel failures and unavailable reasons',
   expect(output).toContain('Console: success');
   expect(output).toContain('Hub: unavailable (Computer delivery was not confirmed.)');
   expect(recordConsole).toHaveBeenCalledTimes(1);
+  act(() => { tree!.unmount(); });
+});
+
+test('editing text discards a pending result without releasing a newer copy action', async () => {
+  const result: CopyResult = { status: 'completed', phone: { status: 'success' }, console: { status: 'success' }, hub: { status: 'success' } };
+  const resolvers: ((value: CopyResult) => void)[] = [];
+  const copy = jest.fn(() => new Promise<CopyResult>(resolve => { resolvers.push(resolve); }));
+  let tree: Renderer.ReactTestRenderer;
+  let oldRequest: Promise<void>;
+  let newRequest: Promise<void>;
+  const button = () => tree!.root.find(node => typeof node.props.onPress === 'function');
+  act(() => { tree = Renderer.create(<CopyButton text="old text" copy={copy} />); });
+  act(() => { oldRequest = button().props.onPress(); });
+  act(() => { tree!.update(<CopyButton text="new text" copy={copy} />); });
+  expect(button().props.disabled).toBe(false);
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
+  act(() => { newRequest = button().props.onPress(); });
+  await act(async () => { resolvers[0]!(result); await oldRequest!; });
+  expect(button().props.disabled).toBe(true);
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
+  await act(async () => { resolvers[1]!(result); await newRequest!; });
+  expect(button().props.disabled).toBe(false);
+  expect(JSON.stringify(tree!.toJSON())).toContain('Phone: success');
+  expect(copy.mock.calls).toHaveLength(2);
+  act(() => { tree!.unmount(); });
+});
+
+test('editing after success clears the previous text feedback', async () => {
+  const copy = (text: string) => copyToComputer(text, { enabled: true, channels: { copyPhone: () => {} } });
+  let tree: Renderer.ReactTestRenderer;
+  act(() => { tree = Renderer.create(<CopyButton text="old text" copy={copy} />); });
+  await act(async () => { await tree!.root.find(node => typeof node.props.onPress === 'function').props.onPress(); });
+  expect(JSON.stringify(tree!.toJSON())).toContain('Phone: success');
+  act(() => { tree!.update(<CopyButton text="new text" copy={copy} />); });
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
+  act(() => { tree!.unmount(); });
+});
+
+test('replacing the copy action discards its previous pending completion', async () => {
+  let resolve!: (value: CopyResult) => void;
+  const oldCopy = () => new Promise<CopyResult>(done => { resolve = done; });
+  const newCopy = (text: string) => copyToComputer(text, { enabled: true, channels: {} });
+  let tree: Renderer.ReactTestRenderer;
+  let pending!: Promise<void>;
+  act(() => { tree = Renderer.create(<CopyButton text="same text" copy={oldCopy} />); });
+  act(() => { pending = tree!.root.find(node => typeof node.props.onPress === 'function').props.onPress(); });
+  act(() => { tree!.update(<CopyButton text="same text" copy={newCopy} />); });
+  await act(async () => {
+    resolve({ status: 'completed', phone: { status: 'success' }, console: { status: 'success' }, hub: { status: 'success' } });
+    await pending;
+  });
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
   act(() => { tree!.unmount(); });
 });
