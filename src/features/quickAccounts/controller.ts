@@ -1,156 +1,93 @@
+import type { DebugAccount } from '../../types/config';
 import type {
-  QuickAccountItem,
-  QuickAccountRollbackContext,
-  QuickAccountsController,
-  QuickAccountsControllerOptions,
-  QuickAccountsControllerState,
-  QuickAccountSwitchResult,
+  QuickAccountsController, QuickAccountsControllerOptions,
+  QuickAccountsControllerState, QuickAccountSwitchResult, QuickAccountRollbackContext,
 } from './types';
 
 export type {
-  QuickAccountItem,
-  QuickAccountRollbackContext,
-  QuickAccountRollbackReason,
-  QuickAccountsController,
-  QuickAccountsControllerOptions,
-  QuickAccountsControllerState,
-  QuickAccountSwitchContext,
-  QuickAccountSwitchResult,
+  QuickAccountItem, QuickAccountRollbackContext, QuickAccountRollbackReason,
+  QuickAccountsController, QuickAccountsControllerOptions, QuickAccountsControllerState,
+  QuickAccountSwitchContext, QuickAccountSwitchResult,
 } from './types';
 
-export function createQuickAccountsController<
-  TAccount extends QuickAccountItem,
->(
-  options: QuickAccountsControllerOptions<TAccount>,
-): QuickAccountsController<TAccount> {
+export function createQuickAccountsController<A extends DebugAccount>(
+  options: QuickAccountsControllerOptions<A>,
+): QuickAccountsController<A> {
   let generation = 0;
   let suspended = false;
-  let pendingCount = 0;
-  let activeController: AbortController | null = null;
+  let busy = false;
+  let active: AbortController | undefined;
   let tail: Promise<void> = Promise.resolve();
-  let lastState: QuickAccountsControllerState = {
-    busy: false,
-    suspended: false,
+  const getState = (): QuickAccountsControllerState => ({ busy, suspended });
+  const notify = () => {
+    try { options.onStateChange?.(getState()); } catch { /* Observer isolation. */ }
   };
-
-  const getState = (): QuickAccountsControllerState => ({
-    busy: pendingCount > 0,
-    suspended,
-  });
-
-  const notifyStateChange = () => {
-    const nextState = getState();
-    if (
-      nextState.busy === lastState.busy &&
-      nextState.suspended === lastState.suspended
-    ) {
-      return;
-    }
-
-    lastState = nextState;
-    try {
-      options.onStateChange?.(nextState);
-    } catch {
-      // Observers must not break account switching.
-    }
+  const notificationError = (error: unknown, account: A) => {
+    try { options.onNotificationError?.(error, account); } catch { /* Never recurse. */ }
   };
-
-  const isSuperseded = (requestGeneration: number, signal: AbortSignal) =>
-    suspended || requestGeneration !== generation || signal.aborted;
-
-  const rollback = async (
-    account: TAccount,
-    context: QuickAccountRollbackContext,
-  ) => {
-    try {
-      await options.onRollback?.(account, context);
-    } catch {
-      // Preserve the original switch result when best-effort rollback fails.
-    }
+  const report = async (error: unknown, account: A) => {
+    notificationError(error, account);
+    try { await options.onError?.(error, account); }
+    catch (callbackError) { notificationError(callbackError, account); }
   };
-
-  const switchTo = (
-    account: TAccount,
-  ): Promise<QuickAccountSwitchResult> => {
-    if (suspended) {
-      return Promise.resolve({ status: 'superseded' });
-    }
-
-    const requestGeneration = ++generation;
-    activeController?.abort();
-    pendingCount += 1;
-    notifyStateChange();
-
-    const run = async (): Promise<QuickAccountSwitchResult> => {
-      if (suspended || requestGeneration !== generation) {
-        return { status: 'superseded' };
-      }
-
-      const controller = new AbortController();
-      activeController = controller;
-
-      try {
-        await options.onSwitch(account, { signal: controller.signal });
-
-        if (isSuperseded(requestGeneration, controller.signal)) {
-          await rollback(account, { reason: 'superseded' });
-          return { status: 'superseded' };
-        }
-
-        return { status: 'success' };
-      } catch (error) {
-        const superseded = isSuperseded(
-          requestGeneration,
-          controller.signal,
-        );
-        await rollback(account, {
-          reason: superseded ? 'superseded' : 'error',
-          error,
-        });
-
-        if (
-          superseded ||
-          isSuperseded(requestGeneration, controller.signal)
-        ) {
-          return { status: 'superseded' };
-        }
-        return { status: 'error', error };
-      } finally {
-        if (activeController === controller) {
-          activeController = null;
-        }
-      }
-    };
-
-    const result = tail.then(run, run).then((switchResult) => {
-      pendingCount -= 1;
-      notifyStateChange();
-      return switchResult;
-    });
-    tail = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
+  const rollback = async (account: A, context: QuickAccountRollbackContext) => {
+    try { await options.onRollback?.(account, context); }
+    catch (error) { notificationError(error, account); }
   };
-
+  const invalidate = () => { generation += 1; active?.abort(); };
   return {
-    switchTo,
-    suspend: () => {
-      if (suspended) {
-        return;
-      }
-      suspended = true;
-      generation += 1;
-      activeController?.abort();
-      notifyStateChange();
+    switchTo(account) {
+      if (suspended) { return Promise.resolve({ status: 'disabled' }); }
+      if (busy) { return Promise.resolve({ status: 'busy' }); }
+      if (!options.onSwitch) { return Promise.resolve({ status: 'not_configured' }); }
+      const token = ++generation;
+      const abort = new AbortController();
+      active = abort;
+      busy = true;
+      // Install the idle promise before notifying observers or calling business code.
+      let finish!: () => void;
+      tail = new Promise<void>(resolve => { finish = resolve; });
+      notify();
+      const valid = () => !suspended && token === generation && !abort.signal.aborted && (options.isCurrent?.(account) ?? true);
+      const run = async (): Promise<QuickAccountSwitchResult> => {
+        try {
+          if (!valid()) { return { status: 'superseded' }; }
+          try { await options.onSwitch!(account, { signal: abort.signal }); }
+          catch (error) {
+            const superseded = !valid();
+            await rollback(account, { reason: superseded ? 'superseded' : 'error', error });
+            if (superseded || !valid()) { return { status: 'superseded' }; }
+            await report(error, account);
+            return { status: 'error', error };
+          }
+          if (!valid()) {
+            await rollback(account, { reason: 'superseded' });
+            return { status: 'superseded' };
+          }
+          // Login is committed. Notification/persistence failures cannot roll it back.
+          try { await options.onCommit?.(account); }
+          catch (error) { await report(error, account); }
+          return { status: 'success' };
+        } finally {
+          if (active === abort) { active = undefined; }
+          busy = false;
+          notify();
+          finish();
+        }
+      };
+      return run();
     },
-    resume: () => {
-      if (!suspended) {
-        return;
-      }
+    invalidate,
+    suspend() {
+      if (suspended) { return; }
+      suspended = true;
+      invalidate();
+      notify();
+    },
+    resume() {
+      if (!suspended) { return; }
       suspended = false;
-      notifyStateChange();
+      notify();
     },
     waitForIdle: () => tail,
     getState,

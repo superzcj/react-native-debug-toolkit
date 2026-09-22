@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import type { DebugFeatureRenderProps } from '../../types';
+import { getLocale } from '../../i18n';
 import { Colors } from '../../ui/theme/colors';
 import {
   FontSize,
@@ -23,8 +24,9 @@ import type {
 export function isQuickAccountSwitchDisabled(state: {
   busy: boolean;
   suspended: boolean;
+  switchConfigured?: boolean;
 }): boolean {
-  return state.busy || state.suspended;
+  return state.busy || state.suspended || state.switchConfigured === false;
 }
 
 export const QuickAccountsTab: React.FC<
@@ -33,6 +35,7 @@ export const QuickAccountsTab: React.FC<
   const quickAccountsFeature = feature as QuickAccountsFeature<QuickAccountItem>;
   const state = quickAccountsFeature.getViewState();
   const { copy } = state;
+  const zh = getLocale() === 'zh-CN';
 
   return (
     <ScrollView
@@ -52,7 +55,25 @@ export const QuickAccountsTab: React.FC<
         <Text style={styles.description}>{copy.description}</Text>
       </View>
 
-      {!state.isAuthenticated ? (
+      {state.isAuthenticated === undefined ? (
+        <Text style={styles.noticeText}>
+          {zh ? '认证状态未知' : 'Authentication status unknown'}
+        </Text>
+      ) : null}
+      {state.accounts.length > 0 && !state.switchConfigured ? (
+        <View style={styles.notice}>
+          <Text style={styles.noticeText}>
+            {zh ? '尚未提供切换逻辑' : 'Account switching has not been configured.'}
+          </Text>
+        </View>
+      ) : null}
+      {state.busy && state.suspended ? (
+        <Text style={styles.noticeText}>
+          {zh ? '已请求取消，正在等待登录或补偿结束。' : 'Cancellation requested. Waiting for login or rollback to finish.'}
+        </Text>
+      ) : null}
+
+      {state.isAuthenticated === false ? (
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>{copy.unauthenticatedTitle}</Text>
           <Text style={styles.noticeText}>{copy.unauthenticatedDescription}</Text>
@@ -63,8 +84,8 @@ export const QuickAccountsTab: React.FC<
         <View style={styles.detailsCard}>
           <Text style={styles.sectionLabel}>{copy.currentLabel}</Text>
           {state.currentAccountDetails.map((detail) => (
-            <View key={`${detail.label}:${detail.value}`} style={styles.detailRow}>
-              <Text style={styles.detailLabel}>{detail.label}</Text>
+            <View key={`${detail.title}:${detail.value}`} style={styles.detailRow}>
+              <Text style={styles.detailLabel}>{detail.title}</Text>
               <Text style={styles.detailValue} numberOfLines={1}>
                 {detail.value}
               </Text>
@@ -73,7 +94,7 @@ export const QuickAccountsTab: React.FC<
         </View>
       ) : null}
 
-      {state.lastResult === 'error' && state.errorMessage ? (
+      {state.errorMessage ? (
         <View style={[styles.resultCard, styles.errorCard]}>
           <Text style={styles.errorText}>{state.errorMessage}</Text>
         </View>
@@ -115,7 +136,7 @@ export const QuickAccountsTab: React.FC<
                 <View style={styles.accountBody}>
                   <View style={styles.accountTitleRow}>
                     <Text style={styles.accountLabel} numberOfLines={1}>
-                      {account.label}
+                      {account.title}
                     </Text>
                     {isCurrent ? (
                       <View style={styles.currentPill}>

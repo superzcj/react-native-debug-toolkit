@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { createQuickAccountsFeature } from './createQuickAccountsFeature';
+import { createDefaultLogStorage } from '../../utils/StorageAdapter';
+import { DebugToolkit } from '../../core/DebugToolkit';
 import type {
   CreateQuickAccountsFeatureOptions,
   QuickAccountItem,
@@ -16,12 +18,12 @@ function getState<TAccount extends QuickAccountItem>(
   options: CreateQuickAccountsFeatureOptions<TAccount>,
 ): QuickAccountsState<TAccount> {
   return {
-    accounts: options.accounts,
+    items: options.items,
     scopeKey: options.scopeKey,
     contextLabel: options.contextLabel,
     isAuthenticated: options.isAuthenticated,
-    currentAccountId: options.currentAccountId,
-    currentAccountDetails: options.currentAccountDetails,
+    currentId: options.currentId,
+    currentDetails: options.currentDetails,
   };
 }
 
@@ -34,20 +36,21 @@ export function useQuickAccountsFeature<TAccount extends QuickAccountItem>(
   if (!featureRef.current) {
     featureRef.current = createQuickAccountsFeature({
       ...options,
-      onSwitch: (account, context) =>
-        callbacksRef.current.onSwitch(account, context),
+      onSwitch: options.onSwitch ? (account, context) =>
+        callbacksRef.current.onSwitch?.(account, context) : undefined,
       onRollback: (account, context) =>
         callbacksRef.current.onRollback?.(account, context),
       onSuccess: (account) => callbacksRef.current.onSuccess?.(account),
       onError: (error, account) =>
         callbacksRef.current.onError?.(error, account),
-    });
+    }, { active: true, preferenceStorage: createDefaultLogStorage(), closePanel: () => DebugToolkit.closePanel() });
   }
 
   const feature = featureRef.current;
   useLayoutEffect(() => {
     callbacksRef.current = options;
-    feature.update(getState(options));
+    if (!options.source) { feature.update(getState(options)); }
+    feature.setup();
   }, [feature, options]);
 
   return feature;

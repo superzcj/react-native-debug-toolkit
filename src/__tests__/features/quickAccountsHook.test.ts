@@ -22,7 +22,7 @@ import { useQuickAccountsFeature } from '../../features/quickAccounts/useQuickAc
 
 type Account = {
   id: string;
-  label: string;
+  title: string;
   secret: string;
 };
 
@@ -43,26 +43,26 @@ describe('useQuickAccountsFeature', () => {
   });
 
   it('keeps one feature instance while applying the latest state and callbacks', async () => {
-    const firstAccount: Account = { id: 'a', label: 'First', secret: 'one' };
-    const secondAccount: Account = { id: 'b', label: 'Second', secret: 'two' };
+    const firstAccount: Account = { id: 'a', title: 'First', secret: 'one' };
+    const secondAccount: Account = { id: 'b', title: 'Second', secret: 'two' };
     const firstSwitch = jest.fn(async () => undefined);
     const secondSwitch = jest.fn(async () => undefined);
 
     const firstFeature = renderHook(() => useQuickAccountsFeature({
-      accounts: [firstAccount],
+      items: [firstAccount],
       onSwitch: firstSwitch,
     }));
     commitHook();
     const secondFeature = renderHook(() => useQuickAccountsFeature({
-      accounts: [secondAccount],
-      currentAccountId: secondAccount.id,
+      items: [secondAccount],
+      currentId: secondAccount.id,
       onSwitch: secondSwitch,
     }));
     commitHook();
 
     expect(secondFeature).toBe(firstFeature);
     expect(secondFeature.getViewState().accounts).toEqual([
-      { id: 'b', label: 'Second', subtitle: undefined, note: undefined },
+      { id: 'b', title: 'Second', subtitle: undefined, note: undefined },
     ]);
     await secondFeature.switchAccount(secondAccount.id);
     expect(firstSwitch).not.toHaveBeenCalled();
@@ -73,18 +73,18 @@ describe('useQuickAccountsFeature', () => {
   });
 
   it('does not expose callbacks from an abandoned render', async () => {
-    const account: Account = { id: 'a', label: 'First', secret: 'one' };
+    const account: Account = { id: 'a', title: 'First', secret: 'one' };
     const committedSwitch = jest.fn(async () => undefined);
     const abandonedSwitch = jest.fn(async () => undefined);
 
     const feature = renderHook(() => useQuickAccountsFeature({
-      accounts: [account],
+      items: [account],
       onSwitch: committedSwitch,
     }));
     commitHook();
 
     renderHook(() => useQuickAccountsFeature({
-      accounts: [account],
+      items: [account],
       onSwitch: abandonedSwitch,
     }));
 

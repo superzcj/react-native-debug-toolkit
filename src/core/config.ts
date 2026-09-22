@@ -174,6 +174,25 @@ function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
         if (staticFields.some((field) => input[field] !== undefined)) {
           issues.push({ path: 'accounts.source', message: 'Source and static account data are mutually exclusive.' });
         }
+        // Dynamic data must not acquire static defaults that violate its XOR.
+        for (const field of staticFields) {
+          if (input[field] === undefined) { delete options[field]; }
+        }
+      }
+      if (key === 'accounts' && Array.isArray(input.items)) {
+        const ids = new Set<string>();
+        input.items.forEach((item: unknown, index: number) => {
+          if (!isRecord(item)) { return; }
+          for (const field of ['id', 'title']) {
+            if (typeof item[field] !== 'string' || !(item[field] as string).trim()) {
+              issues.push({ path: `accounts.items[${index}].${field}`, message: 'Expected a non-empty string.' });
+            }
+          }
+          if (typeof item.id === 'string') {
+            if (ids.has(item.id)) { issues.push({ path: `accounts.items[${index}].id`, message: 'Account IDs must be unique.' }); }
+            ids.add(item.id);
+          }
+        });
       }
     }
   }

@@ -1,397 +1,304 @@
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import { createQuickAccountsFeature } from '../../features/quickAccounts/createQuickAccountsFeature';
 import { isQuickAccountSwitchDisabled } from '../../features/quickAccounts/QuickAccountsTab';
-import { configureLocale } from '../../i18n';
+import { normalizeConfig } from '../../core/config';
+import type { AccountsSnapshot } from '../../types/config';
+import type { FeatureStatus } from '../../types/debug';
 
-type PrivateAccount = {
-  id: string;
-  label: string;
-  subtitle?: string;
-  note?: string;
-  secret: string;
-};
+const a = { id: 'a', title: 'Owner', secret: 'private-a' };
+const b = { id: 'b', title: 'Guest', secret: 'private-b' };
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(yes => { resolve = yes; });
+  return { promise, resolve };
+}
+function runtime() {
+  return { active: true, preferenceStorage: new MemoryStorageAdapter(), closePanel: jest.fn() };
+}
+function source(initial: AccountsSnapshot<typeof a>) {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => value,
+    subscribe: jest.fn((listener: () => void) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    }),
+    update(next: AccountsSnapshot<typeof a>) { value = next; listeners.forEach(listener => listener()); },
+    get listenerCount() { return listeners.size; },
+  };
+}
+function context() {
+  const abort = new AbortController();
+  const statuses: FeatureStatus[] = [];
+  return { owner: Symbol(), signal: abort.signal, isCurrent: () => !abort.signal.aborted,
+    setStatus: (status: FeatureStatus) => statuses.push(status), statuses, abort };
+}
+const flush = async () => { for (let i = 0; i < 8; i++) { await Promise.resolve(); } };
+const phase = (ctx: ReturnType<typeof context>) => ctx.statuses[ctx.statuses.length - 1]?.phase;
 
-const accountA: PrivateAccount = {
-  id: 'a',
-  label: 'Owner',
-  subtitle: 'Primary test identity',
-  secret: 'must-not-leak-a',
-};
-
-const accountB: PrivateAccount = {
-  id: 'b',
-  label: 'Guest',
-  note: 'No vehicle',
-  secret: 'must-not-leak-b',
-};
-
-describe('createQuickAccountsFeature', () => {
-  afterEach(() => {
-    configureLocale('en');
-  });
-
-  it('resolves default presentation copy at display time while preserving overrides', () => {
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: jest.fn(async () => undefined),
-      copy: { title: 'Custom accounts' },
-    });
-
-    configureLocale('zh-CN');
-
-    expect(feature.label).toBe('账号');
-    expect(feature.getViewState().copy.title).toBe('Custom accounts');
-    expect(feature.getViewState().copy.description).toBe('切换到已配置的调试账号。');
-  });
-
-  it('uses the stable opt-in feature name', () => {
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    expect(feature.name).toBe('quick-accounts');
-  });
-
-  it('keeps private account fields out of the daemon-facing snapshot', () => {
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    expect(feature.getSnapshot()).toEqual({
-      accountCount: 1,
-      busy: false,
-      suspended: false,
-      lastResult: 'idle',
-    });
-    expect(JSON.stringify(feature.getSnapshot())).not.toContain(accountA.secret);
-    expect(feature.getViewState().accounts).toEqual([
-      {
-        id: accountA.id,
-        label: accountA.label,
-        subtitle: accountA.subtitle,
-        note: undefined,
-      },
-    ]);
-    expect(JSON.stringify(feature.getViewState())).not.toContain(accountA.secret);
-  });
-
-  it('does not expose host error details in the snapshot', async () => {
-    const privateError = new Error('token must-not-leak');
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: async () => {
-        throw privateError;
-      },
-    });
-
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'error',
-      error: privateError,
-    });
-    expect(feature.getSnapshot().lastResult).toBe('error');
-    expect(JSON.stringify(feature.getSnapshot())).not.toContain(privateError.message);
-  });
-
-  it('passes the full private account only to the host callback', async () => {
-    const onSwitch = jest.fn(async () => undefined);
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch,
-    });
-
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'success',
-    });
-    expect(onSwitch).toHaveBeenCalledWith(
-      accountA,
-      expect.objectContaining({ signal: expect.any(Object) }),
-    );
-  });
-
-  it('projects accounts before presentation and rollback callbacks', async () => {
-    const privateError = new Error('failed');
-    const onRollback = jest.fn(async () => undefined);
-    const onSuccess = jest.fn(async () => undefined);
-    const onError = jest.fn(async () => undefined);
-    const successFeature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: jest.fn(async () => undefined),
-      onSuccess,
-    });
-    const failureFeature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch: jest.fn(async () => {
-        throw privateError;
-      }),
-      onRollback,
-      onError,
-    });
-
-    await successFeature.switchAccount(accountA.id);
-    await failureFeature.switchAccount(accountA.id);
-
-    const publicAccount = {
-      id: accountA.id,
-      label: accountA.label,
-      subtitle: accountA.subtitle,
-      note: undefined,
-    };
-    expect(onSuccess).toHaveBeenCalledWith(publicAccount);
-    expect(onRollback).toHaveBeenCalledWith(
-      publicAccount,
-      expect.objectContaining({ reason: 'error', error: privateError }),
-    );
-    expect(onError).toHaveBeenCalledWith(privateError, publicAccount);
-    expect(failureFeature.getViewState().errorMessage).toBe(privateError.message);
-    expect(JSON.stringify(onRollback.mock.calls)).not.toContain(accountA.secret);
-  });
-
-  it('orders the successful account first and persists it by scope', async () => {
-    const storage = new MemoryStorageAdapter();
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA, accountB],
-      scopeKey: 'demo:test',
-      storage,
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    feature.setup();
-    await feature.waitForStorage();
-    await expect(feature.switchAccount(accountB.id)).resolves.toEqual({
-      status: 'success',
-    });
-
-    expect(feature.getViewState().accounts.map((account) => account.id)).toEqual([
-      accountB.id,
-      accountA.id,
-    ]);
-    expect(storage.getItem('react-native-debug-toolkit.quick-accounts.last:demo:test'))
-      .toBe(accountB.id);
-  });
-
-  it('keeps a successful switch successful when recent-account storage fails', async () => {
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      storage: {
-        getItem: () => null,
-        setItem: async () => {
-          throw new Error('disk unavailable');
-        },
-        removeItem: () => undefined,
-      },
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'success',
-    });
-    expect(feature.getSnapshot().lastResult).toBe('success');
-    expect(feature.getViewState().lastUsedAccountId).toBe(accountA.id);
-  });
-
-  it('treats a throwing custom storage key as a best-effort storage failure', async () => {
-    const onSuccess = jest.fn(async () => undefined);
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      scopeKey: 'demo',
-      storageKey: () => {
-        throw new Error('invalid storage key');
-      },
-      onSwitch: jest.fn(async () => undefined),
-      onSuccess,
-    });
-
-    expect(() => feature.setup()).not.toThrow();
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'success',
-    });
-    expect(onSuccess).toHaveBeenCalledTimes(1);
-  });
-
-  it('uses replacement state without replacing the feature object', async () => {
-    const onSwitch = jest.fn(async () => undefined);
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      onSwitch,
-    });
-    const sameFeature = feature;
-
-    feature.update({
-      accounts: [accountB],
-      currentAccountId: accountB.id,
-    });
-    await feature.switchAccount(accountB.id);
-
-    expect(feature).toBe(sameFeature);
-    expect(onSwitch).toHaveBeenCalledWith(
-      accountB,
-      expect.objectContaining({ signal: expect.any(Object) }),
-    );
-    expect(feature.getViewState().currentAccountId).toBe(accountB.id);
-    expect(feature.getViewState().isAuthenticated).toBe(true);
-  });
-
-  it('allows the current account to be selected for a full re-login', () => {
-    expect(isQuickAccountSwitchDisabled({
-      busy: false,
-      suspended: false,
-    })).toBe(false);
-  });
-
-  it('clears omitted optional fields when replacing state', () => {
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      scopeKey: 'demo',
-      contextLabel: 'Development',
-      isAuthenticated: true,
-      currentAccountId: accountA.id,
-      currentAccountDetails: [{ label: 'Role', value: 'Owner' }],
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    feature.update({ accounts: [accountB] });
-
-    expect(feature.getViewState()).toEqual(expect.objectContaining({
-      scopeKey: undefined,
-      contextLabel: undefined,
-      isAuthenticated: false,
-      currentAccountId: null,
-      currentAccountDetails: [],
-    }));
-  });
-
-  it('ignores stale async storage reads after the scope changes', async () => {
-    const resolvers = new Map<string, (value: string | null) => void>();
-    const storage = {
-      getItem: jest.fn(
-        (key: string) => new Promise<string | null>((resolve) => resolvers.set(key, resolve)),
-      ),
-      setItem: jest.fn(async () => undefined),
-      removeItem: jest.fn(async () => undefined),
-    };
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA, accountB],
-      scopeKey: 'one',
-      storage,
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    feature.setup();
-    feature.update({ accounts: [accountA, accountB], scopeKey: 'two' });
-    resolvers.get('react-native-debug-toolkit.quick-accounts.last:two')?.(accountB.id);
-    await Promise.resolve();
-    resolvers.get('react-native-debug-toolkit.quick-accounts.last:one')?.(accountA.id);
-    await feature.waitForStorage();
-
-    expect(feature.getViewState().lastUsedAccountId).toBe(accountB.id);
-  });
-
-  it('does not let same-scope hydration overwrite a newer successful switch', async () => {
-    let resolveStored!: (value: string | null) => void;
-    const storage = {
-      getItem: jest.fn(
-        () => new Promise<string | null>((resolve) => {
-          resolveStored = resolve;
-        }),
-      ),
-      setItem: jest.fn(async () => undefined),
-      removeItem: jest.fn(async () => undefined),
-    };
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA, accountB],
-      scopeKey: 'same',
-      storage,
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    feature.setup();
-    await feature.switchAccount(accountB.id);
-    resolveStored(accountA.id);
-    await feature.waitForStorage();
-
-    expect(feature.getViewState().lastUsedAccountId).toBe(accountB.id);
-  });
-
-  it('does not write a completed switch into a newer scope', async () => {
-    let finishSwitch: (() => void) | undefined;
-    const storage = new MemoryStorageAdapter();
-    const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      scopeKey: 'one',
-      storage,
-      onSwitch: () => new Promise<void>((resolve) => {
-        finishSwitch = resolve;
-      }),
-    });
-
-    const switching = feature.switchAccount(accountA.id);
-    await Promise.resolve();
-    feature.update({ accounts: [accountA], scopeKey: 'two' });
-    finishSwitch?.();
-    await expect(switching).resolves.toEqual({ status: 'success' });
-
+describe('accounts configuration and presentation', () => {
+  it.each([{}, { items: [] }, { onSwitch: jest.fn() }])('keeps empty supply inert: %p', async options => {
+    const rt = runtime();
+    rt.preferenceStorage.setItem('react-native-debug-toolkit.quick-accounts.last:default', 'a');
+    const read = jest.spyOn(rt.preferenceStorage, 'getItem');
+    const feature = createQuickAccountsFeature(options, rt);
+    const ctx = context();
+    await feature.start(ctx);
+    expect(feature.getViewState().accounts).toEqual([]);
+    expect(feature.getViewState().isAuthenticated).toBeUndefined();
     expect(feature.getViewState().lastUsedAccountId).toBeNull();
-    expect(storage.getItem('react-native-debug-toolkit.quick-accounts.last:one'))
-      .toBeNull();
-    expect(storage.getItem('react-native-debug-toolkit.quick-accounts.last:two'))
-      .toBeNull();
+    expect(phase(ctx)).toBe('empty');
+    expect(read).not.toHaveBeenCalled();
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'not_found' });
+    expect(rt.closePanel).not.toHaveBeenCalled();
   });
+  it('displays supplied accounts without a callback and does not persist or notify success', async () => {
+    const rt = runtime();
+    const onSuccess = jest.fn();
+    const feature = createQuickAccountsFeature({ items: [a], onSuccess }, rt);
+    await feature.start(context());
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'not_configured' });
+    expect(feature.getViewState().switchConfigured).toBe(false);
+    expect(isQuickAccountSwitchDisabled(feature.getViewState())).toBe(true);
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:default')).toBeNull();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(rt.closePanel).not.toHaveBeenCalled();
+  });
+  it('keeps private fields out of UI and telemetry and preserves unknown authentication', async () => {
+    const account = { ...a, get password() { throw new Error('must not read'); } };
+    const onSwitch = jest.fn();
+    const onSuccess = jest.fn();
+    const feature = createQuickAccountsFeature({ items: [account], currentId: 'a', onSwitch, onSuccess }, runtime());
+    await feature.start(context());
+    await feature.actions.switchTo('a');
+    expect(onSwitch.mock.calls[0]?.[0]).toBe(account);
+    expect(onSuccess.mock.calls[0]?.[0]).toBe(account);
+    expect(feature.getViewState().isAuthenticated).toBeUndefined();
+    expect(feature.getViewState().currentAccountDetails).toEqual([]);
+    expect(JSON.stringify(feature.getSnapshot())).not.toContain(a.secret);
+    expect(JSON.stringify(feature.getViewState())).not.toContain(a.secret);
+  });
+  it('passes original objects to rollback and error callbacks', async () => {
+    const error = new Error('failed');
+    const onRollback = jest.fn();
+    const onError = jest.fn();
+    const feature = createQuickAccountsFeature({ items: [a], onSwitch: () => { throw error; }, onRollback, onError }, runtime());
+    await feature.start(context());
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'error', error });
+    expect(onRollback).toHaveBeenCalledWith(a, { reason: 'error', error });
+    expect(onError).toHaveBeenCalledWith(error, a);
+  });
+  it.each([
+    { items: [{ id: '', title: 'A' }] }, { items: [{ id: 'a', title: '' }] },
+    { items: [a, a] }, { source: source({ items: [] }), items: [] },
+  ])('rejects malformed configuration: %p', async options => {
+    expect(normalizeConfig({ accounts: options }).features.accounts.issues.length).toBeGreaterThan(0);
+    const feature = createQuickAccountsFeature(options as never, runtime());
+    const ctx = context();
+    await feature.start(ctx);
+    expect(phase(ctx)).toBe('error');
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'disabled' });
+  });
+});
 
-  it('suspends during cleanup and resumes when the same feature is set up again', async () => {
-    const onSwitch = jest.fn(async () => undefined);
-    const feature = createQuickAccountsFeature({ accounts: [accountA], onSwitch });
-
-    feature.cleanup();
-
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'superseded',
-    });
-    expect(onSwitch).not.toHaveBeenCalled();
-    expect(feature.getSnapshot().suspended).toBe(true);
-
-    feature.setup();
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'success',
-    });
+describe('atomic account source and serialized switching', () => {
+  it('authentication feedback does not abort a login and item identity is retained', async () => {
+    const login = deferred();
+    const data = source({ items: [a] });
+    const rt = runtime();
+    let signal!: AbortSignal;
+    const onSuccess = jest.fn();
+    const onRollback = jest.fn();
+    const feature = createQuickAccountsFeature({ source: data, onSwitch: (_account, ctx) => { signal = ctx.signal; return login.promise; }, onSuccess, onRollback }, rt);
+    const normalized = normalizeConfig({ accounts: { source: data } }).features.accounts.options;
+    expect(normalized.items).toBeUndefined();
+    expect(normalized.scopeKey).toBeUndefined();
+    await feature.start(context());
+    const switching = feature.actions.switchTo('a');
+    data.update({ items: [a], currentId: 'a', isAuthenticated: true, currentDetails: [{ title: 'Role', value: 'Owner' }], contextLabel: 'Signed in' });
+    expect(signal.aborted).toBe(false);
+    login.resolve();
+    await expect(switching).resolves.toEqual({ status: 'success' });
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onRollback).not.toHaveBeenCalled();
+    expect(rt.closePanel).toHaveBeenCalledTimes(1);
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:default')).toBe('a');
+  });
+  it.each(['replace', 'remove', 'scope', 'dispose'] as const)('cancels %s but remains busy through login and rollback', async change => {
+    const login = deferred();
+    const rollback = deferred();
+    const rt = runtime();
+    const data = source({ items: [a, b], scopeKey: 'one' });
+    const onSwitch = jest.fn(() => login.promise);
+    const onRollback = jest.fn(() => rollback.promise);
+    const onSuccess = jest.fn();
+    const feature = createQuickAccountsFeature({ source: data, onSwitch, onRollback, onSuccess }, rt);
+    await feature.start(context());
+    const switching = feature.actions.switchTo('a');
+    if (change === 'dispose') { feature.dispose(); feature.actions.resume(); }
+    else { data.update({ items: change === 'replace' ? [{ ...a }, b] : change === 'remove' ? [b] : [a, b], scopeKey: change === 'scope' ? 'two' : 'one' }); }
+    await expect(feature.actions.switchTo('b')).resolves.toEqual({ status: change === 'dispose' ? 'disabled' : 'busy' });
+    let idle = false;
+    const waiting = feature.actions.waitForIdle().then(() => { idle = true; });
+    await flush();
+    expect(idle).toBe(false);
+    login.resolve();
+    await flush();
+    expect(onRollback).toHaveBeenCalledWith(a, { reason: 'superseded' });
+    expect(idle).toBe(false);
+    expect(feature.getSnapshot().busy).toBe(true);
+    rollback.resolve();
+    await expect(switching).resolves.toEqual({ status: 'superseded' });
+    await waiting;
+    expect(feature.getSnapshot().busy).toBe(false);
     expect(onSwitch).toHaveBeenCalledTimes(1);
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(rt.closePanel).not.toHaveBeenCalled();
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:one')).toBeNull();
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:two')).toBeNull();
+    expect(feature.getViewState().lastUsedAccountId).toBeNull();
   });
-
-  it('does not let setup override an explicit suspension', async () => {
-    const onSwitch = jest.fn(async () => undefined);
-    const feature = createQuickAccountsFeature({ accounts: [accountA], onSwitch });
-
-    feature.suspend();
-    feature.cleanup();
-    feature.setup();
-
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'superseded',
-    });
-    expect(onSwitch).not.toHaveBeenCalled();
-
-    feature.resume();
-    await expect(feature.switchAccount(accountA.id)).resolves.toEqual({
-      status: 'success',
-    });
+  it('invalid dynamic snapshots cancel work and release the source', async () => {
+    const login = deferred();
+    const data = source({ items: [a] });
+    const onRollback = jest.fn();
+    const ctx = context();
+    const feature = createQuickAccountsFeature({ source: data, onSwitch: () => login.promise, onRollback }, runtime());
+    await feature.start(ctx);
+    const switching = feature.actions.switchTo('a');
+    data.update({ items: [a, a] });
+    expect(data.listenerCount).toBe(0);
+    expect(phase(ctx)).toBe('error');
+    login.resolve();
+    await expect(switching).resolves.toEqual({ status: 'superseded' });
+    expect(onRollback).toHaveBeenCalledTimes(1);
   });
-
-  it('supports custom copy and a scoped custom storage key', async () => {
-    const storage = new MemoryStorageAdapter();
+  it('resume cannot bypass unfinished cancelled work', async () => {
+    const login = deferred();
+    const feature = createQuickAccountsFeature({ items: [a, b], onSwitch: () => login.promise }, runtime());
+    await feature.start(context());
+    const first = feature.actions.switchTo('a');
+    feature.actions.suspend();
+    await expect(feature.actions.switchTo('missing')).resolves.toEqual({ status: 'disabled' });
+    feature.actions.resume();
+    await expect(feature.actions.switchTo('missing')).resolves.toEqual({ status: 'busy' });
+    login.resolve();
+    await expect(first).resolves.toEqual({ status: 'superseded' });
+  });
+  it('success notification failure preserves login and persistence without rollback', async () => {
+    const error = new Error('notification failed');
+    const rt = runtime();
+    const onRollback = jest.fn();
+    const onError = jest.fn();
+    const feature = createQuickAccountsFeature({ items: [a], onSwitch: jest.fn(), onSuccess: () => { throw error; }, onRollback, onError }, rt);
+    await feature.start(context());
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'success' });
+    expect(onRollback).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(error, a);
+    expect(feature.getViewState().errorMessage).toContain(error.message);
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:default')).toBe('a');
+    expect(rt.closePanel).toHaveBeenCalledTimes(1);
+  });
+  it('contains rollback and error callback failures and eventually clears busy', async () => {
+    const error = new Error('login failed');
+    const onRollback = jest.fn(() => { throw new Error('rollback failed'); });
+    const onError = jest.fn(() => { throw new Error('error callback failed'); });
+    const feature = createQuickAccountsFeature({ items: [a], onSwitch: () => { throw error; }, onRollback, onError }, runtime());
+    await feature.start(context());
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'error', error });
+    await feature.actions.waitForIdle();
+    expect(onRollback).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(feature.getViewState().errorMessage).toContain('rollback failed');
+    expect(feature.getViewState().errorMessage).toContain('error callback failed');
+    expect(feature.getSnapshot().busy).toBe(false);
+  });
+  it('waits for startup storage and ignores stale scope hydration', async () => {
+    const rt = runtime();
+    const reads = new Map<string, (value: string | null) => void>();
+    const storage = { getItem: (key: string) => new Promise<string | null>(resolve => reads.set(key, resolve)), setItem: jest.fn(), removeItem: jest.fn() };
+    const data = source({ items: [a, b], scopeKey: 'one' });
+    const feature = createQuickAccountsFeature({ source: data }, { ...rt, preferenceStorage: storage });
+    let started = false;
+    const starting = Promise.resolve(feature.start(context())).then(() => { started = true; });
+    await flush();
+    expect(started).toBe(false);
+    data.update({ items: [a, b], scopeKey: 'two' });
+    reads.get('react-native-debug-toolkit.quick-accounts.last:two')?.('b');
+    reads.get('react-native-debug-toolkit.quick-accounts.last:one')?.('a');
+    await starting;
+    await feature.waitForStorage();
+    expect(feature.getViewState().lastUsedAccountId).toBe('b');
+  });
+  it('preference failure remains visible without rolling back login', async () => {
+    const rt = runtime();
+    jest.spyOn(rt.preferenceStorage, 'setItem').mockImplementation(() => { throw new Error('disk unavailable'); });
+    const onRollback = jest.fn();
+    const feature = createQuickAccountsFeature({ items: [a], onSwitch: jest.fn(), onRollback }, rt);
+    await feature.start(context());
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'success' });
+    expect(onRollback).not.toHaveBeenCalled();
+    expect(feature.getViewState().errorMessage).toContain('disk unavailable');
+  });
+  it('does not initiate persistence or success notifications after a commit observer changes scope', async () => {
+    const rt = runtime();
+    const data = source({ items: [a], scopeKey: 'one' });
+    const onSuccess = jest.fn();
+    const feature = createQuickAccountsFeature({ source: data, onSwitch: jest.fn(), onSuccess }, rt);
+    await feature.start(context());
+    feature.subscribe(() => {
+      if (feature.getSnapshot().lastResult === 'success') {
+        data.update({ items: [a], scopeKey: 'two' });
+      }
+    });
+    await feature.actions.switchTo('a');
+    expect(rt.preferenceStorage.getItem('react-native-debug-toolkit.quick-accounts.last:one')).toBeNull();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(rt.closePanel).not.toHaveBeenCalled();
+    expect(feature.getViewState().lastUsedAccountId).toBeNull();
+  });
+  it('late same-scope hydration cannot overwrite a newer successful ID', async () => {
+    let resolveStored!: (value: string | null) => void;
+    const rt = runtime();
+    const storage = {
+      getItem: () => new Promise<string | null>(resolve => { resolveStored = resolve; }),
+      setItem: jest.fn(), removeItem: jest.fn(),
+    };
+    const feature = createQuickAccountsFeature({ items: [a, b], onSwitch: jest.fn() }, { ...rt, preferenceStorage: storage });
+    const starting = feature.start(context());
+    await feature.actions.switchTo('b');
+    resolveStored('a');
+    await starting;
+    expect(feature.getViewState().lastUsedAccountId).toBe('b');
+    expect(feature.getViewState().accounts[0]?.id).toBe('b');
+  });
+  it('aborting a host releases its source and settles startup despite pending preferences', async () => {
+    const rt = runtime();
+    const storage = { getItem: () => new Promise<string | null>(() => {}), setItem: jest.fn(), removeItem: jest.fn() };
+    const data = source({ items: [a] });
+    const feature = createQuickAccountsFeature({ source: data, onSwitch: jest.fn() }, { ...rt, preferenceStorage: storage });
+    const ctx = context();
+    const starting = feature.start(ctx);
+    ctx.abort.abort();
+    await starting;
+    expect(data.listenerCount).toBe(0);
+    await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'disabled' });
+  });
+  it('late rollback failures cannot publish into a remounted host', async () => {
+    const login = deferred();
     const feature = createQuickAccountsFeature({
-      accounts: [accountA],
-      scopeKey: 'demo',
-      storageKey: 'company.quick-accounts',
-      storage,
-      copy: { title: '快速账号' },
-      onSwitch: jest.fn(async () => undefined),
-    });
-
-    await feature.switchAccount(accountA.id);
-
-    expect(feature.getViewState().copy.title).toBe('快速账号');
-    expect(feature.getViewState().copy.switchLabel).toBe('Switch');
-    expect(storage.getItem('company.quick-accounts:demo')).toBe(accountA.id);
+      items: [a], onSwitch: () => login.promise,
+      onRollback: () => { throw new Error('old host rollback failed'); },
+    }, runtime());
+    await feature.start(context());
+    const old = feature.actions.switchTo('a');
+    feature.dispose();
+    await feature.start(context());
+    login.resolve();
+    await expect(old).resolves.toEqual({ status: 'superseded' });
+    expect(feature.getViewState().errorMessage).toBeNull();
+    expect(feature.getSnapshot().lastResult).toBe('idle');
+    expect(feature.getStatus().phase).toBe('ready');
   });
 });

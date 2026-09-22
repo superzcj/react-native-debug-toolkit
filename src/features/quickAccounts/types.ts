@@ -1,79 +1,41 @@
 import type { StorageAdapter } from '../../utils/StorageAdapter';
-import type { DebugFeature, DebugFeatureListener } from '../../types';
+import type { DebugFeature, DebugFeatureListener } from '../../types/feature';
+import type { AccountsOptions, AccountsSnapshot, DebugAccount } from '../../types/config';
+import type { AccountsActions, AccountSwitchResult, FeatureStatus } from '../../types/debug';
+import type { FeatureDriver } from '../../core/runtimeTypes';
 
-export interface QuickAccountItem {
-  readonly id: string;
-  readonly label: string;
-  readonly subtitle?: string;
-  readonly note?: string;
-}
-
-export interface QuickAccountSwitchContext {
-  readonly signal: AbortSignal;
-}
-
-export interface QuickAccountDetail {
-  readonly label: string;
-  readonly value: string;
-}
-
+// Internal names retained until the public entry cutover.
+export interface QuickAccountItem extends DebugAccount {}
+export type QuickAccountSwitchResult = AccountSwitchResult;
+export type QuickAccountSwitchContext = { readonly signal: AbortSignal };
+export type QuickAccountDetail = { readonly title: string; readonly value: string };
 export type QuickAccountRollbackReason = 'error' | 'superseded';
-
-export interface QuickAccountRollbackContext {
-  readonly reason: QuickAccountRollbackReason;
-  readonly error?: unknown;
-}
-
-export type QuickAccountSwitchResult =
-  | { readonly status: 'success' }
-  | { readonly status: 'superseded' }
-  | { readonly status: 'error'; readonly error: unknown };
-
-export interface QuickAccountsControllerState {
-  readonly busy: boolean;
-  readonly suspended: boolean;
-}
-
-export interface QuickAccountsControllerOptions<
-  TAccount extends QuickAccountItem,
-> {
-  readonly onSwitch: (
-    account: TAccount,
-    context: QuickAccountSwitchContext,
-  ) => void | Promise<void>;
-  readonly onRollback?: (
-    account: TAccount,
-    context: QuickAccountRollbackContext,
-  ) => void | Promise<void>;
+export type QuickAccountRollbackContext = { readonly reason: QuickAccountRollbackReason; readonly error?: unknown };
+export interface QuickAccountsControllerState { readonly busy: boolean; readonly suspended: boolean }
+export interface QuickAccountsControllerOptions<A extends DebugAccount> {
+  readonly onSwitch?: AccountsOptions<A>['onSwitch'];
+  readonly onRollback?: AccountsOptions<A>['onRollback'];
+  readonly onError?: AccountsOptions<A>['onError'];
+  readonly onNotificationError?: (error: unknown, account: A) => void;
+  readonly onCommit?: (account: A) => void | Promise<void>;
+  readonly isCurrent?: (account: A) => boolean;
   readonly onStateChange?: (state: QuickAccountsControllerState) => void;
 }
-
-export interface QuickAccountsController<TAccount extends QuickAccountItem> {
-  switchTo(account: TAccount): Promise<QuickAccountSwitchResult>;
+export interface QuickAccountsController<A extends DebugAccount> {
+  switchTo(account: A): Promise<AccountSwitchResult>;
+  invalidate(): void;
   suspend(): void;
   resume(): void;
   waitForIdle(): Promise<void>;
   getState(): QuickAccountsControllerState;
 }
-
-export interface QuickAccountsStorageOptions {
-  readonly storage: StorageAdapter;
-  readonly scopeKey?: string;
-}
-
-export type QuickAccountsLastResult =
-  | 'idle'
-  | 'success'
-  | 'error'
-  | 'superseded';
-
+export type QuickAccountsLastResult = 'idle' | AccountSwitchResult['status'];
 export interface QuickAccountsSnapshot {
   readonly accountCount: number;
   readonly busy: boolean;
   readonly suspended: boolean;
   readonly lastResult: QuickAccountsLastResult;
 }
-
 export interface QuickAccountsCopy {
   readonly tabLabel: string;
   readonly title: string;
@@ -89,75 +51,40 @@ export interface QuickAccountsCopy {
   readonly successMessage: string;
   readonly errorMessage: string;
 }
-
-export interface QuickAccountsState<TAccount extends QuickAccountItem> {
-  readonly accounts: readonly TAccount[];
-  readonly scopeKey?: string;
-  readonly contextLabel?: string;
-  readonly isAuthenticated?: boolean;
-  readonly currentAccountId?: string | null;
-  readonly currentAccountDetails?: readonly QuickAccountDetail[];
-}
-
-export interface QuickAccountViewItem extends QuickAccountItem {
-  readonly id: string;
-  readonly label: string;
-  readonly subtitle: string | undefined;
-  readonly note: string | undefined;
-}
-
+export type QuickAccountsState<A extends DebugAccount> = Partial<AccountsSnapshot<A>>;
+export interface QuickAccountViewItem extends DebugAccount {}
 export interface QuickAccountsViewState {
   readonly accounts: readonly QuickAccountViewItem[];
-  readonly scopeKey: string | undefined;
+  readonly scopeKey: string;
   readonly contextLabel: string | undefined;
-  readonly isAuthenticated: boolean;
+  readonly isAuthenticated: boolean | undefined;
   readonly currentAccountId: string | null;
   readonly currentAccountDetails: readonly QuickAccountDetail[];
   readonly lastUsedAccountId: string | null;
+  readonly switchConfigured: boolean;
   readonly busy: boolean;
   readonly suspended: boolean;
   readonly lastResult: QuickAccountsLastResult;
   readonly errorMessage: string | null;
   readonly copy: QuickAccountsCopy;
 }
-
-export type QuickAccountsStorageKey =
-  | string
-  | ((scopeKey: string) => string);
-
-export interface CreateQuickAccountsFeatureOptions<
-  TAccount extends QuickAccountItem,
-> extends QuickAccountsState<TAccount> {
-  readonly onSwitch: (
-    account: TAccount,
-    context: QuickAccountSwitchContext,
-  ) => void | Promise<void>;
-  readonly onRollback?: (
-    account: QuickAccountViewItem,
-    context: QuickAccountRollbackContext,
-  ) => void | Promise<void>;
-  readonly onSuccess?: (
-    account: QuickAccountViewItem,
-  ) => void | Promise<void>;
-  readonly onError?: (
-    error: unknown,
-    account: QuickAccountViewItem,
-  ) => void | Promise<void>;
-  readonly storage?: StorageAdapter;
-  readonly storageKey?: QuickAccountsStorageKey;
-  readonly copy?: Partial<QuickAccountsCopy>;
-  readonly closePanelOnSuccess?: boolean;
-  readonly initiallySuspended?: boolean;
+export type QuickAccountsStorageKey = string | ((scopeKey: string) => string);
+export type CreateQuickAccountsFeatureOptions<A extends DebugAccount> = AccountsOptions<A>;
+export interface AccountsRuntimeContext {
+  readonly preferenceStorage: StorageAdapter;
+  readonly active: boolean;
+  closePanel?(): void;
 }
-
-export interface QuickAccountsFeature<TAccount extends QuickAccountItem>
-  extends DebugFeature<QuickAccountsSnapshot> {
-  update(state: QuickAccountsState<TAccount>): void;
-  switchAccount(accountId: string): Promise<QuickAccountSwitchResult>;
+export interface QuickAccountsFeature<A extends DebugAccount>
+  extends DebugFeature<QuickAccountsSnapshot>, FeatureDriver {
+  readonly actions: AccountsActions;
+  update(state: QuickAccountsState<A>): void;
+  switchAccount(id: string): Promise<AccountSwitchResult>;
   suspend(): void;
   resume(): void;
   waitForIdle(): Promise<void>;
   waitForStorage(): Promise<void>;
   getViewState(): QuickAccountsViewState;
+  getStatus(): FeatureStatus;
   subscribe(listener: DebugFeatureListener): () => void;
 }

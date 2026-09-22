@@ -25,17 +25,26 @@ function deferred<T = void>() {
 
 const accountA: PrivateAccount = {
   id: 'a',
-  label: 'Account A',
+  title: 'Account A',
   secret: 'private-a',
 };
 
 const accountB: PrivateAccount = {
   id: 'b',
-  label: 'Account B',
+  title: 'Account B',
   secret: 'private-b',
 };
 
 describe('createQuickAccountsController', () => {
+  it('does not start business login if a busy observer immediately suspends it', async () => {
+    const onSwitch = jest.fn();
+    const controller = createQuickAccountsController({
+      onSwitch,
+      onStateChange: state => { if (state.busy && !state.suspended) { controller.suspend(); } },
+    });
+    await expect(controller.switchTo(accountA)).resolves.toEqual({ status: 'superseded' });
+    expect(onSwitch).not.toHaveBeenCalled();
+  });
   it('passes the full account and an abort signal to the host', async () => {
     const onSwitch = jest.fn(async () => undefined);
     const controller = createQuickAccountsController({ onSwitch });
@@ -49,7 +58,7 @@ describe('createQuickAccountsController', () => {
     );
   });
 
-  it('runs serially, aborts the active switch, and lets only the latest request win', async () => {
+  it('returns busy without starting or aborting a second login', async () => {
     const first = deferred();
     const events: string[] = [];
     let firstSignal: AbortSignal | undefined;
@@ -70,17 +79,13 @@ describe('createQuickAccountsController', () => {
     await Promise.resolve();
     const secondResult = controller.switchTo(accountB);
 
-    expect(firstSignal?.aborted).toBe(true);
+    await expect(secondResult).resolves.toEqual({ status: 'busy' });
+    expect(firstSignal?.aborted).toBe(false);
     expect(events).toEqual(['switch:a']);
     first.resolve();
 
-    await expect(firstResult).resolves.toEqual({ status: 'superseded' });
-    await expect(secondResult).resolves.toEqual({ status: 'success' });
-    expect(events).toEqual([
-      'switch:a',
-      'rollback:a:superseded',
-      'switch:b',
-    ]);
+    await expect(firstResult).resolves.toEqual({ status: 'success' });
+    expect(events).toEqual(['switch:a']);
   });
 
   it('returns the original switch error when best-effort rollback also fails', async () => {
@@ -118,7 +123,7 @@ describe('createQuickAccountsController', () => {
     expect(controller.getState()).toEqual({ busy: true, suspended: true });
     expect(signals[0]?.aborted).toBe(true);
     await expect(controller.switchTo(accountB)).resolves.toEqual({
-      status: 'superseded',
+      status: 'disabled',
     });
 
     active.resolve();

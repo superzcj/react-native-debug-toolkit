@@ -1,21 +1,16 @@
-import { DebugToolkit } from '../../core/DebugToolkit';
-import type { DebugFeatureListener } from '../../types';
-import { createDefaultLogStorage } from '../../utils/StorageAdapter';
+import { normalizeConfig } from '../../core/config';
+import type { FeatureContext } from '../../core/runtimeTypes';
+import type { AccountsOptions, AccountsSnapshot, DebugAccount } from '../../types/config';
+import type { AccountsActions, AccountSwitchResult, FeatureStatus } from '../../types/debug';
+import type { DebugFeatureListener } from '../../types/feature';
+import { observeSource } from '../../utils/observeSource';
 import { createQuickAccountsController } from './controller';
 import { QuickAccountsTab } from './QuickAccountsTab';
 import { t } from '../../i18n';
 import { getQuickAccountsLastUsedStorageKey } from './storage';
 import type {
-  CreateQuickAccountsFeatureOptions,
-  QuickAccountItem,
-  QuickAccountViewItem,
-  QuickAccountsCopy,
-  QuickAccountsFeature,
-  QuickAccountsLastResult,
-  QuickAccountsSnapshot,
-  QuickAccountsState,
-  QuickAccountsStorageKey,
-  QuickAccountsViewState,
+  AccountsRuntimeContext, QuickAccountsCopy, QuickAccountsFeature,
+  QuickAccountsLastResult, QuickAccountsViewState,
 } from './types';
 
 export const DEFAULT_QUICK_ACCOUNTS_COPY: QuickAccountsCopy = {
@@ -52,322 +47,237 @@ function getDefaultQuickAccountsCopy(): QuickAccountsCopy {
   };
 }
 
-function projectAccount<TAccount extends QuickAccountItem>(
-  account: TAccount,
-): QuickAccountViewItem {
+
+const DATA_FIELDS = ['items', 'currentId', 'scopeKey', 'contextLabel', 'isAuthenticated', 'currentDetails'];
+const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+function readState<A extends DebugAccount>(input: unknown, dynamic = false): AccountsSnapshot<A> {
+  if (dynamic && (typeof input !== 'object' || input === null || !Array.isArray((input as AccountsSnapshot<A>).items))) {
+    throw new Error('accounts.source.items: Expected an account array.');
+  }
+  if (dynamic && Object.keys(input as object).some(key => !DATA_FIELDS.includes(key))) {
+    throw new Error('accounts.source: Unexpected snapshot field.');
+  }
+  const parsed = normalizeConfig({ accounts: input }).features.accounts;
+  if (parsed.issues.length) { throw new Error(parsed.issues.map(issue => issue.path + ': ' + issue.message).join('\n')); }
+  const data = parsed.options;
   return {
-    id: account.id,
-    label: account.label,
-    subtitle: account.subtitle,
-    note: account.note,
+    items: (data.items ?? []) as readonly A[],
+    scopeKey: data.scopeKey as string ?? 'default',
+    currentId: data.currentId as string | null | undefined,
+    contextLabel: data.contextLabel as string | undefined,
+    isAuthenticated: data.isAuthenticated as boolean | undefined,
+    currentDetails: data.currentDetails === undefined ? undefined :
+      (data.currentDetails as AccountsSnapshot<A>['currentDetails'])!.map(detail => ({ title: detail.title, value: detail.value })),
   };
 }
 
-function normalizeState<TAccount extends QuickAccountItem>(
-  state: QuickAccountsState<TAccount>,
-): Required<Pick<QuickAccountsState<TAccount>, 'accounts'>> &
-  Omit<QuickAccountsState<TAccount>, 'accounts'> & {
-    isAuthenticated: boolean;
-    currentAccountId: string | null;
-    currentAccountDetails: NonNullable<
-      QuickAccountsState<TAccount>['currentAccountDetails']
-    >;
-  } {
-  return {
-    accounts: [...state.accounts],
-    scopeKey: state.scopeKey || undefined,
-    contextLabel: state.contextLabel || undefined,
-    isAuthenticated:
-      state.isAuthenticated ?? state.currentAccountId != null,
-    currentAccountId: state.currentAccountId ?? null,
-    currentAccountDetails: [...(state.currentAccountDetails ?? [])],
-  };
-}
-
-function resolveStorageKey(
-  storageKey: QuickAccountsStorageKey | undefined,
-  scopeKey: string,
-): string {
-  if (typeof storageKey === 'function') {
-    return storageKey(scopeKey);
-  }
-  if (storageKey) {
-    return `${storageKey}:${scopeKey}`;
-  }
-  return getQuickAccountsLastUsedStorageKey(scopeKey);
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === 'string' && error) {
-    return error;
-  }
-  return fallback;
-}
-
-async function callBestEffort(callback: (() => void | Promise<void>) | undefined) {
-  if (!callback) {
-    return;
-  }
+export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount>(
+  options: AccountsOptions<A> = {},
+  runtime: AccountsRuntimeContext,
+): QuickAccountsFeature<A> {
+  const parsed = normalizeConfig({ accounts: options }).features.accounts;
+  let state: AccountsSnapshot<A> = { items: [], scopeKey: 'default' };
+  let configError: unknown;
   try {
-    await callback();
-  } catch {
-    // Presentation callbacks must not change the account switch result.
-  }
-}
-
-export function createQuickAccountsFeature<
-  TAccount extends QuickAccountItem,
->(
-  options: CreateQuickAccountsFeatureOptions<TAccount>,
-): QuickAccountsFeature<TAccount> {
+    if (parsed.issues.length) { throw new Error(parsed.issues.map(issue => issue.path + ': ' + issue.message).join('\n')); }
+    if (!options.source) { state = readState<A>(options); }
+  } catch (error) { configError = error; }
   const listeners = new Set<DebugFeatureListener>();
-  const copyOverrides = { ...options.copy };
-  const getCopy = (): QuickAccountsCopy => ({
-    ...getDefaultQuickAccountsCopy(),
-    ...copyOverrides,
-  });
-  const closePanelOnSuccess = options.closePanelOnSuccess ?? true;
-  let state = normalizeState<TAccount>(options);
+  let context: FeatureContext | undefined;
+  let lifecycle: AbortController | undefined;
+  let active = false;
+  let manuallySuspended = false;
+  let failed = false;
+  let status: FeatureStatus = { phase: 'empty', issues: [] };
+  let release: (() => void) | undefined;
   let lastUsedAccountId: string | null = null;
   let lastResult: QuickAccountsLastResult = 'idle';
-  let currentErrorMessage: string | null = null;
-  let storage = options.storage;
+  let errorMessage: string | null = null;
   let storageGeneration = 0;
   const storageTasks = new Set<Promise<void>>();
-  let lifecycleAttached = false;
-  let lifecycleBlocked = false;
-  let manuallySuspended = options.initiallySuspended ?? false;
-
-  const notify = () => {
-    listeners.forEach((listener) => {
-      try {
-        listener();
-      } catch {
-        // Observers must not break switching or lifecycle operations.
-      }
-    });
+  let request: { scope: string; target: A; lifecycle: AbortController | undefined } | undefined;
+  const current = () => active && runtime.active && !!context && context.isCurrent() && !context.signal.aborted;
+  const requestCurrent = (account: A) => current() && !failed && request?.lifecycle === lifecycle && request?.target === account &&
+    request.scope === state.scopeKey && state.items.find(item => item.id === account.id) === account;
+  const notify = () => { listeners.forEach(listener => { try { listener(); } catch { /* Observer isolation. */ } }); };
+  const publish = () => {
+    if (current()) { context!.setStatus(status); }
+    notify();
   };
-
-  const getStorage = () => {
-    storage ??= createDefaultLogStorage();
-    return storage;
+  const showError = (error: unknown, path = 'accounts') => {
+    const text = message(error);
+    errorMessage = errorMessage ? errorMessage + '\n' + text : text;
+    status = { phase: 'error', issues: [...status.issues, { path, message: text }] };
+    publish();
   };
-
-  const trackStorage = (task: Promise<unknown>): Promise<void> => {
-    const tracked = task.then(
-      () => undefined,
-      () => undefined,
-    );
-    storageTasks.add(tracked);
-    tracked.then(() => {
-      storageTasks.delete(tracked);
-    });
-    return tracked;
+  const publishData = () => {
+    if (!failed && !errorMessage) { status = { phase: state.items.length ? 'ready' : 'empty', issues: [] }; }
+    publish();
   };
-
+  const trackStorage = (promise: Promise<void>) => {
+    storageTasks.add(promise);
+    promise.then(() => storageTasks.delete(promise), () => storageTasks.delete(promise));
+    return promise;
+  };
   const hydrate = () => {
-    const requestGeneration = ++storageGeneration;
-    const scopeKey = state.scopeKey;
+    const token = ++storageGeneration;
+    const scope = state.scopeKey!;
     lastUsedAccountId = null;
-    notify();
-    if (!scopeKey) {
-      return;
-    }
-
-    let storedValue: string | null | Promise<string | null>;
-    try {
-      const key = resolveStorageKey(options.storageKey, scopeKey);
-      storedValue = getStorage().getItem(key);
-    } catch {
-      storedValue = null;
-    }
-    trackStorage(
-      Promise.resolve(storedValue)
-        .then((storedId) => {
-          if (
-            requestGeneration !== storageGeneration ||
-            !lifecycleAttached
-          ) {
-            return;
-          }
-          lastUsedAccountId = state.accounts.some(
-            (account) => account.id === storedId,
-          )
-            ? storedId
-            : null;
-          notify();
-        }),
-    );
-  };
-
-  const controller = createQuickAccountsController<TAccount>({
-    onSwitch: options.onSwitch,
-    onRollback: options.onRollback
-      ? (account, context) =>
-          options.onRollback?.(projectAccount(account), context)
-      : undefined,
-    onStateChange: notify,
-  });
-
-  if (manuallySuspended) {
-    controller.suspend();
-  }
-
-  const getSnapshot = (): QuickAccountsSnapshot => {
-    const controllerState = controller.getState();
-    return {
-      accountCount: state.accounts.length,
-      busy: controllerState.busy,
-      suspended: controllerState.suspended,
-      lastResult,
-    };
-  };
-
-  const getViewState = (): QuickAccountsViewState => {
-    const controllerState = controller.getState();
-    const projectedAccounts = state.accounts.map(projectAccount);
-    const recentIndex = projectedAccounts.findIndex(
-      (account) => account.id === lastUsedAccountId,
-    );
-    if (recentIndex > 0) {
-      const [recent] = projectedAccounts.splice(recentIndex, 1);
-      if (recent) {
-        projectedAccounts.unshift(recent);
-      }
-    }
-
-    return {
-      accounts: projectedAccounts,
-      scopeKey: state.scopeKey,
-      contextLabel: state.contextLabel,
-      isAuthenticated: state.isAuthenticated,
-      currentAccountId: state.currentAccountId,
-      currentAccountDetails: [...state.currentAccountDetails],
-      lastUsedAccountId,
-      busy: controllerState.busy,
-      suspended: controllerState.suspended,
-      lastResult,
-      errorMessage: currentErrorMessage,
-      copy: getCopy(),
-    };
-  };
-
-  const switchAccount = async (accountId: string) => {
-    const account = state.accounts.find((item) => item.id === accountId);
-    if (!account) {
-      const error = new Error(`Quick account not found: ${accountId}`);
-      lastResult = 'error';
-      currentErrorMessage = error.message;
-      notify();
-      return { status: 'error' as const, error };
-    }
-
-    currentErrorMessage = null;
-    notify();
-    const requestScopeKey = state.scopeKey;
-    const result = await controller.switchTo(account);
-    lastResult = result.status;
-
-    if (result.status === 'success') {
-      if (state.scopeKey === requestScopeKey) {
-        storageGeneration += 1;
-        lastUsedAccountId = account.id;
+    if (!current() || !state.items.length) { return; }
+    trackStorage((async () => {
+      try {
+        const id = await runtime.preferenceStorage.getItem(getQuickAccountsLastUsedStorageKey(scope));
+        if (token !== storageGeneration || !current()) { return; }
+        lastUsedAccountId = state.items.some(account => account.id === id) ? id : null;
         notify();
-
-        if (requestScopeKey) {
-          await trackStorage(
-            Promise.resolve().then(() => {
-              const key = resolveStorageKey(
-                options.storageKey,
-                requestScopeKey,
-              );
-              return getStorage().setItem(key, account.id);
-            }),
-          );
+      } catch (error) {
+        if (token === storageGeneration && current()) { showError(error, 'accounts.preferences'); }
+      }
+    })());
+  };
+  const controller = createQuickAccountsController<A>({
+    onSwitch: options.onSwitch,
+    onRollback: options.onRollback,
+    isCurrent: requestCurrent,
+    onStateChange: notify,
+    onNotificationError: (error, account) => {
+      if (requestCurrent(account)) { showError(error, 'accounts.callback'); }
+    },
+    onError: (error, account) => options.onError?.(error, account),
+    onCommit: async account => {
+      // The controller has just verified token, scope and target identity.
+      const scope = request!.scope;
+      lastUsedAccountId = account.id;
+      lastResult = 'success';
+      storageGeneration += 1;
+      notify();
+      if (!requestCurrent(account)) { return; }
+      await trackStorage((async () => {
+        try { await runtime.preferenceStorage.setItem(getQuickAccountsLastUsedStorageKey(scope), account.id); }
+        catch (error) { if (requestCurrent(account)) { showError(error, 'accounts.preferences'); } }
+      })());
+      if (!requestCurrent(account)) { return; }
+      try { await options.onSuccess?.(account); }
+      catch (error) {
+        if (requestCurrent(account)) {
+          showError(error, 'accounts.onSuccess');
+          try { await options.onError?.(error, account); }
+          catch (callbackError) { if (requestCurrent(account)) { showError(callbackError, 'accounts.onError'); } }
         }
       }
-
-      await callBestEffort(() => options.onSuccess?.(projectAccount(account)));
-      if (closePanelOnSuccess) {
-        DebugToolkit.closePanel();
+      if (requestCurrent(account) && options.closeOnSuccess !== false) { runtime.closePanel?.(); }
+    },
+  });
+  const fail = (error: unknown) => {
+    failed = true;
+    controller.invalidate();
+    release?.(); release = undefined;
+    storageGeneration += 1;
+    showError(error, 'accounts.source');
+  };
+  const update = (input: unknown, dynamic = false) => {
+    if (failed) { return; }
+    try {
+      const next = readState<A>(input, dynamic);
+      const scopeChanged = state.scopeKey !== next.scopeKey;
+      const previouslyEmpty = !state.items.length;
+      if (scopeChanged || (request && next.items.find(item => item.id === request!.target.id) !== request.target)) {
+        controller.invalidate();
       }
-    } else if (result.status === 'error') {
-      currentErrorMessage = errorMessage(result.error, getCopy().errorMessage);
-      await callBestEffort(() =>
-        options.onError?.(result.error, projectAccount(account)),
-      );
-    }
-
-    notify();
+      state = next;
+      if (scopeChanged) { errorMessage = null; lastResult = 'idle'; }
+      if (!state.items.some(item => item.id === lastUsedAccountId)) { lastUsedAccountId = null; }
+      if (scopeChanged || (previouslyEmpty && state.items.length > 0) || !state.items.length) { hydrate(); }
+      publishData();
+    } catch (error) { fail(error); }
+  };
+  const switchTo = async (id: string): Promise<AccountSwitchResult> => {
+    if (!current() || failed || controller.getState().suspended) { return { status: 'disabled' }; }
+    if (controller.getState().busy) { return { status: 'busy' }; }
+    const account = state.items.find(item => item.id === id);
+    if (!account) { return { status: 'not_found' }; }
+    if (!options.onSwitch) { return { status: 'not_configured' }; }
+    request = { scope: state.scopeKey!, target: account, lifecycle };
+    const operation = request;
+    errorMessage = null;
+    status = { phase: 'ready', issues: [] };
+    lastResult = 'idle';
+    const result = await controller.switchTo(account);
+    if (request === operation && lifecycle === operation.lifecycle && current() && !failed && state.scopeKey === operation.scope) { lastResult = result.status; publish(); }
+    if (request === operation) { request = undefined; }
     return result;
   };
-
+  const suspend = () => { manuallySuspended = true; controller.suspend(); };
+  const resume = () => { manuallySuspended = false; if (current() && !failed) { controller.resume(); } };
+  const waitForStorage = async () => {
+    while (storageTasks.size) { await Promise.all([...storageTasks]); }
+  };
+  const actions: AccountsActions = { switchTo, suspend, resume, waitForIdle: () => controller.waitForIdle() };
+  const dispose = () => {
+    active = false;
+    controller.suspend();
+    ++storageGeneration;
+    context?.signal.removeEventListener('abort', dispose);
+    lifecycle?.abort();
+    release?.(); release = undefined;
+    notify();
+  };
+  const start = async (ctx: FeatureContext) => {
+    if (active) { return; }
+    context = ctx;
+    if (ctx.signal.aborted || !ctx.isCurrent() || !runtime.active) { return; }
+    active = true;
+    lifecycle = new AbortController();
+    ctx.signal.addEventListener('abort', dispose, { once: true });
+    if (!manuallySuspended) { controller.resume(); }
+    failed = false;
+    errorMessage = null;
+    status = { phase: 'initializing', issues: [] };
+    if (configError) { fail(configError); return; }
+    if (options.source) {
+      release = observeSource(options.source, {
+        signal: lifecycle.signal,
+        onSnapshot: value => {
+          // Throw validation errors so observeSource also stops synchronous subscriptions.
+          readState<A>(value, true);
+          update(value, true);
+        },
+        onError: fail,
+      });
+    } else { hydrate(); }
+    publishData();
+    const signal = lifecycle.signal;
+    let done!: () => void;
+    const cancelled = new Promise<void>(resolve => { done = resolve; signal.addEventListener('abort', done, { once: true }); });
+    if (signal.aborted) { done(); }
+    await Promise.race([waitForStorage(), cancelled]);
+    signal.removeEventListener('abort', done);
+  };
+  const getViewState = (): QuickAccountsViewState => {
+    const accounts = state.items.map(account => ({ id: account.id, title: account.title, subtitle: account.subtitle, note: account.note }));
+    const recentIndex = accounts.findIndex(account => account.id === lastUsedAccountId);
+    if (recentIndex > 0) { accounts.unshift(accounts.splice(recentIndex, 1)[0]!); }
+    return {
+      accounts, scopeKey: state.scopeKey!, contextLabel: state.contextLabel,
+      isAuthenticated: state.isAuthenticated, currentAccountId: state.currentId ?? null,
+      currentAccountDetails: (state.currentDetails ?? []).map(detail => ({ ...detail })),
+      lastUsedAccountId, ...controller.getState(), suspended: failed || !current() || controller.getState().suspended,
+      switchConfigured: !!options.onSwitch,
+      lastResult, errorMessage, copy: getDefaultQuickAccountsCopy(),
+    };
+  };
   return {
-    name: 'quick-accounts',
-    get label() {
-      return getCopy().tabLabel;
-    },
-    renderContent: QuickAccountsTab,
-    setup: () => {
-      if (lifecycleAttached) {
-        return;
-      }
-      lifecycleAttached = true;
-      lifecycleBlocked = false;
-      if (!manuallySuspended) {
-        controller.resume();
-      }
-      hydrate();
-    },
-    cleanup: () => {
-      lifecycleAttached = false;
-      lifecycleBlocked = true;
-      storageGeneration += 1;
-      controller.suspend();
-    },
-    getSnapshot,
-    getViewState,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    update: (nextState) => {
-      const previousScopeKey = state.scopeKey;
-      state = normalizeState(nextState);
-      if (
-        lastUsedAccountId &&
-        !state.accounts.some((account) => account.id === lastUsedAccountId)
-      ) {
-        lastUsedAccountId = null;
-      }
-      if (previousScopeKey !== state.scopeKey) {
-        if (lifecycleAttached) {
-          hydrate();
-        } else {
-          lastUsedAccountId = null;
-        }
-      }
-      notify();
-    },
-    switchAccount,
-    suspend: () => {
-      manuallySuspended = true;
-      controller.suspend();
-    },
-    resume: () => {
-      manuallySuspended = false;
-      if (!lifecycleBlocked) {
-        controller.resume();
-      }
-    },
-    waitForIdle: () => controller.waitForIdle(),
-    waitForStorage: async () => {
-      while (storageTasks.size > 0) {
-        await Promise.all([...storageTasks]);
-      }
-    },
+    name: 'accounts',
+    get label() { return getDefaultQuickAccountsCopy().tabLabel; },
+    renderContent: QuickAccountsTab, start, dispose, actions,
+    setup: () => start({ owner: Symbol('accounts'), signal: new AbortController().signal, isCurrent: () => true, setStatus: () => undefined }),
+    cleanup: dispose,
+    update: input => update(input),
+    switchAccount: switchTo, suspend, resume,
+    waitForIdle: actions.waitForIdle, waitForStorage,
+    getViewState, getStatus: () => status,
+    getSnapshot: () => ({ accountCount: state.items.length, ...controller.getState(), lastResult }),
+    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
   };
 }
