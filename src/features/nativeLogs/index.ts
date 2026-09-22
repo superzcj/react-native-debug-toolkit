@@ -1,11 +1,10 @@
 import { NativeLogTab } from './NativeLogTab';
 import type { DebugFeature, DebugFeatureListener, NativeLogEntry } from '../../types';
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
-import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
-import { drainNativeLogs, startNativeLogCapture, stopNativeLogCapture } from './nativeLogsBridge';
+import { persistedLogLimit, type LogRuntimeContext } from '../../utils/logRuntime';
+import { drainNativeLogs, isNativeLogsAvailable, startNativeLogCapture, stopNativeLogCapture } from './nativeLogsBridge';
 
 const DEFAULT_MAX_LOGS = 200;
-const DEFAULT_MAX_PERSIST = 50;
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_DRAIN_LIMIT = 100;
 
@@ -23,7 +22,7 @@ export interface NativeLogsFeatureConfig {
 
 function matchesPattern(value: string | undefined, patterns: Array<string | RegExp> | undefined): boolean {
   if (!value || !patterns?.length) return false;
-  return patterns.some((p) => p instanceof RegExp ? p.test(value) : value.includes(p));
+  return patterns.some((p) => p instanceof RegExp ? new RegExp(p.source, p.flags).test(value) : value.includes(p));
 }
 
 function shouldKeepEntry(entry: Omit<NativeLogEntry, 'id'>, config?: NativeLogsFeatureConfig): boolean {
@@ -34,26 +33,31 @@ function shouldKeepEntry(entry: Omit<NativeLogEntry, 'id'>, config?: NativeLogsF
 }
 
 export const createNativeLogsFeature = (
-  config?: NativeLogsFeatureConfig,
-  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+  config: NativeLogsFeatureConfig | undefined,
+  runtime: LogRuntimeContext,
 ): DebugFeature<NativeLogEntry[]> => {
   const maxLogs = config?.maxLogs ?? DEFAULT_MAX_LOGS;
   const pollIntervalMs = Math.max(100, Math.floor(config?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS));
   const logStore = createPersistedObservableStore<NativeLogEntry>({
     storage: runtime.logStorage,
     storageKey: runtime.sessionManager.getLogStorageKey('native_logs'),
-    maxPersist: DEFAULT_MAX_PERSIST,
+    maxPersist: persistedLogLimit('native', maxLogs),
+    isActive: () => runtime.active,
+    maxEntries: maxLogs,
   });
 
   let initialized = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let draining = false;
+  let generation = 0;
 
   async function drainOnce(): Promise<void> {
-    if (draining) return;
+    if (draining || !initialized || !runtime.active) return;
     draining = true;
     try {
+      const epoch = generation;
       const entries = await drainNativeLogs(DEFAULT_DRAIN_LIMIT);
+      if (!initialized || !runtime.active || epoch !== generation) { return; }
       entries.filter((e) => shouldKeepEntry(e, config)).forEach((entry) => {
         logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
       });
@@ -65,19 +69,35 @@ export const createNativeLogsFeature = (
     label: 'Native',
     renderContent: NativeLogTab,
     setup: () => {
-      if (initialized) return;
+      if (initialized || !runtime.active) return;
+      if (!isNativeLogsAvailable()) {
+        runtime.reportCapabilityIssue({ path: 'native', message: 'Native log capture is unavailable.' });
+        return;
+      }
       initialized = true;
-      startNativeLogCapture({
+      const epoch = ++generation;
+      void startNativeLogCapture({
         minLevel: config?.minLevel,
         includeTags: config?.includeTags?.filter((p) => typeof p === 'string'),
         excludeTags: config?.excludeTags?.filter((p) => typeof p === 'string'),
-      }).catch(() => {});
-      timer = setInterval(() => { drainOnce().catch(() => {}); }, pollIntervalMs);
+      }).then(started => {
+        if (!initialized || !runtime.active) {
+          if (started) { void stopNativeLogCapture(); }
+          return;
+        }
+        if (epoch !== generation) { return; }
+        if (!started) {
+          runtime.reportCapabilityIssue({ path: 'native', message: 'Native log capture could not start.' });
+          return;
+        }
+        timer = setInterval(() => { void drainOnce(); }, pollIntervalMs);
+      });
     },
     getSnapshot: () => logStore.getData(),
     clear: () => { logStore.clearPersisted(); },
     cleanup: () => {
       if (!initialized) return;
+      generation += 1;
       if (timer) clearInterval(timer);
       timer = null;
       stopNativeLogCapture().catch(() => {});

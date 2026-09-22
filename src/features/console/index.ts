@@ -1,7 +1,7 @@
 import { ConsoleLogTab } from './ConsoleLogTab';
 import type { ConsoleLogEntry, DebugFeature } from '../../types';
 import { createPersistedObservableStore } from '../../utils/createPersistedObservableStore';
-import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
+import { persistedLogLimit, type LogRuntimeContext } from '../../utils/logRuntime';
 
 const LEVELS: ConsoleLogEntry['level'][] = ['log', 'info', 'warn', 'error'];
 
@@ -9,65 +9,35 @@ const LEVELS: ConsoleLogEntry['level'][] = ['log', 'info', 'warn', 'error'];
 
 const consoleCapture = (() => {
   const originalMethods: Partial<Record<ConsoleLogEntry['level'], (...args: unknown[]) => void>> = {};
-  let refCount = 0;
-
-  function stop(): void {
-    refCount = Math.max(0, refCount - 1);
-    if (refCount > 0) {
-      return;
-    }
-
-    LEVELS.forEach((level) => {
-      const original = originalMethods[level];
-      if (original) {
-        console[level] = original;
-        delete originalMethods[level];
-      }
+  const listeners = new Set<(entry: ConsoleLogEntry) => void>();
+  const wrappers: Partial<Record<ConsoleLogEntry['level'], (...args: unknown[]) => void>> = {};
+  function restore(): void {
+    LEVELS.forEach(level => {
+      if (console[level] === wrappers[level] && originalMethods[level]) { console[level] = originalMethods[level]!; }
+      delete wrappers[level];
+      delete originalMethods[level];
     });
   }
-
-  function isIntercepted(): boolean {
-    return LEVELS.some((level) => originalMethods[level] !== undefined);
-  }
-
-  function start(emit: (entry: ConsoleLogEntry) => void): () => void {
-    refCount += 1;
-    if (isIntercepted()) {
-      return () => { stop(); };
-    }
-
-    LEVELS.forEach((level) => {
-      originalMethods[level] = console[level];
-
-      console[level] = (...args: unknown[]) => {
-        originalMethods[level]?.apply(console, args);
-        if (level === 'log' && typeof args[0] === 'string' && args[0].startsWith('[DebugToolkit:Copy]')) {
-          return;
-        }
-        emit({
-          id: '',
-          timestamp: Date.now(),
-          level,
-          data: args,
-        });
-      };
-    });
-
-    return () => { stop(); };
-  }
-
   return {
-    start,
-    reset() {
-      LEVELS.forEach((level) => {
-        const original = originalMethods[level];
-        if (original) {
-          console[level] = original;
-          delete originalMethods[level];
-        }
-      });
-      refCount = 0;
+    start(emit: (entry: ConsoleLogEntry) => void) {
+      if (listeners.size === 0) {
+        LEVELS.forEach(level => {
+          const original = console[level];
+          originalMethods[level] = original;
+          const wrapper = (...args: unknown[]) => {
+            original.apply(console, args);
+            if (level === 'log' && typeof args[0] === 'string' && args[0].startsWith('[DebugToolkit:Copy]')) { return; }
+            const entry: ConsoleLogEntry = { id: '', timestamp: Date.now(), level, data: args };
+            listeners.forEach(listener => listener(entry));
+          };
+          wrappers[level] = wrapper;
+          console[level] = wrapper;
+        });
+      }
+      listeners.add(emit);
+      return () => { listeners.delete(emit); if (listeners.size === 0) { restore(); } };
     },
+    reset() { listeners.clear(); restore(); },
   };
 })();
 
@@ -78,17 +48,19 @@ const DEFAULT_MAX_LOGS = 200;
 export interface ConsoleFeatureConfig {
   /** Maximum number of console logs to keep (default: 200) */
   maxLogs?: number;
+  levels?: readonly ConsoleLogEntry['level'][];
 }
 
 export const createConsoleLogFeature = (
-  config?: ConsoleFeatureConfig,
-  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+  config: ConsoleFeatureConfig | undefined,
+  runtime: LogRuntimeContext,
 ): DebugFeature<ConsoleLogEntry[]> => {
   const maxLogs = config?.maxLogs ?? DEFAULT_MAX_LOGS;
   const logStore = createPersistedObservableStore<ConsoleLogEntry>({
     storage: runtime.logStorage,
     storageKey: runtime.sessionManager.getLogStorageKey('console_logs'),
-    maxPersist: 50,
+    maxPersist: persistedLogLimit('console', config?.maxLogs ?? 200),
+    isActive: () => runtime.active,
   });
   let initialized = false;
   let stopCapture: (() => void) | null = null;
@@ -98,11 +70,12 @@ export const createConsoleLogFeature = (
     label: 'Console',
     renderContent: ConsoleLogTab,
     setup: () => {
-      if (initialized) {
+      if (initialized || !runtime.active) {
         return;
       }
 
       stopCapture = consoleCapture.start((entry) => {
+        if (config?.levels && !config.levels.includes(entry.level)) { return; }
         logStore.push({ ...entry, id: logStore.nextId() }, maxLogs);
       });
       initialized = true;

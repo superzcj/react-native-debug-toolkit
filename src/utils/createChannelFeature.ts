@@ -6,6 +6,7 @@ import {
   createPersistedObservableStore,
   type PersistedObservableStore,
 } from './createPersistedObservableStore';
+import { sanitizeDebugLogEntry } from './deviceReport';
 import type { StorageAdapter } from './StorageAdapter';
 
 const DEFAULT_MAX_LOGS = 200;
@@ -16,6 +17,7 @@ export interface ChannelFeaturePersistConfig<TEntry> {
   maxPersist: number;
   debounceMs?: number;
   serialize?: (entry: TEntry) => unknown;
+  isActive?: () => boolean;
 }
 
 /**
@@ -54,6 +56,8 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
       maxPersist: options.persist.maxPersist,
       debounceMs: options.persist.debounceMs,
       serialize: options.persist.serialize,
+      isActive: options.persist.isActive,
+      maxEntries: maxLogs,
     });
     persistedStore = persisted;
     logStore = persisted;
@@ -72,7 +76,7 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
     label: options.label,
     renderContent: options.renderContent,
     setup: () => {
-      if (initialized) {
+      if (initialized || options.persist?.isActive?.() === false) {
         return;
       }
       unsubscribe = getChannel().subscribe((payload) => {
@@ -80,7 +84,7 @@ export function createChannelFeature<TPayload, TEntry extends { id?: string }>(
         if (filtered == null) {
           return;
         }
-        logStore.push(toEntry(filtered, getId()), maxLogs);
+        logStore.push(sanitizeDebugLogEntry(toEntry(filtered, getId())) as TEntry, maxLogs);
       });
       const cleanup = options.onSetup?.();
       if (cleanup) {

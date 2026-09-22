@@ -1,15 +1,19 @@
-import { createDefaultLogStorage } from './StorageAdapter';
+import { createDefaultLogStorage, type StorageAdapter } from './StorageAdapter';
+
+let preferenceStorage: StorageAdapter | undefined;
+export function setPreferenceStorage(storage: StorageAdapter | undefined): void { preferenceStorage = storage; }
+function getStorage(): StorageAdapter { return preferenceStorage ??= createDefaultLogStorage(); }
 
 export async function setPreference(key: string, value: string): Promise<void> {
-  await createDefaultLogStorage().setItem(key, value);
+  await getStorage().setItem(key, value);
 }
 
 export async function getPreference(key: string): Promise<string | null> {
-  return createDefaultLogStorage().getItem(key);
+  return getStorage().getItem(key);
 }
 
 export async function removePreference(key: string): Promise<void> {
-  await createDefaultLogStorage().removeItem(key);
+  await getStorage().removeItem(key);
 }
 
 export const KEYS = {

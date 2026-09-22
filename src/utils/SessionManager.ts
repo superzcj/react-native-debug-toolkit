@@ -71,41 +71,43 @@ function compareNewestFirst(left: LogSession, right: LogSession): number {
 
 export class SessionManager {
   private readonly storage: StorageAdapter;
-  private readonly currentSession: LogSession;
+  private currentSession: LogSession | null = null;
   private readonly maxSessions: number;
   private readonly featureKeys: readonly LogFeatureKey[];
 
   constructor(storage: StorageAdapter, options: SessionManagerOptions = {}) {
     this.storage = storage;
-    this.currentSession = createSession();
     this.maxSessions = Math.max(1, Math.floor(options.maxSessions ?? DEFAULT_MAX_SESSIONS));
     this.featureKeys = options.featureKeys?.length ? options.featureKeys : DEFAULT_FEATURE_KEYS;
   }
 
-  async initialize(): Promise<void> {
+  async initialize(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) { return; }
     const existing = parseSessionIndex(await this.storage.getItem(SESSION_INDEX_KEY));
+    if (signal?.aborted) { return; }
+    const current = this.getCurrentSession();
     const byId = new Map<string, LogSession>();
 
-    byId.set(this.currentSession.id, this.currentSession);
+    byId.set(current.id, current);
     for (const session of existing?.sessions ?? []) {
       byId.set(session.id, session);
     }
 
-    const sessions = Array.from(byId.values()).sort(compareNewestFirst);
+    const sessions = [current, ...Array.from(byId.values()).filter(session => session.id !== current.id).sort(compareNewestFirst)];
     const retained = sessions.slice(0, this.maxSessions);
     const removed = sessions.slice(this.maxSessions);
     const index: SessionIndex = {
-      currentSessionId: this.currentSession.id,
+      currentSessionId: current.id,
       sessions: retained,
       maxSessions: this.maxSessions,
     };
 
     await this.storage.setItem(SESSION_INDEX_KEY, JSON.stringify(index));
-    await this.cleanupSessionLogs(removed);
+    if (!signal?.aborted) { await this.cleanupSessionLogs(removed, signal); }
   }
 
   getCurrentSession(): LogSession {
-    return this.currentSession;
+    return this.currentSession ??= createSession();
   }
 
   async getSessionHistory(): Promise<LogSession[]> {
@@ -113,7 +115,7 @@ export class SessionManager {
     return (index?.sessions ?? []).sort(compareNewestFirst);
   }
 
-  getLogStorageKey(featureKey: LogFeatureKey, sessionId = this.currentSession.id): string {
+  getLogStorageKey(featureKey: LogFeatureKey, sessionId = this.getCurrentSession().id): string {
     return `@react_native_debug_toolkit/${sessionId}/${featureKey}`;
   }
 
@@ -168,9 +170,10 @@ export class SessionManager {
     return removed.length;
   }
 
-  private async cleanupSessionLogs(sessions: LogSession[]): Promise<void> {
+  private async cleanupSessionLogs(sessions: LogSession[], signal?: AbortSignal): Promise<void> {
     for (const session of sessions) {
       for (const featureKey of this.featureKeys) {
+        if (signal?.aborted) { return; }
         await this.storage.removeItem(this.getLogStorageKey(featureKey, session.id));
       }
     }

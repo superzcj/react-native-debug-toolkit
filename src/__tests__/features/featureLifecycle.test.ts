@@ -1,6 +1,8 @@
+import { createLogRuntime } from '../../utils/logRuntime';
+import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import { _resetTrackForTesting } from '../../features/track';
 import { _resetNavigationForTesting } from '../../features/navigation';
-import { _resetConsoleForTesting } from '../../features/console';
+import { createConsoleLogFeature, _resetConsoleForTesting } from '../../features/console';
 import { _resetNetworkForTesting } from '../../features/network';
 import { _resetZustandForTesting } from '../../features/zustand';
 import { addTrackLog, createTrackFeature } from '../../features/track';
@@ -106,7 +108,7 @@ function testFeatureLifecycle<TEntry>(
 
 testFeatureLifecycle(
   'Track',
-  () => createTrackFeature(),
+  () => createTrackFeature(undefined, testRuntime()),
   () => addTrackLog({ eventName: 'test_event', payload: 'data' }),
   _resetTrackForTesting,
 );
@@ -135,13 +137,13 @@ describe('feature isolation via reset', () => {
   afterEach(resetAllFeatureState);
 
   it('track reset isolates feature instances', () => {
-    const f1 = createTrackFeature();
+    const f1 = createTrackFeature(undefined, testRuntime());
     f1.setup();
     addTrackLog({ eventName: 'e1' });
     f1.cleanup();
     _resetTrackForTesting();
 
-    const f2 = createTrackFeature();
+    const f2 = createTrackFeature(undefined, testRuntime());
     f2.setup();
     addTrackLog({ eventName: 'e2' });
     // f2 only sees its own event
@@ -164,3 +166,28 @@ describe('feature isolation via reset', () => {
     f2.cleanup();
   });
 });
+
+
+describe('console ownership and snapshots', () => {
+  afterEach(_resetConsoleForTesting);
+  it('delivers once to each owner and restores original methods after the last owner', () => {
+    const original = console.log;
+    const first = createConsoleLogFeature(undefined, testRuntime());
+    const second = createConsoleLogFeature(undefined, testRuntime());
+    first.setup(); second.setup(); first.setup();
+    const data = { count: 1, callback: jest.fn() };
+    console.log(data);
+    data.count = 2;
+    expect(first.getSnapshot()).toHaveLength(1);
+    expect(second.getSnapshot()).toHaveLength(1);
+    expect(first.getSnapshot()[0]!.data).toEqual([expect.objectContaining({ count: 1 })]);
+    expect(data.callback).not.toHaveBeenCalled();
+    first.cleanup();
+    console.log('second only');
+    expect(second.getSnapshot()).toHaveLength(2);
+    second.cleanup();
+    expect(console.log).toBe(original);
+  });
+});
+
+function testRuntime() { return createLogRuntime({ history: { enabled: false, maxSessions: 5 }, logDisk: new MemoryStorageAdapter(), preferenceDisk: new MemoryStorageAdapter() }); }

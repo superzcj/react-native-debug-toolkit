@@ -1,4 +1,5 @@
 import { createObservableStore, type ObservableStore } from './createObservableStore';
+import { sanitizeDebugLogEntry } from './deviceReport';
 import type { StorageAdapter } from './StorageAdapter';
 
 export interface PersistedStoreOptions<T> {
@@ -7,6 +8,8 @@ export interface PersistedStoreOptions<T> {
   maxPersist: number;
   debounceMs?: number;
   serialize?: (entry: T) => unknown;
+  isActive?: () => boolean;
+  maxEntries?: number;
 }
 
 export interface PersistedObservableStore<T> extends ObservableStore<T> {
@@ -26,30 +29,38 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   let resolveReady: () => void;
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
 
-  // Restore from storage (single notify via pushBatch)
-  Promise.resolve(storage.getItem(storageKey)).then((raw) => {
-    if (!raw) { resolveReady(); return; }
-    try {
-      const entries = JSON.parse(raw) as T[];
-      if (!Array.isArray(entries)) { resolveReady(); return; }
-      const restored = entries.slice(-maxPersist);
-      store.pushBatch(restored);
-      // Fix ID counter to avoid collision with restored entries
-      let max = 0;
-      for (const e of restored) {
-        const n = parseInt(e.id ?? '', 10);
-        if (!isNaN(n) && n >= max) {
-          max = n + 1;
-        }
-      }
-      idCounter = max;
-    } catch {
-      // ignore corrupt data
+  let revision = 0;
+  let pendingWrite: Promise<void> | undefined;
+  const active = () => options.isActive?.() ?? true;
+  const restoreRevision = revision;
+  // Normalize synchronous throws into a rejected promise; stale restores must not
+  // resurrect cleared/disposed logs or overwrite events captured during the read.
+  void Promise.resolve().then(() => active() ? storage.getItem(storageKey) : null).then((raw) => {
+    if (!raw || !active() || revision !== restoreRevision) { return; }
+    const entries = JSON.parse(raw) as T[];
+    if (!Array.isArray(entries)) { return; }
+    const restored = entries.slice(-Math.min(maxPersist, options.maxEntries ?? maxPersist));
+    store.pushBatch(restored);
+    for (const entry of restored) {
+      const n = Number.parseInt(entry.id ?? '', 10);
+      if (Number.isFinite(n)) { idCounter = Math.max(idCounter, n + 1); }
     }
-    resolveReady();
-  });
+  }).catch(() => {}).finally(() => resolveReady());
+
+  function write(value: string): void {
+    const perform = () => active() ? storage.setItem(storageKey, value) : undefined;
+    try {
+      const result = pendingWrite ? pendingWrite.then(perform) : perform();
+      if (result && typeof result.then === 'function') {
+        const next = result.catch(() => {});
+        pendingWrite = next;
+        void next.finally(() => { if (pendingWrite === next) { pendingWrite = undefined; } });
+      }
+    } catch { /* Runtime storage reports the capability failure and retains memory. */ }
+  }
 
   function scheduleWrite(): void {
+    if (!active()) { return; }
     if (writeTimer !== null) {
       clearTimeout(writeTimer);
     }
@@ -58,7 +69,7 @@ export function createPersistedObservableStore<T extends { id?: string }>(
       const data = store.getData().slice(-maxPersist);
       const toStore = serialize ? data.map(serialize) : data;
       try {
-        Promise.resolve(storage.setItem(storageKey, JSON.stringify(toStore))).catch(() => {});
+        write(JSON.stringify(toStore));
       } catch {
         // stringify failed (circular refs, etc) — skip write
       }
@@ -68,20 +79,29 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   return {
     getData: store.getData,
     push: (item, maxEntries) => {
-      store.push(item, maxEntries);
+      if (!active()) { return; }
+      revision += 1;
+      store.push(sanitizeDebugLogEntry(item) as T, maxEntries);
       scheduleWrite();
     },
-    pushBatch: store.pushBatch,
+    pushBatch: items => {
+      if (!active()) { return; }
+      revision += 1;
+      items.forEach(item => store.push(sanitizeDebugLogEntry(item) as T, options.maxEntries));
+      scheduleWrite();
+    },
     clear: () => {
+      revision += 1;
       store.clear();
     },
     clearPersisted: () => {
+      revision += 1;
       store.clear();
       if (writeTimer !== null) {
         clearTimeout(writeTimer);
         writeTimer = null;
       }
-      Promise.resolve(storage.setItem(storageKey, '[]')).catch(() => {});
+      write('[]');
     },
     subscribe: store.subscribe,
     nextId: () => String(idCounter++),
@@ -91,6 +111,7 @@ export function createPersistedObservableStore<T extends { id?: string }>(
         clearTimeout(writeTimer);
         writeTimer = null;
       }
+      revision += 1;
       store.clear();
     },
   };

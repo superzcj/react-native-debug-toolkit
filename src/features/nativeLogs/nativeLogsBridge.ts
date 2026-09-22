@@ -10,7 +10,7 @@ interface NativeLogsModule {
 
 function getNativeModule(): NativeLogsModule | null {
   const mod = NativeModules.DebugToolkitNativeLogs as NativeLogsModule | undefined;
-  if (!mod || typeof mod.drainLogs !== 'function') return null;
+  if (!mod || typeof mod.drainLogs !== 'function' || typeof mod.startCapture !== 'function' || typeof mod.stopCapture !== 'function') return null;
   return mod;
 }
 

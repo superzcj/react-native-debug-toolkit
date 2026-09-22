@@ -38,6 +38,8 @@ export interface SessionHistoryState {
   loading: boolean;
   selectedSession: SelectedSession | null;
   storageType: string;
+  historyAvailable?: boolean;
+  issues?: readonly { path: string; message: string }[];
   logCounts: Record<string, LogCounts>;
 }
 
@@ -126,6 +128,10 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
     const handleBack = useCallback(() => {
       (feature as SessionHistoryFeature).loadSession(null);
     }, [feature]);
+
+    if (snapshot.historyAvailable === false) {
+      return <View style={s.center}><Text style={s.emptyTitle}>History unavailable</Text><Text style={s.emptySub}>{snapshot.issues?.map(issue => issue.message).join('\n') || 'Log history is disabled.'}</Text></View>;
+    }
 
     if (loading) {
       return (

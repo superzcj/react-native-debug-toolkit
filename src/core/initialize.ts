@@ -1,3 +1,5 @@
+import { createDefaultLogStorage, MemoryStorageAdapter } from '../utils/StorageAdapter';
+import { setPreferenceStorage } from '../utils/debugPreferences';
 import { DebugToolkit } from './DebugToolkit';
 import { createNetworkFeature } from '../features/network';
 import type { NetworkFeatureConfig } from '../features/network';
@@ -24,7 +26,6 @@ import { configureLocale } from '../i18n';
 import type { DebugLocaleOption } from '../i18n';
 import {
   createLogRuntime,
-  setDefaultLogRuntime,
   type LogRuntimeContext,
 } from '../utils/logRuntime';
 
@@ -54,7 +55,7 @@ export interface InitializeOptions {
 }
 
 type EnvironmentFeatureConfig = Parameters<typeof createEnvironmentFeature>[0];
-type BuiltInFeatureCreator = (config?: unknown, runtime?: LogRuntimeContext) => AnyDebugFeature | null;
+type BuiltInFeatureCreator = (config: unknown, runtime: LogRuntimeContext) => AnyDebugFeature | null;
 
 const BUILT_IN_FEATURE_ORDER: BuiltInFeatureName[] = [
   'network',
@@ -73,7 +74,7 @@ const BUILT_IN_FEATURE_ORDER: BuiltInFeatureName[] = [
 const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   network: (config, runtime) => createNetworkFeature(config as NetworkFeatureConfig | undefined, runtime),
   console: (config, runtime) => createConsoleLogFeature(config as ConsoleFeatureConfig | undefined, runtime),
-  native: (config) => createNativeLogsFeature(config as NativeLogsFeatureConfig | undefined),
+  native: (config, runtime) => createNativeLogsFeature(config as NativeLogsFeatureConfig | undefined, runtime),
   zustand: (config) => createZustandLogFeature(config as ZustandFeatureConfig | undefined),
   navigation: (config) => createNavigationLogFeature(config as NavigationFeatureConfig | undefined),
   track: (config, runtime) => createTrackFeature(config as TrackFeatureConfig | undefined, runtime),
@@ -206,9 +207,12 @@ export async function initializeDebugToolkit(
     }
 
     const runtime = createLogRuntime({
-      maxSessions: options?.maxLogSessions,
+      history: { enabled: options?.features?.sessionHistory !== false, maxSessions: options?.maxLogSessions ?? 5 },
+      logDisk: options?.features?.sessionHistory === false ? new MemoryStorageAdapter() : createDefaultLogStorage(),
+      preferenceDisk: createDefaultLogStorage(),
     });
-    setDefaultLogRuntime(runtime);
+    await runtime.initialize(new AbortController().signal);
+    setPreferenceStorage(runtime.preferenceStorage);
 
     const resolvedBuiltInFeatures = options?.features
       ? resolveFeatureConfigs(options.features, runtime)
@@ -219,7 +223,6 @@ export async function initializeDebugToolkit(
     );
 
     DebugToolkit.replaceFeatures(resolvedFeatures);
-    runtime.sessionManager.initialize().catch(() => {});
 
     if (DebugToolkit.hasFeatures()) {
       DebugToolkit.showLauncher();

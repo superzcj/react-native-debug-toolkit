@@ -4,7 +4,7 @@ import type { NetworkLogEntry } from '../../types';
 import { createChannelFeature } from '../../utils/createChannelFeature';
 import { createEventChannel } from '../../utils/createEventChannel';
 import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
-import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
+import { persistedLogLimit, type LogRuntimeContext } from '../../utils/logRuntime';
 import { startXMLHttpRequest, resetInterceptors } from './networkInterceptor';
 import type { NetworkLogPayload } from './networkInterceptor';
 
@@ -36,8 +36,8 @@ export interface NetworkFeatureConfig {
 }
 
 export const createNetworkFeature = (
-  config?: NetworkFeatureConfig,
-  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+  config: NetworkFeatureConfig | undefined,
+  runtime: LogRuntimeContext,
 ) => {
   const networkChannel = createEventChannel<NetworkLogPayload>();
   const userBlacklist = [...(config?.blacklist ?? []), ...(config?.excludeUrls ?? [])];
@@ -53,7 +53,8 @@ export const createNetworkFeature = (
       persist: {
         storage: runtime.logStorage,
         storageKey: runtime.sessionManager.getLogStorageKey('network_logs'),
-        maxPersist: 30,
+        maxPersist: persistedLogLimit('network', config?.maxLogs ?? 200),
+        isActive: () => runtime.active,
         serialize: (entry) => sanitizeDebugLogEntry(entry),
       },
       beforePush: (payload) => {

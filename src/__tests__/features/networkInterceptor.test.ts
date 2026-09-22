@@ -1,3 +1,5 @@
+import { createLogRuntime } from '../../utils/logRuntime';
+import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
 import { resetInterceptors, startXMLHttpRequest } from '../../features/network/networkInterceptor';
 import { _resetNetworkForTesting, createNetworkFeature } from '../../features/network';
 
@@ -166,7 +168,7 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
 
   it('network cleanup leaves the environment rewriter active', () => {
     setUrlRewriter((url) => url.replace('prod', 'dev'));
-    const feature = createNetworkFeature();
+    const feature = createNetworkFeature(undefined, testRuntime());
     feature.setup();
     feature.cleanup();
     const xhr = new FakeXMLHttpRequest();
@@ -180,7 +182,7 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
     pattern.lastIndex = 2;
     const feature = createNetworkFeature({
       excludeUrls: ['/private', pattern],
-    });
+    }, testRuntime());
     feature.setup();
     FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
     ['/health', '/health', '/private', '/public'].forEach((path) => {
@@ -196,8 +198,8 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
   });
 
   it('delivers each request once to each mounted network feature', () => {
-    const first = createNetworkFeature();
-    const second = createNetworkFeature();
+    const first = createNetworkFeature(undefined, testRuntime());
+    const second = createNetworkFeature(undefined, testRuntime());
     first.setup();
     second.setup();
     FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
@@ -211,7 +213,7 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
   });
 
   it('uses XMLHttpRequest as the default network capture path', async () => {
-    const feature = createNetworkFeature();
+    const feature = createNetworkFeature(undefined, testRuntime());
     globalThis.fetch = jest.fn();
 
     feature.setup();
@@ -243,7 +245,7 @@ describe('NetworkFeature setup and cleanup', () => {
   });
 
   it('captures requests via XHR without axiosInstance', () => {
-    const feature = createNetworkFeature();
+    const feature = createNetworkFeature(undefined, testRuntime());
     feature.setup();
 
     expect(feature.getSnapshot()).toHaveLength(0);
@@ -251,3 +253,5 @@ describe('NetworkFeature setup and cleanup', () => {
     feature.cleanup();
   });
 });
+
+function testRuntime() { return createLogRuntime({ history: { enabled: false, maxSessions: 5 }, logDisk: new MemoryStorageAdapter(), preferenceDisk: new MemoryStorageAdapter() }); }

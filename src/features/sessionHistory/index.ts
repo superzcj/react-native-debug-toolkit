@@ -1,6 +1,6 @@
 import { SessionHistoryTab, type SessionHistoryState, type SelectedSession, type SessionHistoryFeature } from './SessionHistoryTab';
 import { createDebugTab } from '../../utils/createDebugTab';
-import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
+import { type LogRuntimeContext } from '../../utils/logRuntime';
 import {
   SESSION_HISTORY_LOG_KEYS,
   createEmptyLogCounts,
@@ -9,7 +9,7 @@ import {
 } from './sessionLogCatalog';
 
 export function createSessionHistoryFeature(
-  runtime: LogRuntimeContext = getDefaultLogRuntime(),
+  runtime: LogRuntimeContext,
 ): SessionHistoryFeature {
   let listeners: Array<() => void> = [];
   let sessions = runtime.sessionManager.getCurrentSession() ? [runtime.sessionManager.getCurrentSession()] : [];
@@ -17,6 +17,8 @@ export function createSessionHistoryFeature(
   let loading = false;
   let selected: SelectedSession | null = null;
   let initialized = false;
+  let generation = 0;
+  let unsubscribeCapabilities: (() => void) | undefined;
   let logCounts: Record<string, LogCounts> = {};
 
   function notify() {
@@ -24,7 +26,7 @@ export function createSessionHistoryFeature(
   }
 
   function getSnapshot(): SessionHistoryState {
-    return { sessions, currentSessionId, loading, selectedSession: selected, storageType: runtime.logStorage.constructor.name, logCounts };
+    return { sessions, currentSessionId, loading, selectedSession: selected, storageType: runtime.historyAvailable ? 'MMKV' : 'Memory', logCounts, historyAvailable: runtime.historyAvailable, issues: runtime.getCapabilityIssues().filter(issue => issue.path === 'history') };
   }
 
   async function loadLogCounts(sessionIds: string[]) {
@@ -50,6 +52,7 @@ export function createSessionHistoryFeature(
       return;
     }
 
+    const epoch = ++generation;
     loading = true;
     selected = null;
     notify();
@@ -61,6 +64,7 @@ export function createSessionHistoryFeature(
       }),
     );
 
+    if (!initialized || !runtime.active || epoch !== generation) { return; }
     loading = false;
     selected = { sessionId, logs };
     notify();
@@ -73,14 +77,20 @@ export function createSessionHistoryFeature(
       getSnapshot,
       render: SessionHistoryTab,
       setup: async () => {
-        if (initialized) return;
+        if (initialized || !runtime.active) return;
         initialized = true;
+        const epoch = ++generation;
+        unsubscribeCapabilities = runtime.subscribeCapabilities(notify);
         loading = true;
         notify();
         try {
-          sessions = await runtime.sessionManager.getSessionHistory();
+          const loaded = await runtime.sessionManager.getSessionHistory();
+          if (!initialized || !runtime.active || epoch !== generation) { return; }
+          sessions = loaded;
           currentSessionId = runtime.sessionManager.getCurrentSession().id;
-          logCounts = await loadLogCounts(sessions.map((s) => s.id));
+          const counts = await loadLogCounts(sessions.map((s) => s.id));
+          if (!initialized || !runtime.active || epoch !== generation) { return; }
+          logCounts = counts;
         } catch (e) {
           console.warn('[SessionHistory] setup error:', e);
         }
@@ -89,6 +99,9 @@ export function createSessionHistoryFeature(
       },
       cleanup: () => {
         initialized = false;
+        generation += 1;
+        unsubscribeCapabilities?.();
+        unsubscribeCapabilities = undefined;
         selected = null;
       },
       subscribe: (listener) => {
