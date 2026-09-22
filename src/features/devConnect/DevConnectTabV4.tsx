@@ -13,13 +13,13 @@ import type { DebugFeatureRenderProps } from '../../types';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
 import {
+  type HubClient,
   type HubConnectionState,
   type HubStatus,
 } from '../../utils/HubClient';
 import {
   KEYS,
-  removePreference,
-  setPreference,
+  persistPreference,
 } from '../../utils/debugPreferences';
 import {
   buildHubAddressRecommendations,
@@ -33,6 +33,18 @@ import {
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DevConnectV4State } from './types';
 import { t, type TranslationKey } from '../../i18n';
+
+export async function applyHubEndpointPreference(
+  client: HubClient,
+  endpoint: string | null,
+): Promise<unknown | null> {
+  if (endpoint === null) {
+    client.clearRuntimeEndpoint();
+  } else {
+    client.setRuntimeEndpoint(endpoint);
+  }
+  return persistPreference(KEYS.hubEndpoint, endpoint);
+}
 
 const STATE_COLORS: Record<HubConnectionState, string> = {
   connecting: Colors.warning,
@@ -110,11 +122,15 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       snapshot.subnetPrefix,
     );
     if (submission.kind === 'clear') {
-      await removePreference(KEYS.hubEndpoint);
       if (!current()) { return; }
-      client.clearRuntimeEndpoint();
+      const persistence = applyHubEndpointPreference(client, null);
       setInputError(null);
       replaceFields(splitHubAddressFields(submission.fallbackEndpoint, snapshot.subnetPrefix));
+      const persistenceError = await persistence;
+      if (!current()) { return; }
+      if (persistenceError) {
+        setInputError(persistenceError instanceof Error ? persistenceError.message : String(persistenceError));
+      }
       return;
     }
     if (submission.kind === 'incomplete') {
@@ -126,10 +142,14 @@ export function DevConnectTabV4({ snapshot }: DebugFeatureRenderProps<DevConnect
       return;
     }
     setInputError(null);
-    await setPreference(KEYS.hubEndpoint, submission.endpoint);
     if (!current()) { return; }
-    client.setRuntimeEndpoint(submission.endpoint);
+    const persistence = applyHubEndpointPreference(client, submission.endpoint);
     replaceFields(splitHubAddressFields(submission.endpoint, snapshot.subnetPrefix));
+    const persistenceError = await persistence;
+    if (!current()) { return; }
+    if (persistenceError) {
+      setInputError(persistenceError instanceof Error ? persistenceError.message : String(persistenceError));
+    }
   }, [client, current, replaceFields, snapshot.configuredEndpoint, snapshot.subnetPrefix]);
 
   const handleEndpointSubmit = useCallback(() => {

@@ -8,7 +8,7 @@ import {
 import type { AnyDebugFeature } from '../../types';
 import { Colors } from '../theme/colors';
 import { FontSize, Spacing } from '../theme/layout';
-import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
+import { getPreference, persistPreference, KEYS } from '../../utils/debugPreferences';
 import { FloatIcon } from '../floating/FloatIcon';
 import { DebugPanel } from './DebugPanel';
 import { FeatureRail } from './FeatureRail';
@@ -158,7 +158,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
       setActiveTab(idx);
       const featureName = features[idx]?.name;
       if (featureName && featureName !== val) {
-        setPreference(KEYS.lastTab, featureName);
+        void persistPreference(KEYS.lastTab, featureName);
       }
       tabLoaded.current = true;
     });
@@ -173,7 +173,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
       changeTabWithFilterReset(dispatchFilters, setActiveTab, index);
       const featureName = features[index]?.name;
       if (featureName) {
-        setPreference(KEYS.lastTab, featureName);
+        void persistPreference(KEYS.lastTab, featureName);
       }
     }, [features]),
   });
@@ -204,7 +204,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
       setActiveTab(0);
       const featureName = features[0]?.name;
       if (featureName) {
-        setPreference(KEYS.lastTab, featureName);
+        void persistPreference(KEYS.lastTab, featureName);
       }
     }
   }, [features, activeTab]);

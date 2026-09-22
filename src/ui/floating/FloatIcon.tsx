@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
-import { getPreference, setPreference, KEYS } from '../../utils/debugPreferences';
+import { getPreference, persistPreference, KEYS } from '../../utils/debugPreferences';
 
 const EDGE_MARGIN = 16;
 const LAUNCHER_SIZE = 48;
@@ -91,7 +91,7 @@ export function FloatIcon({ visible, onPress, badge, streaming }: FloatIconProps
           useNativeDriver: true,
         }).start();
 
-        setPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
+        void persistPreference(KEYS.fabPosition, JSON.stringify({ x: snappedX, y: finalY }));
       },
       onPanResponderTerminate: (_: unknown, gs: { dx: number; dy: number }) => {
         const rawX = lastPosition.current.x + gs.dx;

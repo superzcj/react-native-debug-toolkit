@@ -8,6 +8,7 @@ import {
   setPreference,
   getPreference,
   removePreference,
+  persistPreference,
   KEYS,
   bindPreferenceStorage,
 } from '../../utils/debugPreferences';
@@ -40,5 +41,25 @@ describe('debugPreferences', () => {
     expect('consoleLogs' in KEYS).toBe(false);
     expect('networkLogs' in KEYS).toBe(false);
     expect('trackLogs' in KEYS).toBe(false);
+  });
+
+  it('reports rejected writes without rejecting best-effort UI persistence', async () => {
+    const error = new Error('disk full');
+    const storage = {
+      getItem: jest.fn(() => null),
+      setItem: jest.fn(() => { throw error; }),
+      removeItem: jest.fn(),
+    };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const release = bindPreferenceStorage(storage);
+
+    await expect(persistPreference(KEYS.lastTab, 'network')).resolves.toBe(error);
+    expect(warn).toHaveBeenCalledWith(
+      `[DebugToolkit] Failed to persist preference "${KEYS.lastTab}":`,
+      error,
+    );
+
+    warn.mockRestore();
+    release();
   });
 });

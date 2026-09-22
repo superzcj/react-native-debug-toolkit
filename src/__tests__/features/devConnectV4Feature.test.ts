@@ -1,9 +1,11 @@
 // @ts-expect-error __DEV__ is a React Native global
 global.__DEV__ = true;
 
-import { DevConnectTabV4 } from '../../features/devConnect/DevConnectTabV4';
+import { applyHubEndpointPreference, DevConnectTabV4 } from '../../features/devConnect/DevConnectTabV4';
 import { createDevConnectFeature as createFeature } from '../../features/devConnect';
 import { HubClient } from '../../utils/HubClient';
+import { bindPreferenceStorage } from '../../utils/debugPreferences';
+import { createResilientStorage } from '../../utils/StorageAdapter';
 const hubClient = new HubClient({ featureProvider: { features: [], subscribe: () => () => {} } });
 const createDevConnectFeature = (config: Parameters<typeof createFeature>[0] = {}) => createFeature(config, { client: hubClient });
 import { NativeModules } from 'react-native';
@@ -182,6 +184,34 @@ describe('createDevConnectFeature v4', () => {
       endpoint: null,
     });
     expect(connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps endpoint changes and clears live when preference persistence rejects', async () => {
+    const storageError = new Error('preference disk full');
+    const storage = {
+      getItem: jest.fn(() => null),
+      setItem: jest.fn(() => { throw storageError; }),
+      removeItem: jest.fn(() => { throw storageError; }),
+    };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const failure = jest.fn();
+    const release = bindPreferenceStorage(createResilientStorage(storage, failure, true));
+    hubClient.configure({ appId: 'com.example.audit', endpoint: 'http://configured:3800' });
+
+    try {
+      await expect(applyHubEndpointPreference(hubClient, 'http://manual:3800')).resolves.toBe(storageError);
+      expect(hubClient.getEffectiveEndpoint()).toBe('http://manual:3800');
+
+      await expect(applyHubEndpointPreference(hubClient, null)).resolves.toEqual(
+        expect.objectContaining({ message: expect.stringContaining('Preference storage is unavailable') }),
+      );
+      expect(hubClient.getEffectiveEndpoint()).toBe('http://configured:3800');
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(failure).toHaveBeenCalledTimes(1);
+    } finally {
+      release();
+      warn.mockRestore();
+    }
   });
 
   it('uses a saved endpoint before the configured endpoint and exposes both recommendations', async () => {
