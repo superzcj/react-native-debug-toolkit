@@ -20,4 +20,4 @@ The complete example includes [App.tsx](examples/integration/App.tsx), [debug.co
 
 See the [full reference](configuration.md) for defaults, source XOR, callbacks, cancellation, Context boundaries, disk caps and copy results. Zustand's optional adapter is imported from react-native-debug-toolkit/adapters/zustand; ordinary subscriptions produce change events, not inferred business action names. Stores/routers/analytics are not discovered automatically.
 
-[Hub commands and browser language](setup.md) are separate from SDK configuration. [Demo](../Demo/README.md) validates both empty and fully configured business data.
+[Hub commands and browser language](setup.md) are separate from SDK configuration. [Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md) validates both empty and fully configured business data.

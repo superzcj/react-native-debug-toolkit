@@ -2,7 +2,7 @@
 
 React Native 完整 App 内调试面板与本地运行日志 Hub。
 
-[English](README.md) · [接入指南](docs/integration.zh-CN.md) · [配置参考](docs/configuration.zh-CN.md) · [Demo](Demo/README.md)
+[English](README.md) · [接入指南](docs/integration.zh-CN.md) · [配置参考](docs/configuration.zh-CN.md) · [Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md)
 
 ## 一行根包装，默认全部功能
 
@@ -61,7 +61,7 @@ Release 默认关闭；显式开启的内部 Release 仍需上传一次/开始�
 
 ## Demo 与支持范围
 
-[Demo](Demo/README.md) 包括零业务配置和完整 Showcase：真实 HTTP 409/201、环境、状态/埋点、本地账号身份及复制结果。
+[Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md) 包括零业务配置和完整 Showcase：真实 HTTP 409/201、环境、状态/埋点、本地账号身份及复制结果。
 
 已验证入口为 RN CLI/npm：RN 0.85.1 独立包安装、类型、renderer、autolinking、Pod 安装已检查，原生构建/设备验收仍需单独验证。RN 0.76.6–0.85.1 为候选范围，不代表各版本原生构建通过。Expo Go 不支持，其他入口未验证。[支持边界](docs/integration.zh-CN.md)。
 

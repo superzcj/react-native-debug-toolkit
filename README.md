@@ -2,7 +2,7 @@
 
 A complete in-app inspector and local runtime log Hub for React Native.
 
-[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [Configuration](docs/configuration.md) · [Demo](Demo/README.md)
+[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [Configuration](docs/configuration.md) · [Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md)
 
 ## One root wrapper, all features
 
@@ -61,7 +61,7 @@ Existing Hub/CLI commands diagnose --json, status, context, inspect and tail que
 
 ## Demo and support
 
-The [Demo](Demo/README.md) offers zero business configuration and a full Showcase: real HTTP 409/201, environments, state/analytics, local account identities and copy results.
+The [Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md) offers zero business configuration and a full Showcase: real HTTP 409/201, environments, state/analytics, local account identities and copy results.
 
 RN CLI/npm is the verified entry. RN 0.85.1 clean package install, types, renderer, autolinking and Pod installation have been checked; native builds/device acceptance remain separate. RN 0.76.6–0.85.1 is a candidate dependency range, not native success across all versions. Expo Go is unsupported; other entries are unverified. [Support boundary](docs/integration.md).
 

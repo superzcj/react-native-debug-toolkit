@@ -20,4 +20,4 @@ withDebugToolkit(App) 默认包含全部十二个功能。缺业务数据是正�
 
 默认值、source 互斥、回调、取消、Context 边界、磁盘容量与复制结果见[完整参考](configuration.zh-CN.md)。Zustand 可选 adapter 从 react-native-debug-toolkit/adapters/zustand 导入，普通订阅记为 change，不推断业务动作名。SDK 不自动发现 store、路由或埋点系统。
 
-[Hub 命令与浏览器语言](setup.zh-CN.md) 独立于 SDK 配置。[Demo](../Demo/README.md) 验证空数据与完整业务配置。
+[Hub 命令与浏览器语言](setup.zh-CN.md) 独立于 SDK 配置。[Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo/README.md) 验证空数据与完整业务配置。
