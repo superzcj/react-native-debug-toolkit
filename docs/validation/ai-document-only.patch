@@ -1,0 +1,28 @@
+--- App.tsx.before
++++ App.tsx
+@@ -1 +1 @@
+-import React from 'react';
++import React, {useEffect} from 'react';
+@@ -2,0 +3 @@
++import {debug, withDebugToolkit} from 'react-native-debug-toolkit';
+@@ -3,0 +5,2 @@
++const verificationMarker = 'task14-ai-blank-1790088862278-2ba9a7bcc577d';
++
+@@ -4,0 +8,14 @@
++  useEffect(() => {
++    let active = true;
++    void debug.ready().then(result => {
++      if (!active || result.features.console?.phase !== 'ready' || result.features.network?.phase !== 'ready') {
++        return;
++      }
++      console.log(verificationMarker);
++      void fetch(`https://example.com/?toolkit_marker=${encodeURIComponent(verificationMarker)}`);
++    });
++    return () => {
++      active = false;
++    };
++  }, []);
++
+@@ -8 +25 @@
+-export default App;
++export default withDebugToolkit(App);

@@ -1,0 +1,774 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-22",
+  "sourceCommit": "a0972e07669414da6c89a727e9a9a4a87257c421",
+  "package": {
+    "version": "5.0.0",
+    "sha256": "bfd37513c0cd4308143ffc628317b9fbdd5361edfb6d97a97dfd26d35fb08a8d",
+    "files": 766,
+    "tarball": "/tmp/toolkit-task14-pack-zerDva/react-native-debug-toolkit-5.0.0.tgz"
+  },
+  "locations": {
+    "logs": ".superpowers/sdd/2026-09-22-unified-integration-api/",
+    "currentConsumer": "/tmp/toolkit-task14-integrated",
+    "minimumConsumer": "/tmp/toolkit-task14-minimum-v2",
+    "aiConsumer": "/tmp/toolkit-task14-ai-blank"
+  },
+  "dependencies": {
+    "mmkv": "4.3.2",
+    "nitro": "0.35.10",
+    "clipboard": "1.16.3",
+    "architecture": "new",
+    "iosMinimum": "15.1",
+    "androidMinimumSdk": 24
+  },
+  "cases": [
+    {
+      "id": "package",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy npm run build",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm pack --ignore-scripts --json --pack-destination /tmp/toolkit-task14-pack-zerDva",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy node scripts/verify-package.mjs --tarball /tmp/toolkit-task14-pack-zerDva/react-native-debug-toolkit-5.0.0.tgz",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Bob produced all three outputs; tarball verifier passed for 766 files, public exports, native paths and public docs.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-build.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-pack.json",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-package-verify.log"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "root-checks",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.76.6",
+        "react": "18.3.1",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy npm test -- --runInBand",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm run typecheck",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm run typecheck:api",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "68 Jest suites / 674 tests; root and public API types pass.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-root-tests.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-root-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-api-types.log"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "demo-checks",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy npm --prefix Demo test -- --runInBand",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm --prefix Demo run test:api",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm --prefix Demo run typecheck",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm --prefix Demo run lint",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "7 renderer suites / 30 tests; 3 real Node HTTP tests; Demo typecheck and lint pass. Renderer native boundaries are mocked.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-tests.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-http.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-lint.log"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "docs-checks",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy npm run check:docs",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm run typecheck:docs",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npx tsc -p node_modules/react-native-debug-toolkit/docs/examples/integration/tsconfig.json",
+          "cwd": "currentConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy node --test scripts/__tests__/check-integration-evidence.test.mjs scripts/__tests__/check-doc-config.test.mjs scripts/__tests__/verify-package.test.mjs",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Both references match 44 parser fields/defaults; 4 document checker tests pass; examples compile in repo and installed consumer. All 23 script tests including evidence/schema and packaging pass.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-docs-fields.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-docs-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-consumer-doc-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-script-tests.log"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "consumer-current",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy node scripts/consumer-fixture.mjs --tarball /tmp/toolkit-task14-pack-zerDva/react-native-debug-toolkit-5.0.0.tgz --out /tmp/toolkit-task14-integrated --mode integrated",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm run typecheck",
+          "cwd": "currentConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm test -- --runInBand",
+          "cwd": "currentConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npx react-native bundle --entry-file index.js --platform ios --dev true --bundle-output /tmp/toolkit-task14-integrated/acceptance-debug.jsbundle",
+          "cwd": "currentConsumer",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "New outside-repo consumer installed the tarball; own native dependency paths verified. Types, 1 renderer smoke test and iOS Metro bundle pass. No repository aliases or parent Pods were used.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-consumer.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-consumer-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-consumer-tests.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-consumer-metro.log",
+        "/tmp/toolkit-task14-integrated/autolinking.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "ios-current-debug",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS Simulator 27.0 arm64",
+        "buildMode": "Debug"
+      },
+      "appId": "org.debugtoolkit.acceptance.current",
+      "sessionId": null,
+      "buildIdentity": "Mach-O UUID 64E4D280-04AB-3B61-81C7-A944CE1218FA; Xcode 27.0 (27A266a)",
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy pod install",
+          "cwd": "currentConsumer/ios",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy xcodebuild -list -project Demo.xcodeproj",
+          "cwd": "currentConsumer/ios",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy xcodebuild -workspace Demo.xcworkspace -scheme Demo -configuration Debug -sdk iphonesimulator -destination 'platform=iOS Simulator,id=<available-simulator>' -derivedDataPath <consumer>/acceptance-build/debug build",
+          "cwd": "currentConsumer/ios",
+          "exitCode": 65
+        },
+        {
+          "command": "rtk proxy env PATH=<android-sdk>/cmake/3.22.1/bin:$PATH pod install",
+          "cwd": "currentConsumer/ios",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy env PATH=<android-sdk>/cmake/3.22.1/bin:$PATH xcodebuild -workspace Demo.xcworkspace -scheme Demo -configuration Debug -sdk iphonesimulator -destination 'platform=iOS Simulator,id=<available-simulator>' -derivedDataPath <consumer>/acceptance-build/debug PRODUCT_BUNDLE_IDENTIFIER=org.debugtoolkit.acceptance.current build",
+          "cwd": "currentConsumer/ios",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy /usr/libexec/PlistBuddy -c Print:CFBundleIdentifier <consumer>/acceptance-build/debug/Build/Products/Debug-iphonesimulator/Demo.app/Info.plist",
+          "cwd": "repo",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy dwarfdump --uuid <consumer>/acceptance-build/debug/Build/Products/Debug-iphonesimulator/Demo.app/Demo.debug.dylib",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Initial Pods failed on network download/CMake path; retry with the existing SDK CMake installed 79 Pods. Initial build before Pods failed (65); retry succeeded. Only native build is passed: app installation, launch and pages were not run.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ios-pods.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ios-pods-retry.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ios-project.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ios-debug.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ios-debug-retry.log"
+      ],
+      "blocker": null,
+      "execution": "native_build"
+    },
+    {
+      "id": "android-current-debug",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy env JAVA_HOME=<installed-jdk-21> ./gradlew :app:assembleDebug --no-daemon",
+          "cwd": "currentConsumer/android",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy env JAVA_HOME=<installed-jdk-21> ./gradlew :app:assembleDebug --no-daemon --info",
+          "cwd": "currentConsumer/android",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy adb devices -l",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Gradle 9.3.1 could not resolve org.gradle.toolchains.foojay-resolver-convention:0.5.0 before app compilation. JAVA_HOME was overridden only for this command to installed Zulu JDK 21.0.5. No Android device or AVD is configured.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-android-debug.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-android-debug-info.log"
+      ],
+      "blocker": "Gradle 9.3.1 could not resolve org.gradle.toolchains.foojay-resolver-convention:0.5.0 before app compilation. JAVA_HOME was overridden only for this command to installed Zulu JDK 21.0.5. No Android device or AVD is configured."
+    },
+    {
+      "id": "consumer-minimum",
+      "status": "failed",
+      "runtime": {
+        "reactNative": "0.76.6",
+        "react": "18.3.1",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy npx --yes @react-native-community/cli@15.0.1 init ToolkitMinimum --version 0.76.6 --directory /tmp/toolkit-task14-minimum --skip-install --skip-git-init --install-pods false",
+          "cwd": "/tmp",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy node <npm-cache>/@react-native-community/cli/build/bin.js init ToolkitMinimum --version 0.76.6 --directory /tmp/toolkit-task14-minimum-v2 --skip-install --skip-git-init --install-pods false",
+          "cwd": "/tmp",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm install ./toolkit.tgz react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3 --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1",
+          "cwd": "minimumConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy node node_modules/react-native/cli.js config",
+          "cwd": "minimumConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npx --no-install tsc --noEmit",
+          "cwd": "minimumConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy node -e 'const fs=require(\"fs\");const d=JSON.parse(fs.readFileSync(\".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-autolinking.json\"));let failed=false;for(const name of [\"react-native-debug-toolkit\",\"react-native-mmkv\",\"react-native-nitro-modules\"]){const platforms=d.dependencies[name]?.platforms;const ok=Boolean(platforms?.ios&&platforms?.android);console.log(name+\": \"+(ok?\"both native platforms\":\"MISSING NATIVE PLATFORM\")+\"; android=\"+(platforms?.android===null?\"null\":\"present\"));failed=failed||!ok;}if(failed)process.exitCode=1;'",
+          "cwd": "repo",
+          "exitCode": 1
+        }
+      ],
+      "actualResult": "RN 0.76.6 / React 18.3.1 / CLI 15.0.1 clean install and tsc passed. CLI config exited 0 but MMKV 4.3.2 has platforms.android=null; the explicit required-native-platform assertion exits 1. Toolkit and Nitro have both native platforms. This is an actual lower-end integration failure, not a passed install or an environment-only blocker.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-init.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-init-retry.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-install.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-autolinking.json",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-native-check.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-types.log"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "ios-minimum-debug",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.76.6",
+        "react": "18.3.1",
+        "platform": "iOS",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "RN 0.76.6 installation/types and iOS autolink metadata succeeded, but no Pods/Xcode build was started before requested convergence.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-install.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-autolinking.json",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-native-check.log"
+      ],
+      "blocker": "RN 0.76.6 installation/types and iOS autolink metadata succeeded, but no Pods/Xcode build was started before requested convergence."
+    },
+    {
+      "id": "android-minimum-debug",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.76.6",
+        "react": "18.3.1",
+        "platform": "Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "RN 0.76.6 autolinking omits MMKV's Android platform; no native Gradle build was run before requested convergence.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-install.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-autolinking.json",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-minimum-native-check.log"
+      ],
+      "blocker": "RN 0.76.6 autolinking omits MMKV's Android platform; no native Gradle build was run before requested convergence."
+    },
+    {
+      "id": "release-default",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Release"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy env JAVA_HOME=<installed-jdk-21> ./gradlew :app:assembleRelease --no-daemon",
+          "cwd": "currentConsumer/android",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy npm test -- --runInBand src/__tests__/core/DebugToolkit.test.ts src/__tests__/core/debug.test.ts src/__tests__/core/runtime.test.ts src/__tests__/features/devConnectV4Feature.test.ts src/__tests__/utils/logRuntime.test.ts src/__tests__/utils/HubClient.test.ts",
+          "cwd": "repo",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Native Release device behavior not run. Android assembleRelease stops at the same Gradle plugin resolution; no iOS Release build or device session was executed. 81 focused mocked lifecycle/release tests pass separately.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-android-release.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-release-lifecycle-matrix.log"
+      ],
+      "blocker": "Native Release device behavior not run. Android assembleRelease stops at the same Gradle plugin resolution; no iOS Release build or device session was executed. 81 focused mocked lifecycle/release tests pass separately."
+    },
+    {
+      "id": "release-enabled",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Release"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "Native Release enabled:true local pages and manual-only upload were not exercised on a device. Passing mocked build-gate/Hub tests are not device evidence.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-release-lifecycle-matrix.log"
+      ],
+      "blocker": "Native Release enabled:true local pages and manual-only upload were not exercised on a device. Passing mocked build-gate/Hub tests are not device evidence."
+    },
+    {
+      "id": "zero-config-pages",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "All twelve pages pass renderer acceptance, but no current consumer app was installed/launched or opened page-by-page on a device before convergence.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-tests.log"
+      ],
+      "blocker": "All twelve pages pass renderer acceptance, but no current consumer app was installed/launched or opened page-by-page on a device before convergence."
+    },
+    {
+      "id": "current-hub-session",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk proxy node node_modules/react-native-debug-toolkit/bin/debug-toolkit.js diagnose --json",
+          "cwd": "currentConsumer",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Packaged CLI diagnose returned LOCAL_HUB_NOT_RUNNING. No current app was launched, no current Console/HTTP marker was produced and no App/Session/build match was observed.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-hub-diagnose.log"
+      ],
+      "blocker": "Packaged CLI diagnose returned LOCAL_HUB_NOT_RUNNING. No current app was launched, no current Console/HTTP marker was produced and no App/Session/build match was observed."
+    },
+    {
+      "id": "showcase-flow",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "Node HTTP tests confirm actual 409/201 responses, and renderer tests confirm state/track/navigation/copy wiring; the full Showcase device flow was not run.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-http.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-tests.log"
+      ],
+      "blocker": "Node HTTP tests confirm actual 409/201 responses, and renderer tests confirm state/track/navigation/copy wiring; the full Showcase device flow was not run."
+    },
+    {
+      "id": "history-restart",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "Disk policy and restoration pass unit tests, but no physical/simulator restart history/preference check was executed.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-release-lifecycle-matrix.log"
+      ],
+      "blocker": "Disk policy and restoration pass unit tests, but no physical/simulator restart history/preference check was executed."
+    },
+    {
+      "id": "remount-refresh",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [],
+      "actualResult": "Renderer/remount and owner tests pass; actual device Fast Refresh event uniqueness was not run.",
+      "evidencePaths": [
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-final-demo-tests.log"
+      ],
+      "blocker": "Renderer/remount and owner tests pass; actual device Fast Refresh event uniqueness was not run."
+    },
+    {
+      "id": "ai-docs-integration",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk npm install --ignore-scripts",
+          "cwd": "aiConsumer",
+          "exitCode": 130
+        },
+        {
+          "command": "rtk npm install --offline --ignore-scripts",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npm run typecheck",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npm test -- --runInBand",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npx react-native config",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm run typecheck",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy npm test -- --runInBand",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk proxy patch --dry-run --batch -d acceptance -p0 < acceptance/integration.patch",
+          "cwd": "aiConsumer",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk proxy patch --dry-run --batch -R App.tsx < acceptance/integration.patch",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "A fresh agent with no inherited task history used only the blank fixture and packaged public docs; it applied one module-scope wrapper, retained business text and registration, and added a readiness-gated unique Console/real-HTTP attempt. Offline installation, typecheck, one renderer test and autolink passed. Parent independently reran types/tests. No device events are claimed.",
+      "evidencePaths": [
+        "/tmp/toolkit-task14-ai-blank/acceptance/report.md",
+        "/tmp/toolkit-task14-ai-blank/acceptance/integration.patch",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-tests.log",
+        "docs/validation/ai-document-only.patch",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-patch-check.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-patch-reverse-check.log"
+      ],
+      "blocker": null,
+      "ai": {
+        "publicDocsOnly": true,
+        "patch": "docs/validation/ai-document-only.patch",
+        "inputs": [
+          "node_modules/react-native-debug-toolkit/README.md",
+          "node_modules/react-native-debug-toolkit/docs/integration.md",
+          "node_modules/react-native-debug-toolkit/docs/configuration.md",
+          "node_modules/react-native-debug-toolkit/docs/setup.md",
+          "node_modules/react-native-debug-toolkit/docs/usage.md",
+          "node_modules/react-native-debug-toolkit/docs/examples/integration/App.tsx",
+          "node_modules/react-native-debug-toolkit/docs/examples/integration/Verification.tsx",
+          "node_modules/react-native-debug-toolkit/docs/examples/integration/debug.config.tsx"
+        ],
+        "preparedMarker": "task14-ai-blank-1790088862278-2ba9a7bcc577d"
+      }
+    },
+    {
+      "id": "ai-docs-device",
+      "status": "not_run",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "iOS/Android",
+        "buildMode": "Debug"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk pod install --project-directory=ios",
+          "cwd": "aiConsumer",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk pod install --project-directory=ios",
+          "cwd": "aiConsumer",
+          "exitCode": 1
+        },
+        {
+          "command": "rtk adb devices",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk xcrun simctl list devices available",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Agent's pod install failed first on Hermes TLS download, then on missing CMake in PATH; no native app was built or launched. No current Console/HTTP event, Session or twelve-page device observation exists. Prepared source marker is not an observed event.",
+      "evidencePaths": [
+        "/tmp/toolkit-task14-ai-blank/acceptance/report.md"
+      ],
+      "blocker": "Agent's pod install failed first on Hermes TLS download, then on missing CMake in PATH; no native app was built or launched. No current Console/HTTP event, Session or twelve-page device observation exists. Prepared source marker is not an observed event."
+    },
+    {
+      "id": "ai-docs-idempotency",
+      "status": "passed",
+      "runtime": {
+        "reactNative": "0.85.1",
+        "react": "19.2.3",
+        "platform": "macOS",
+        "buildMode": "static"
+      },
+      "appId": null,
+      "sessionId": null,
+      "buildIdentity": null,
+      "marker": null,
+      "commands": [
+        {
+          "command": "rtk rg -n \"export default withDebugToolkit\" App.tsx | wc -l",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk rg -n \"AppRegistry\\\\.registerComponent\" index.js | wc -l",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npm install --offline --ignore-scripts",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npm run typecheck",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        },
+        {
+          "command": "rtk npm test -- --runInBand",
+          "cwd": "aiConsumer",
+          "exitCode": 0
+        }
+      ],
+      "actualResult": "Independent agent reread the same version's public docs, found exactly one root wrapper and unchanged one AppRegistry registration, reran offline install/types/Jest, and made no second-pass source edit.",
+      "evidencePaths": [
+        "/tmp/toolkit-task14-ai-blank/acceptance/report.md",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-types.log",
+        ".superpowers/sdd/2026-09-22-unified-integration-api/task-14-ai-tests.log"
+      ],
+      "blocker": null,
+      "ai": {
+        "passes": 2,
+        "hostCount": 1,
+        "registrationPreserved": true
+      }
+    }
+  ]
+}
