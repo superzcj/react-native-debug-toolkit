@@ -60,6 +60,7 @@ Demo/yarn-error.log
 .claude/
 .superset/
 .debug-toolkit/
+.superpowers/sdd/
 
 # Misc
 *.log
