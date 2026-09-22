@@ -52,6 +52,8 @@
     "ai:init": "node bin/debug-toolkit.js init",
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc -p type-tests/tsconfig.json",
+    "typecheck:docs": "tsc -p docs/examples/integration/tsconfig.json",
+    "check:docs": "node scripts/check-doc-config.mjs && node --test scripts/__tests__/check-doc-config.test.mjs",
     "typescript": "npm run typecheck",
     "test": "jest",
     "test:package": "node --test scripts/__tests__/verify-package.test.mjs",

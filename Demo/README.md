@@ -77,6 +77,8 @@ npm --prefix Demo run lint
 
 Renderer 测试覆盖两种模式、十二页、409 → 环境切换 → 201、状态与账号同步、复制通道结果；API 测试启动真实 HTTP 服务检查状态码。这些不代替原生构建、设备运行和独立安装包的验证。
 
-AI 接入与人工接入使用同一份公开文档和 API。可让 AI 阅读包的 README 与配置文档，把根组件改为 `withDebugToolkit(App)`，随后按现有业务源补充配置，无需安装接入 Skill。需要排查实际运行日志时，可使用项目已有的 Hub 查询能力。
+AI 接入与人工接入使用同一份[接入指南](../docs/integration.zh-CN.md)、[配置参考](../docs/configuration.zh-CN.md)和[完整示例](../docs/examples/integration/App.tsx)。把根组件改为 `withDebugToolkit(App)`，随后按现有业务源补充配置，无需安装接入 Skill。需要排查实际运行日志时，可使用项目已有的 Hub 查询能力。
+
+Demo 通过声明的 Toolkit 包和标准 autolinking 加载依赖。独立消费者应使用打包产物验证，不能靠仓库源码别名或父目录原生链接替代安装。当前候选 RN 范围与实际验证证据见[支持边界](../docs/integration.zh-CN.md)；静态/renderer/Pod 检查不代表原生 Debug/Release 构建或设备运行已通过。
 
 [其他功能](../docs/usage.zh-CN.md) · [构建模式与排障](../docs/setup.zh-CN.md) · [录制说明](../docs/recording.md)

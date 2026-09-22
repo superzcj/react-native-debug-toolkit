@@ -1,101 +1,68 @@
 # React Native Debug Toolkit
 
-**From an action in your app to the evidence behind it.**
+A complete in-app inspector and local runtime log Hub for React Native.
 
-[中文](README.zh-CN.md) · [Try the Demo](Demo/README.md) · [Setup guide](docs/setup.md) · [Feature examples](docs/usage.md)
+[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [Configuration](docs/configuration.md) · [Demo](Demo/README.md)
 
-A runtime debugging toolkit for React Native: inspect requests, logs and state in your app, follow device activity in a local browser console, and let your AI coding assistant investigate the same evidence alongside your code.
+## One root wrapper, all features
 
-Reproduce on the phone. Inspect on the desktop. Ask your AI what happened.
-
-<p align="center"><img src="demo.gif" width="380" alt="Reproduce a checkout failure, inspect its HTTP response, follow the cart state change, inspect analytics events, switch environments, and sync logs." /></p>
-
-<p align="center"><sub>Requests, state, analytics events, environments, text sharing and log sync. About 18 seconds.</sub></p>
-
-## Three ways to investigate
-
-| Where you work | What it gives you |
-| --- | --- |
-| **Inside the app** | A floating inspector keeps requests, console output and state changes close to the action. Check a failure while reproducing it on a device. |
-| **In your browser** | The local Hub collects device sessions. Search logs, expand request details and watch new events arrive while you operate the app. |
-| **With your AI assistant** | A repository Skill and read-only CLI give your coding assistant runtime evidence to investigate alongside the source. Describe the symptom to start. |
-
-No account or cloud log service required. The Hub runs on your computer; AI integration uses a repository Skill, with no MCP setup.
-
-![Inspect synced logs, a Staging request, analytics properties and text sent from the phone](docs/media/hub.gif)
-
-**Bring device information to your computer:** app activity flows into the Hub. For a diagnostic note, enter text in Clip and tap Copy; view and copy it in the browser Console.
-
-## Built for everyday debugging
-
-| Capability | What you can inspect or control |
-| --- | --- |
-| **Network** | Request status, timing, headers and request/response bodies |
-| **Console & Native** | JS output and supported native logs in the same toolkit |
-| **State** | Zustand actions and before/after values; explicit logging for other state systems |
-| **Navigation** | Route transitions, previous/next routes and timing |
-| **Track / Analytics** | Inspect instrumented event names, properties and timestamps to verify analytics tracking |
-| **Custom tabs** | Your app's own live snapshots: a cart, feature flags or user context |
-| **Environment switching** | Switch configured development/test API hosts or URL prefixes and retain the selection |
-| **Phone → Mac text sharing** | Send text through Clip/Copy to Console; view and copy it in the Mac browser Hub |
-| **Log sync** | Send network, JS/native logs, state, navigation and analytics events to the local Hub, once or continuously |
-| **Test accounts / Sessions** | Integrate account switching and revisit retained logs |
-
-Network and console capture start automatically after initialization. State, navigation, events and business tools use small integrations. [See the examples and capture limits →](docs/usage.md)
-
-## Get started
-
-### Add the in-app inspector
+Install the package and native dependencies in your existing React Native CLI app:
 
 ```sh
-npm install react-native-debug-toolkit
-cd ios && pod install
+npm install react-native-debug-toolkit@5 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+cd ios
+pod install
+cd ..
 ```
 
-Wrap your existing root component and replace `appId` with your app's stable identifier:
+A complete App.tsx (apply the final wrapper to your existing root):
 
 ```tsx
-import { DebugView } from 'react-native-debug-toolkit';
+import React from 'react';
+import { Text } from 'react-native';
+import { withDebugToolkit } from 'react-native-debug-toolkit';
 
-export default function App() {
-  return (
-    <DebugView features={{ devConnect: { appId: 'com.example.myapp' } }}>
-      <AppContent />
-    </DebugView>
-  );
+function App() {
+  return <Text>My App</Text>;
 }
+export default withDebugToolkit(App);
 ```
 
-Rebuild the native app, then tap the floating launcher. The in-app inspector also works without a Hub. Expo requires a development build; Expo Go is not supported.
+Rebuild using your existing iOS/Android command. Installation, Pods and native rebuild are still required; “one line” describes the wrapper. Define it at module scope, preserve AppRegistry and mount one host.
 
-The inspector supports English and Simplified Chinese. Set `<DebugView locale="zh-CN">` to use Chinese, or leave the default `auto` to detect the device language at startup. [Language configuration →](docs/usage.md#language)
+| Default pages | Without business configuration |
+| --- | --- |
+| Network / Console / Native | Supported events after initialization; actual native capability status |
+| State / Navigation / Track | Normal empty pages until sources, refs or explicit events supply data |
+| Connect | Native app identity and Debug discovery; local pages work without Hub |
+| Clipboard | User-triggered text actions; optional native clipboard affects phone copy only |
+| History | Retained Network/Console/Native/Track logs, if any |
+| Environment / Accounts / Custom | Normal empty pages until real data/components are supplied |
 
-### Connect your browser and AI
+This is the complete toolkit. No feature registration list or twelve enabled flags is needed. Supply objects such as `withDebugToolkit(App, { locale: 'zh-CN', network: { maxLogs: 100 } })`. Explicit `{ enabled: false }` closes a feature. [All fields and a runnable source/Context/account example](docs/configuration.md).
 
-From your app project, start the Hub:
+## Connect and verify
+
+From the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
 ```
 
-Open [localhost:3800](http://127.0.0.1:3800/). Debug builds discover the Hub through Metro and upload automatically. Physical devices need a reachable computer LAN address.
+Open [the local Hub](http://127.0.0.1:3800/). Debug can discover/upload automatically; a phone needs a reachable computer address. After ready, generate a fresh unique Console marker and real HTTP request, then locate both in the **current App and Session**. [Exact verification steps](docs/integration.md).
 
-Install the AI Skill once:
+Release is disabled by default. An explicitly enabled internal Release still needs Upload Once/Start Live Logs; no automatic discovery/upload occurs. Events before initialization are not replayed. [Lifecycle, disk limits and per-channel copy results](docs/configuration.md).
 
-```sh
-npx --package=react-native-debug-toolkit debug-toolkit init
-```
+## Let AI integrate the app
 
-Commit the generated `.agents/skills/react-native-debug-toolkit/SKILL.md` and `AGENTS.md` changes. In a coding assistant that loads them and can reach the Hub, reproduce the issue and ask:
+Give your assistant the installed package's [integration guide](docs/integration.md), [configuration reference](docs/configuration.md) and [complete examples](docs/examples/integration/App.tsx). Ask it to locate the root, wrap once, bind real business data, rebuild and verify a new current-session marker. No integration Skill or internal-source knowledge is needed.
 
-> Check why the checkout just failed. Use the runtime logs to locate the relevant code.
+Existing Hub/CLI commands diagnose --json, status, context, inspect and tail query runtime evidence. An optional existing diagnosis Skill can be managed with debug-toolkit init; this is separate from app integration. [CLI details](docs/setup.md).
 
-The toolkit provides the evidence; your AI assistant performs the analysis. [Connection, build modes and troubleshooting →](docs/setup.md)
+## Demo and support
 
-## Try it with a real request
+The [Demo](Demo/README.md) offers zero business configuration and a full Showcase: real HTTP 409/201, environments, state/analytics, local account identities and copy results.
 
-The [Demo](Demo/README.md) includes a local shop API. Trigger an inventory conflict, inspect the **HTTP 409 and JSON response**, follow the **state and analytics events**, switch to **Staging**, and watch **201 arrive in the Hub**. Use Clip to send a note to your computer. The data is synthetic; requests use the real React Native network stack.
+RN CLI/npm is the verified entry. RN 0.85.1 clean package install, types, renderer, autolinking and Pod installation have been checked; native builds/device acceptance remain separate. RN 0.76.6–0.85.1 is a candidate dependency range, not native success across all versions. Expo Go is unsupported; other entries are unverified. [Support boundary](docs/integration.md).
 
-Use in debug/internal builds. Release uploads require an explicit action in Connect; keep public production builds disabled. Run the Hub on a trusted network and review logs before sharing—they are not automatically redacted.
-
-[MIT license](LICENSE)
+The Hub runs locally without a cloud account. Logs are not automatically redacted; review before sharing. [MIT](LICENSE).
