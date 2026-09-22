@@ -16,7 +16,7 @@ export function normalizeEnvironment(input: unknown): NormalizedEnvironmentConfi
   const items: DebugEnvironment[] = [];
   const issue = (path: string, message: string) => { issues.push({ path, message }); };
   if (input === undefined) { return { items: [], defaultId: null, issues }; }
-  if (!isRecord(input)) {
+  if (!isRecord(input) || (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)) {
     return { items: [], defaultId: null, issues: [{ path: 'environment', message: 'Expected a feature configuration object.' }] };
   }
   for (const key of Object.keys(input)) {

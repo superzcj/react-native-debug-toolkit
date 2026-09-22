@@ -33,3 +33,17 @@ test('rejects old host arrays and unknown environment fields', () => {
   expect(normalizeEnvironment([{ id: 'prod', host: 'prod.test' }]).issues[0]?.path).toBe('environment');
   expect(normalizeEnvironment({ items: [{ ...prod, label: 'old' }] }).issues[0]?.path).toBe('environment.items[0].label');
 });
+test.each([/unexpected/, new Date(), new Map(), Object.create({ inherited: true })])('rejects non-plain feature objects: %p', input => {
+  expect(normalizeEnvironment(input)).toMatchObject({
+    items: [], defaultId: null, issues: [expect.objectContaining({ path: 'environment' })],
+  });
+  expect(normalizeConfig({ environment: input }).features.environment).toMatchObject({
+    enabled: true, options: { items: [], defaultId: null },
+    issues: [expect.objectContaining({ path: 'environment' })],
+  });
+});
+test.each([{}, Object.create(null)])('accepts empty plain and null-prototype objects: %p', input => {
+  expect(normalizeConfig({ environment: input }).features.environment).toMatchObject({
+    enabled: true, options: { items: [], defaultId: null }, issues: [],
+  });
+});

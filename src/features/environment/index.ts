@@ -57,7 +57,18 @@ export const createEnvironmentFeature = (
       apply(id); notify();
       await options?.onChange?.(target);
       if (!valid()) { return; }
-      if (persist) { await runtime.preferenceStorage.setItem(KEYS.environmentId, id); }
+      if (persist) {
+        try {
+          await runtime.preferenceStorage.setItem(KEYS.environmentId, id);
+        } catch (cause) {
+          if (!valid()) { return; }
+          // Business configuration has already changed successfully. A failed
+          // preference write must not put SDK requests back on the old server.
+          error = cause instanceof Error ? cause.message : String(cause);
+          publish([{ path: 'environment.preferences', message: error }]);
+          return;
+        }
+      }
       if (!valid()) { return; }
       publish();
     } catch (cause) {

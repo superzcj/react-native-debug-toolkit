@@ -74,6 +74,21 @@ test('failed callback restores previous SDK selection and does not persist', asy
   expect(request().url).toContain('prod.test'); expect(await h.disk.getItem(KEYS.environmentId)).toBeNull();
   expect(h.setStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'error' }));
 });
+test('failed preference write retains the successful business selection and SDK rewrite', async () => {
+  let businessEnvironment = '';
+  const h = harness({ items, onChange: environment => { businessEnvironment = environment.id; } });
+  await h.start();
+  jest.spyOn(h.runtime.preferenceStorage, 'setItem').mockRejectedValue(new Error('disk unavailable'));
+  await h.feature.switchEnvironment('qa');
+  expect(businessEnvironment).toBe('qa');
+  expect(h.feature.getSnapshot()).toMatchObject({ currentEnvironmentId: 'qa', busy: false, error: 'disk unavailable' });
+  expect(request().url).toBe('https://qa.test/v2/users?q=1#top');
+  expect(await h.disk.getItem(KEYS.environmentId)).toBeNull();
+  expect(h.setStatus).toHaveBeenLastCalledWith({
+    phase: 'error',
+    issues: [{ path: 'environment.preferences', message: 'disk unavailable' }],
+  });
+});
 test('initial callback failure falls back to default without overwriting saved choice', async () => {
   const h = harness({ items, onChange: () => { throw new Error('startup failed'); } });
   await h.disk.setItem(KEYS.environmentId, 'qa'); await h.start();
