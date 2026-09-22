@@ -1,8 +1,7 @@
-import {
-  resetInterceptors,
-  startXMLHttpRequest,
-} from '../../features/network/networkInterceptor';
+import { resetInterceptors, startXMLHttpRequest } from '../../features/network/networkInterceptor';
 import { _resetNetworkForTesting, createNetworkFeature } from '../../features/network';
+
+import { setUrlRewriter } from '../../utils/urlRewriter';
 
 type FakeXhrHandler = (xhr: FakeXMLHttpRequest) => void;
 
@@ -116,6 +115,7 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
 
   afterEach(() => {
     resetInterceptors();
+    setUrlRewriter(null);
     if (originalXMLHttpRequest) {
       globalThis.XMLHttpRequest = originalXMLHttpRequest;
     } else {
@@ -162,6 +162,52 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
         success: true,
       },
     });
+  });
+
+  it('network cleanup leaves the environment rewriter active', () => {
+    setUrlRewriter((url) => url.replace('prod', 'dev'));
+    const feature = createNetworkFeature();
+    feature.setup();
+    feature.cleanup();
+    const xhr = new FakeXMLHttpRequest();
+    xhr.open('GET', 'https://prod.test/items');
+    xhr.send();
+    expect(xhr.url).toBe('https://dev.test/items');
+  });
+
+  it('excludes string and stateful RegExp URLs consistently on repeated requests', () => {
+    const pattern = /health/g;
+    pattern.lastIndex = 2;
+    const feature = createNetworkFeature({
+      excludeUrls: ['/private', pattern],
+    });
+    feature.setup();
+    FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
+    ['/health', '/health', '/private', '/public'].forEach((path) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', `https://api.test${path}`);
+      xhr.send();
+    });
+    expect(feature.getSnapshot().map((entry) => entry.request.url)).toEqual([
+      'https://api.test/public',
+    ]);
+    expect(pattern.lastIndex).toBe(2);
+    feature.cleanup();
+  });
+
+  it('delivers each request once to each mounted network feature', () => {
+    const first = createNetworkFeature();
+    const second = createNetworkFeature();
+    first.setup();
+    second.setup();
+    FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://api.test/items');
+    xhr.send();
+    expect(first.getSnapshot()).toHaveLength(1);
+    expect(second.getSnapshot()).toHaveLength(1);
+    first.cleanup();
+    second.cleanup();
   });
 
   it('uses XMLHttpRequest as the default network capture path', async () => {

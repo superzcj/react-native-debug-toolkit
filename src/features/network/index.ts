@@ -5,33 +5,22 @@ import { createChannelFeature } from '../../utils/createChannelFeature';
 import { createEventChannel } from '../../utils/createEventChannel';
 import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
 import { getDefaultLogRuntime, type LogRuntimeContext } from '../../utils/logRuntime';
-import {
-  startXMLHttpRequest,
-  resetInterceptors,
-} from './networkInterceptor';
+import { startXMLHttpRequest, resetInterceptors } from './networkInterceptor';
 import type { NetworkLogPayload } from './networkInterceptor';
-import { setUrlRewriter as setInterceptorUrlRewriter } from '../../utils/urlRewriter';
 
 // ─── Utilities ────────────────────────────────────────
 
-function isUrlBlacklisted(
-  url: string,
-  blacklist: Array<string | RegExp>,
-): boolean {
+function isUrlBlacklisted(url: string, blacklist: Array<string | RegExp>): boolean {
   if (!url) {
     return false;
   }
-  return blacklist.some((pattern) =>
-    pattern instanceof RegExp ? pattern.test(url) : url.includes(pattern),
-  );
-}
-
-// ─── Channel (shared pub-sub backbone) ─────────────────
-
-let networkChannel = createEventChannel<NetworkLogPayload>();
-
-function emitNetworkLog(entry: NetworkLogPayload): void {
-  networkChannel.emit(entry);
+  return blacklist.some((pattern) => {
+    if (!(pattern instanceof RegExp)) {
+      return url.includes(pattern);
+    }
+    // A RegExp can carry lastIndex across requests; matching must be stateless.
+    return new RegExp(pattern.source, pattern.flags).test(url);
+  });
 }
 
 // ─── Feature factory ──────────────────────────────────
@@ -39,6 +28,7 @@ function emitNetworkLog(entry: NetworkLogPayload): void {
 const daemonEndpointBlacklist: Array<string | RegExp> = [];
 
 export interface NetworkFeatureConfig {
+  excludeUrls?: readonly (string | RegExp)[];
   /** Maximum number of network logs to keep (default: 200) */
   maxLogs?: number;
   /** URLs to filter out from logging */
@@ -49,7 +39,8 @@ export const createNetworkFeature = (
   config?: NetworkFeatureConfig,
   runtime: LogRuntimeContext = getDefaultLogRuntime(),
 ) => {
-  const userBlacklist = config?.blacklist ? [...config.blacklist] : [];
+  const networkChannel = createEventChannel<NetworkLogPayload>();
+  const userBlacklist = [...(config?.blacklist ?? []), ...(config?.excludeUrls ?? [])];
 
   return createChannelFeature<NetworkLogPayload, NetworkLogEntry>(
     () => networkChannel,
@@ -72,9 +63,8 @@ export const createNetworkFeature = (
         return payload;
       },
       onSetup: () => {
-        const stopXhr = startXMLHttpRequest(emitNetworkLog);
+        const stopXhr = startXMLHttpRequest((entry) => networkChannel.emit(entry));
         return () => {
-          setInterceptorUrlRewriter(null);
           stopXhr();
         };
       },
@@ -110,7 +100,6 @@ export function _isNetworkUrlBlacklistedForTesting(url: string): boolean {
 
 /** Reset module-level state for testing */
 export function _resetNetworkForTesting(): void {
-  networkChannel = createEventChannel<NetworkLogPayload>();
   daemonEndpointBlacklist.splice(0, daemonEndpointBlacklist.length);
   resetInterceptors();
 }
