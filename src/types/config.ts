@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { EnvironmentOptions } from './environment';
 import type { FeatureConfig } from './feature';
 import type { NativeLogLevel } from './logs';
 import type { DebugNavigationRef } from './navigation';
@@ -44,12 +45,6 @@ export type DebugTab<S = never> = { id: string } & FeatureConfig<{
   | { source: DebugSource<S>; component: ComponentType<{ snapshot: S }>; badge?(snapshot: S): { label: string; color: string } | null }
 )>;
 
-export interface ToolkitEnvironment {
-  id: string;
-  title: string;
-  urls: Readonly<Record<string, string>>;
-}
-
 export interface DebugToolkitConfig<
   A extends DebugAccount = DebugAccount,
   S extends readonly unknown[] = readonly never[],
@@ -71,11 +66,7 @@ export interface DebugToolkitConfig<
   connect?: FeatureConfig<{ appId?: string; endpoint?: string }>;
   clipboard?: FeatureConfig<{}>;
   history?: FeatureConfig<{ maxSessions?: number }>;
-  environment?: FeatureConfig<{
-    items?: readonly ToolkitEnvironment[];
-    defaultId?: string;
-    onChange?(environment: ToolkitEnvironment): void | Promise<void>;
-  }>;
+  environment?: EnvironmentOptions;
   accounts?: FeatureConfig<AccountsOptions<A>>;
   tabs?: FeatureConfig<{ items?: { readonly [K in keyof S]: DebugTab<S[K]> } }>;
 }

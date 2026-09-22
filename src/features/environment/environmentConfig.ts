@@ -1,111 +1,76 @@
-import type {
-  DebugEnvironment,
-  DebugEnvironmentConfig,
-  DebugEnvironmentInput,
-  EnvironmentConfig,
-  EnvironmentListItem,
-  EnvironmentMode,
-} from '../../types';
+import type { ConfigIssue } from '../../core/config';
+import type { DebugEnvironment } from '../../types/environment';
 
 export interface NormalizedEnvironmentConfig {
-  mode: EnvironmentMode;
-  items: EnvironmentListItem[];
+  items: readonly DebugEnvironment[];
   defaultId: string | null;
-  onChange?: (environment: DebugEnvironment) => void | Promise<void>;
+  issues: readonly ConfigIssue[];
 }
 
-export function isManagedEnvironmentConfig(
-  input: DebugEnvironmentInput | undefined,
-): input is DebugEnvironmentConfig {
-  return (
-    !!input &&
-    !Array.isArray(input) &&
-    Array.isArray(input.items) &&
-    typeof input.defaultId === 'string'
-  );
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function normalizeLegacyItems(items: EnvironmentConfig[]): EnvironmentListItem[] {
-  return items.map((item) => ({
-    ...item,
-    mode: 'legacy',
-  }));
-}
-
-function normalizeManagedItems(items: DebugEnvironment[]): EnvironmentListItem[] {
-  return items.map((item) => ({
-    ...item,
-    urls: { ...item.urls },
-    mode: 'managed',
-  }));
-}
-
-function resolveManagedDefaultId(
-  requestedDefaultId: string,
-  items: EnvironmentListItem[],
-): string | null {
-  if (items.some((item) => item.id === requestedDefaultId)) {
-    return requestedDefaultId;
+export function normalizeEnvironment(input: unknown): NormalizedEnvironmentConfig {
+  const issues: ConfigIssue[] = [];
+  const items: DebugEnvironment[] = [];
+  const issue = (path: string, message: string) => { issues.push({ path, message }); };
+  if (input === undefined) { return { items: [], defaultId: null, issues }; }
+  if (!isRecord(input)) {
+    return { items: [], defaultId: null, issues: [{ path: 'environment', message: 'Expected a feature configuration object.' }] };
   }
-  return items[0]?.id ?? null;
-}
-
-export function normalizeEnvironmentInput(
-  input: DebugEnvironmentInput | undefined,
-): NormalizedEnvironmentConfig {
-  if (!input) {
-    return {
-      mode: 'legacy',
-      items: [],
-      defaultId: null,
-    };
+  for (const key of Object.keys(input)) {
+    if (!['enabled', 'items', 'defaultId', 'onChange'].includes(key)) { issue('environment.' + key, 'Unknown configuration field.'); }
   }
-
-  if (isManagedEnvironmentConfig(input)) {
-    const items = normalizeManagedItems(input.items);
-    return {
-      mode: 'managed',
-      items,
-      defaultId: resolveManagedDefaultId(input.defaultId, items),
-      onChange: input.onChange,
-    };
+  if (input.enabled !== undefined && typeof input.enabled !== 'boolean') { issue('environment.enabled', 'Expected a boolean.'); }
+  if (input.onChange !== undefined && typeof input.onChange !== 'function') { issue('environment.onChange', 'Expected a function.'); }
+  if (input.defaultId !== undefined && typeof input.defaultId !== 'string') { issue('environment.defaultId', 'Expected an environment ID.'); }
+  if (input.items !== undefined && !Array.isArray(input.items)) { issue('environment.items', 'Expected an array.'); }
+  const ids = new Set<string>();
+  let serviceKeys: string[] | undefined;
+  Array.from(Array.isArray(input.items) ? input.items : []).forEach((item: unknown, index) => {
+    const path = 'environment.items[' + index + ']';
+    if (!isRecord(item)) { issue(path, 'Expected an environment object.'); return; }
+    const initialIssues = issues.length;
+    for (const key of Object.keys(item)) {
+      if (!['id', 'title', 'urls'].includes(key)) { issue(path + '.' + key, 'Unknown environment field.'); }
+    }
+    for (const key of ['id', 'title']) {
+      if (typeof item[key] !== 'string' || !(item[key] as string).trim()) { issue(path + '.' + key, 'Expected a non-empty string.'); }
+    }
+    if (typeof item.id === 'string') {
+      if (ids.has(item.id)) { issue(path + '.id', 'Duplicate environment ID.'); }
+      ids.add(item.id);
+    }
+    if (!isRecord(item.urls) || !Object.keys(item.urls).length) { issue(path + '.urls', 'Expected at least one service URL.'); }
+    else {
+      const keys = Object.keys(item.urls).sort();
+      if (serviceKeys && (keys.length !== serviceKeys.length || keys.some((key, i) => key !== serviceKeys![i]))) {
+        issue(path + '.urls', 'All environments must declare the same service keys.');
+      }
+      serviceKeys ??= keys;
+      const prefixes = new Set<string>();
+      for (const [key, value] of Object.entries(item.urls)) {
+        const urlPath = path + '.urls.' + key;
+        if (!key.trim()) { issue(urlPath, 'Expected a non-empty service key.'); }
+        try {
+          if (typeof value !== 'string' || !/^https?:\/\//i.test(value)) { throw new Error(); }
+          const parsed = new URL(value);
+          if (!parsed.hostname || !['http:', 'https:'].includes(parsed.protocol)) { throw new Error(); }
+          const prefix = parsed.toString().replace(/\/+$/, '');
+          if (prefixes.has(prefix)) { issue(urlPath, 'Ambiguous duplicate service prefix.'); }
+          prefixes.add(prefix);
+        } catch { issue(urlPath, 'Expected an absolute HTTP(S) URL.'); }
+      }
+    }
+    if (issues.length === initialIssues) {
+      items.push(Object.freeze({ id: item.id as string, title: item.title as string, urls: Object.freeze({ ...item.urls as Record<string, string> }) }));
+    }
+  });
+  let defaultId: string | null = items[0]?.id ?? null;
+  if (Array.isArray(input.items) && input.items.length && typeof input.defaultId === 'string') {
+    if (!items.some(item => item.id === input.defaultId)) { issue('environment.defaultId', 'Default ID must match an environment.'); }
+    else { defaultId = input.defaultId; }
   }
-
-  return {
-    mode: 'legacy',
-    items: normalizeLegacyItems(input),
-    defaultId: null,
-  };
-}
-
-export function getInitialEnvironmentId(
-  config: NormalizedEnvironmentConfig,
-  persistedId: string | null,
-): string | null {
-  if (persistedId && config.items.some((item) => item.id === persistedId)) {
-    return persistedId;
-  }
-
-  return null;
-}
-
-export function findManagedEnvironment(
-  config: NormalizedEnvironmentConfig,
-  environmentId: string | null,
-): DebugEnvironment | null {
-  if (config.mode !== 'managed' || !environmentId) {
-    return null;
-  }
-
-  const found = config.items.find((item) => item.id === environmentId);
-  if (!found || found.mode !== 'managed') {
-    return null;
-  }
-
-  return {
-    id: found.id,
-    label: found.label,
-    color: found.color,
-    urls: { ...found.urls },
-  };
+  return { items: Object.freeze(items), defaultId, issues };
 }

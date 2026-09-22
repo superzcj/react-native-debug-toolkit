@@ -1,6 +1,6 @@
 import type { DebugEnvironment } from '../../types';
 
-type UrlMap = Record<string, string>;
+type UrlMap = Readonly<Record<string, string>>;
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
@@ -9,7 +9,7 @@ function trimTrailingSlash(value: string): string {
 function normalizeAbsoluteUrl(value: string): string | null {
   try {
     const parsed = new URL(value);
-    return trimTrailingSlash(parsed.toString());
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : null;
   } catch {
     return null;
   }
@@ -43,7 +43,7 @@ function buildPrefixPairs(sourceUrls: UrlMap, targetUrls: UrlMap): PrefixPair[] 
       if (!source || !target) {
         return null;
       }
-      return { key, source, target };
+      return { key, source: trimTrailingSlash(source), target: trimTrailingSlash(target) };
     })
     .filter((pair): pair is PrefixPair => pair != null)
     .sort((a, b) => b.source.length - a.source.length);
@@ -70,7 +70,7 @@ export function rewriteByLongestPrefix(
   return `${pair.target}${normalizedUrl.slice(pair.source.length)}`;
 }
 
-export function buildManagedUrlRewriter(
+export function buildEnvironmentUrlRewriter(
   defaultEnvironment: DebugEnvironment | null,
   activeEnvironment: DebugEnvironment | null,
 ): ((url: string) => string) | null {

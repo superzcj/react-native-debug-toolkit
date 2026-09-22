@@ -164,8 +164,8 @@ describe('initializeDebugToolkit', () => {
         environment: {
           defaultId: 'prod',
           items: [
-            { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
-            { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
+            { id: 'prod', title: 'Production', urls: { app: 'https://api.example.com' } },
+            { id: 'qa', title: 'QA', urls: { app: 'https://qa-api.example.com' } },
           ],
         },
       },
@@ -175,7 +175,6 @@ describe('initializeDebugToolkit', () => {
 
     expect(environmentFeature).toBeDefined();
     expect(environmentFeature?.getSnapshot()).toMatchObject({
-      mode: 'managed',
       defaultEnvironmentId: 'prod',
     });
   });
@@ -189,7 +188,7 @@ describe('initializeDebugToolkit', () => {
         environment: {
           defaultId: 'prod',
           items: [
-            { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
+            { id: 'prod', title: 'Production', urls: { app: 'https://api.example.com' } },
           ],
         },
         network: true,

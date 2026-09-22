@@ -1,12 +1,12 @@
 import {
-  buildManagedUrlRewriter,
+  buildEnvironmentUrlRewriter,
   rewriteByLongestPrefix,
 } from '../../features/environment/urlPrefixRewrite';
 import type { DebugEnvironment } from '../../types';
 
 const prod: DebugEnvironment = {
   id: 'prod',
-  label: 'Production',
+  title: 'Production',
   urls: {
     app: 'https://api.example.com',
     shop: 'https://api.example.com/shop',
@@ -16,7 +16,7 @@ const prod: DebugEnvironment = {
 
 const qa: DebugEnvironment = {
   id: 'qa',
-  label: 'QA',
+  title: 'QA',
   urls: {
     app: 'https://qa-api.example.com',
     shop: 'https://qa-api.example.com/shop',
@@ -71,12 +71,24 @@ describe('managed environment URL rewrite', () => {
   });
 
   it('does not rewrite when selected environment is default environment', () => {
-    const rewriter = buildManagedUrlRewriter(prod, prod);
+    const rewriter = buildEnvironmentUrlRewriter(prod, prod);
     expect(rewriter).toBeNull();
   });
 
   it('builds rewriter from two environments', () => {
-    const rewriter = buildManagedUrlRewriter(prod, qa);
+    const rewriter = buildEnvironmentUrlRewriter(prod, qa);
     expect(rewriter!('https://auth.example.com/oauth/token')).toBe('https://qa-auth.example.com/oauth/token');
   });
+});
+
+test.each([
+ ['https://a.test/api2', 'https://a.test/api2'],
+ ['https://a.test/api', 'https://b.test/v2'],
+ ['https://a.test/api/', 'https://b.test/v2/'],
+ ['https://a.test/api/users/?a=1#x', 'https://b.test/v2/users/?a=1#x'],
+])('respects path boundaries and preserves suffix %s', (url, expected) => {
+ expect(rewriteByLongestPrefix(url, { api: 'https://a.test/api/' }, { api: 'https://b.test/v2/' })).toBe(expected);
+});
+test('root prefix preserves root slash, query and hash', () => {
+ expect(rewriteByLongestPrefix('https://a.test/?q=1#x', { api: 'https://a.test/' }, { api: 'https://b.test/' })).toBe('https://b.test/?q=1#x');
 });

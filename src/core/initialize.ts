@@ -78,7 +78,7 @@ const featureRegistry: Record<BuiltInFeatureName, BuiltInFeatureCreator> = {
   zustand: (config) => createZustandLogFeature(config as ZustandFeatureConfig | undefined),
   navigation: (config) => createNavigationLogFeature(config as NavigationFeatureConfig | undefined),
   track: (config, runtime) => createTrackFeature(config as TrackFeatureConfig | undefined, runtime),
-  environment: (config) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined),
+  environment: (config, runtime) => createEnvironmentFeature(config as EnvironmentFeatureConfig | undefined, runtime),
   clipboard: () => createClipboardFeature(),
   devConnect: (config) => {
     if (!config || typeof config !== 'object' || !('appId' in config)) {

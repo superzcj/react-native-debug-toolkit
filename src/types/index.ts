@@ -20,11 +20,7 @@ export type {
 
 export type {
   DebugEnvironment,
-  DebugEnvironmentConfig,
-  DebugEnvironmentInput,
-  EnvironmentConfig,
-  EnvironmentListItem,
-  EnvironmentMode,
+  EnvironmentOptions,
   EnvironmentState,
 } from './environment';
 

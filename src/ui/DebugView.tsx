@@ -3,7 +3,7 @@ import { DebugToolkitProvider } from '../core/DebugToolkitProvider';
 import { initializeDebugToolkit } from '../core/initialize';
 import type { FeatureConfigs } from '../core/initialize';
 import { useNavigationLogger } from '../features/navigation/useNavigationLogger';
-import type { AnyDebugFeature, DebugEnvironmentInput, NavigationContainerRef } from '../types';
+import type { AnyDebugFeature, EnvironmentOptions, NavigationContainerRef } from '../types';
 import type { DebugLocaleOption } from '../i18n';
 
 // --- Types ---
@@ -20,7 +20,7 @@ export interface DebugViewProps {
   /** Navigation container ref for route tracking. */
   navigationRef?: React.RefObject<NavigationContainerRef | null>;
   /** Environment configs for runtime host switching. */
-  environments?: DebugEnvironmentInput;
+  environments?: EnvironmentOptions;
   /** Force enable/disable (default: `__DEV__`). */
   enabled?: boolean;
   /** Startup language for the debug panel. Changing it requires a reload. */

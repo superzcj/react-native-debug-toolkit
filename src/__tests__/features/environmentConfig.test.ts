@@ -1,148 +1,35 @@
-import {
-  normalizeEnvironmentInput,
-  getInitialEnvironmentId,
-  isManagedEnvironmentConfig,
-  findManagedEnvironment,
-} from '../../features/environment/environmentConfig';
-import type { DebugEnvironmentConfig, EnvironmentConfig } from '../../types';
+import { normalizeEnvironment } from '../../features/environment/environmentConfig';
+import { normalizeConfig } from '../../core/config';
 
-describe('environment config normalization', () => {
-  it('normalizes legacy host array input', () => {
-    const legacy: EnvironmentConfig[] = [
-      { id: 'dev', label: 'Development', host: 'dev.api.example.com' },
-      { id: 'prod', label: 'Production', host: 'api.example.com', color: '#f00' },
-    ];
+const prod = { id: 'prod', title: 'Production', urls: { api: 'https://prod.test/api' } };
+const qa = { id: 'qa', title: 'QA', urls: { api: 'https://qa.test/api' } };
 
-    const normalized = normalizeEnvironmentInput(legacy);
-
-    expect(normalized.mode).toBe('legacy');
-    expect(normalized.items).toEqual([
-      { id: 'dev', label: 'Development', host: 'dev.api.example.com', mode: 'legacy' },
-      { id: 'prod', label: 'Production', host: 'api.example.com', color: '#f00', mode: 'legacy' },
-    ]);
-    expect(normalized.defaultId).toBeNull();
-    expect(normalized.onChange).toBeUndefined();
-  });
-
-  it('normalizes object-form managed input', () => {
-    const onChange = jest.fn();
-    const config: DebugEnvironmentConfig = {
-      defaultId: 'prod',
-      items: [
-        {
-          id: 'prod',
-          label: 'Production',
-          urls: {
-            app: 'https://api.example.com',
-            shop: 'https://api.example.com/shop',
-          },
-        },
-        {
-          id: 'qa',
-          label: 'QA',
-          color: '#0f0',
-          urls: {
-            app: 'https://qa-api.example.com',
-            shop: 'https://qa-api.example.com/shop',
-          },
-        },
-      ],
-      onChange,
-    };
-
-    const normalized = normalizeEnvironmentInput(config);
-
-    expect(normalized.mode).toBe('managed');
-    expect(normalized.defaultId).toBe('prod');
-    expect(normalized.items).toHaveLength(2);
-    expect(normalized.items[0]).toMatchObject({
-      id: 'prod',
-      label: 'Production',
-      urls: {
-        app: 'https://api.example.com',
-        shop: 'https://api.example.com/shop',
-      },
-    });
-    expect(normalized.onChange).toBe(onChange);
-  });
-
-  it('falls back to first managed item when defaultId is missing', () => {
-    const normalized = normalizeEnvironmentInput({
-      defaultId: 'missing',
-      items: [
-        { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
-        { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
-      ],
-    });
-
-    expect(normalized.defaultId).toBe('prod');
-  });
-
-  it('uses persisted managed id only when it exists and otherwise stays unselected', () => {
-    const normalized = normalizeEnvironmentInput({
-      defaultId: 'prod',
-      items: [
-        { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
-        { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
-      ],
-    });
-
-    expect(getInitialEnvironmentId(normalized, 'qa')).toBe('qa');
-    expect(getInitialEnvironmentId(normalized, 'deleted')).toBeNull();
-    expect(getInitialEnvironmentId(normalized, null)).toBeNull();
-  });
-
-  it('uses persisted legacy id only when it exists', () => {
-    const normalized = normalizeEnvironmentInput([
-      { id: 'dev', label: 'Development', host: 'dev.api.example.com' },
-      { id: 'prod', label: 'Production', host: 'api.example.com' },
-    ]);
-
-    expect(getInitialEnvironmentId(normalized, 'dev')).toBe('dev');
-    expect(getInitialEnvironmentId(normalized, 'deleted')).toBeNull();
-    expect(getInitialEnvironmentId(normalized, null)).toBeNull();
-  });
-
-  it('detects object-form config', () => {
-    expect(isManagedEnvironmentConfig({ defaultId: 'prod', items: [] })).toBe(true);
-    expect(isManagedEnvironmentConfig([{ id: 'prod', label: 'Production', host: 'api.example.com' }])).toBe(false);
-    expect(isManagedEnvironmentConfig(undefined)).toBe(false);
-  });
-
-  describe('findManagedEnvironment', () => {
-    const managed = normalizeEnvironmentInput({
-      defaultId: 'prod',
-      items: [
-        { id: 'prod', label: 'Production', urls: { app: 'https://api.example.com' } },
-        { id: 'qa', label: 'QA', urls: { app: 'https://qa-api.example.com' } },
-      ],
-    });
-    const legacy = normalizeEnvironmentInput([
-      { id: 'dev', label: 'Development', host: 'dev.api.example.com' },
-    ]);
-
-    it('returns the matching managed environment with cloned urls', () => {
-      const env = findManagedEnvironment(managed, 'qa');
-      expect(env).toEqual({
-        id: 'qa',
-        label: 'QA',
-        color: undefined,
-        urls: { app: 'https://qa-api.example.com' },
-      });
-      const managedQa = managed.items[1];
-      expect(env?.urls).not.toBe((managedQa as { urls: unknown }).urls);
-    });
-
-    it('returns null for an unknown managed id', () => {
-      expect(findManagedEnvironment(managed, 'nope')).toBeNull();
-    });
-
-    it('returns null for a null environment id', () => {
-      expect(findManagedEnvironment(managed, null)).toBeNull();
-    });
-
-    it('returns null for a legacy config', () => {
-      expect(findManagedEnvironment(legacy, 'dev')).toBeNull();
-    });
-  });
+test.each([undefined, {}, { items: [] }, { defaultId: 'dev' }])('missing supply is empty: %p', input => {
+  expect(normalizeEnvironment(input)).toEqual({ items: [], defaultId: null, issues: [] });
+});
+test('defaults to first item and snapshots immutable URL data', () => {
+  const normalized = normalizeEnvironment({ items: [prod, qa] });
+  expect(normalized.defaultId).toBe('prod');
+  expect(normalized.issues).toEqual([]);
+  expect(normalized.items[0]).not.toBe(prod);
+  expect(Object.isFrozen(normalized.items[0]?.urls)).toBe(true);
+});
+test.each([
+  [{ items: [prod, prod] }, 'environment.items[1].id'],
+  [{ items: [{ ...prod, id: '' }] }, 'environment.items[0].id'],
+  [{ items: [{ ...prod, title: '' }] }, 'environment.items[0].title'],
+  [{ items: [{ ...prod, urls: {} }] }, 'environment.items[0].urls'],
+  [{ items: [{ ...prod, urls: { api: '/api' } }] }, 'environment.items[0].urls.api'],
+  [{ items: [{ ...prod, urls: { api: 'ftp://prod.test/api' } }] }, 'environment.items[0].urls.api'],
+  [{ items: [{ ...prod, urls: { api: 'https://prod.test/api', other: 'https://prod.test/api/' } }] }, 'environment.items[0].urls.other'],
+  [{ items: [prod, { ...qa, urls: { auth: 'https://qa.test' } }] }, 'environment.items[1].urls'],
+  [{ items: [prod], defaultId: 'missing' }, 'environment.defaultId'],
+  [{ items: [null] }, 'environment.items[0]'],
+])('rejects malformed supplied configuration with path: %p', (input, path) => {
+  expect(normalizeEnvironment(input).issues).toEqual(expect.arrayContaining([expect.objectContaining({ path })]));
+  expect(normalizeConfig({ environment: input }).features.environment.issues).toEqual(expect.arrayContaining([expect.objectContaining({ path })]));
+});
+test('rejects old host arrays and unknown environment fields', () => {
+  expect(normalizeEnvironment([{ id: 'prod', host: 'prod.test' }]).issues[0]?.path).toBe('environment');
+  expect(normalizeEnvironment({ items: [{ ...prod, label: 'old' }] }).issues[0]?.path).toBe('environment.items[0].label');
 });

@@ -1,4 +1,5 @@
 import { FEATURE_KEYS } from './featureCatalog';
+import { normalizeEnvironment } from '../features/environment/environmentConfig';
 import type { FeatureKey } from './featureCatalog';
 
 export interface ConfigIssue { path: string; message: string }
@@ -136,6 +137,15 @@ function snapshotValue(value: unknown): unknown {
 }
 
 function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
+  if (key === 'environment') {
+    const parsed = normalizeEnvironment(input);
+    return {
+      key, enabled: isConfigObject(input) && input.enabled === false ? false : true,
+      options: Object.freeze({ items: parsed.items, defaultId: parsed.defaultId,
+        ...(isConfigObject(input) && typeof input.onChange === 'function' ? { onChange: input.onChange } : {}) }),
+      issues: parsed.issues,
+    };
+  }
   const issues: ConfigIssue[] = [];
   const options: Record<string, unknown> = Object.fromEntries(
     Object.entries(FEATURE_DEFAULTS[key]).map(([field, value]) => [field, snapshotValue(value)]),
@@ -164,10 +174,6 @@ function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
         if (staticFields.some((field) => input[field] !== undefined)) {
           issues.push({ path: 'accounts.source', message: 'Source and static account data are mutually exclusive.' });
         }
-      }
-      if (key === 'environment' && input.defaultId === undefined && Array.isArray(options.items)) {
-        const first: unknown = options.items[0];
-        options.defaultId = isRecord(first) ? first.id : null;
       }
     }
   }

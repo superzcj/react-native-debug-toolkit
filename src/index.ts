@@ -87,11 +87,9 @@ export type {
   ZustandLogEntry,
   NavigationLogEntry,
   TrackLogEntry,
-  EnvironmentConfig,
   EnvironmentState,
   DebugEnvironment,
-  DebugEnvironmentConfig,
-  DebugEnvironmentInput,
+  EnvironmentOptions,
 } from './types';
 
 // Default export for convenience

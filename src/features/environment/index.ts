@@ -1,249 +1,115 @@
 import { EnvironmentTab } from './EnvironmentTab';
-import {
-  findManagedEnvironment,
-  getInitialEnvironmentId,
-  normalizeEnvironmentInput,
-  type NormalizedEnvironmentConfig,
-} from './environmentConfig';
-import { buildManagedUrlRewriter } from './urlPrefixRewrite';
-import type {
-  DebugEnvironmentInput,
-  DebugFeature,
-  DebugFeatureListener,
-  EnvironmentConfig,
-  EnvironmentState,
-} from '../../types';
-import { KEYS, getPreference, setPreference, removePreference } from '../../utils/debugPreferences';
-import { setUrlRewriter } from '../../utils/urlRewriter';
+import { normalizeEnvironment } from './environmentConfig';
+import { buildEnvironmentUrlRewriter } from './urlPrefixRewrite';
+import type { DebugFeature, DebugFeatureListener } from '../../types/feature';
+import type { EnvironmentOptions, EnvironmentState } from '../../types/environment';
+import type { FeatureContext, FeatureDriver } from '../../core/runtimeTypes';
+import type { ConfigIssue } from '../../core/config';
+import type { LogRuntimeContext } from '../../utils/logRuntime';
+import { KEYS } from '../../utils/debugPreferences';
+import { acquireRewriter } from '../../utils/xhrService';
 
-function buildLegacyHostsMap(
-  environments: EnvironmentConfig[],
-  targetId: string | null,
-): Map<string, string> | null {
-  if (!targetId) return null;
-  const target = environments.find((e) => e.id === targetId);
-  if (!target) return null;
-
-  const map = new Map<string, string>();
-  for (const env of environments) {
-    if (env.id !== targetId) {
-      map.set(env.host, target.host);
-    }
-  }
-  return map;
-}
-
-function createLegacyUrlRewriter(hostsMap: Map<string, string> | null): ((url: string) => string) | null {
-  if (!hostsMap) return null;
-  return (url: string): string => {
-    try {
-      const parsed = new URL(url);
-      const targetHost = hostsMap.get(parsed.host);
-      if (targetHost) {
-        return url.replace(parsed.host, targetHost);
-      }
-    } catch {
-      return url;
-    }
-    return url;
-  };
-}
-
-export interface EnvironmentFeatureAPI extends DebugFeature<EnvironmentState> {
-  registerEnvironments: (environments: DebugEnvironmentInput) => void;
-  switchEnvironment: (environmentId: string | null) => Promise<void>;
-  restoreDefaultEnvironment: () => Promise<void>;
-  getCurrentEnvironmentId: () => string | null;
+export interface EnvironmentFeatureAPI extends DebugFeature<EnvironmentState>, FeatureDriver {
+  switchEnvironment(environmentId: string): Promise<void>;
+  restoreDefaultEnvironment(): Promise<void>;
+  getCurrentEnvironmentId(): string | null;
 }
 
 export const createEnvironmentFeature = (
-  initialEnvironments?: DebugEnvironmentInput,
+  options: EnvironmentOptions | undefined,
+  runtime: LogRuntimeContext,
 ): EnvironmentFeatureAPI => {
+  // Root normalization uses null to represent an empty default selection.
+  const config = normalizeEnvironment(options ? { ...options, defaultId: options.defaultId ?? undefined } : undefined);
   const listeners = new Set<DebugFeatureListener>();
-  let config: NormalizedEnvironmentConfig = normalizeEnvironmentInput(initialEnvironments);
-  let initialized = false;
-  let activeEnvironmentId: string | null = null;
-  let restartRequired = false;
-  let loadToken = 0;
-
-  const getCurrentState = (): EnvironmentState => ({
-    environments: config.items,
-    currentEnvironmentId: activeEnvironmentId,
-    mode: config.mode,
-    defaultEnvironmentId: config.defaultId,
-    restartRequired,
-  });
-
-  const notify = () => {
-    listeners.forEach((listener) => {
-      listener();
-    });
-  };
-
-  const getLegacyItems = (): EnvironmentConfig[] =>
-    config.items
-      .filter((item): item is EnvironmentConfig & { mode: 'legacy' } => item.mode === 'legacy')
-      .map((item) => ({
-        id: item.id,
-        label: item.label,
-        host: item.host,
-        ...(item.color ? { color: item.color } : {}),
-      }));
-
-  const installRewriter = () => {
-    if (!initialized) return;
-
-    if (config.mode === 'managed') {
-      const defaultEnv = findManagedEnvironment(config, config.defaultId);
-      const activeEnv = findManagedEnvironment(config, activeEnvironmentId);
-      setUrlRewriter(buildManagedUrlRewriter(defaultEnv, activeEnv));
-      return;
-    }
-
-    setUrlRewriter(
-      createLegacyUrlRewriter(buildLegacyHostsMap(getLegacyItems(), activeEnvironmentId)),
-    );
-  };
-
-  const callManagedChange = () => {
-    if (config.mode !== 'managed' || !config.onChange) {
-      return;
-    }
-
-    const env = findManagedEnvironment(config, activeEnvironmentId);
-    if (!env) {
-      return;
-    }
-
-    Promise.resolve(config.onChange(env)).catch((err) => {
-      if (__DEV__) {
-        console.warn('[DebugToolkit] Environment onChange failed:', err);
-      }
-    });
-  };
-
-  const persistSelection = async (envId: string | null) => {
-    if (envId) {
-      await setPreference(KEYS.environmentId, envId);
-    } else {
-      await removePreference(KEYS.environmentId);
-    }
-  };
-
-  const applyEnvironment = async (envId: string | null, persist: boolean) => {
-    const nextId =
-      config.mode === 'managed'
-        ? getInitialEnvironmentId(config, envId)
-        : envId && config.items.some((item) => item.id === envId)
-          ? envId
-          : null;
-
-    activeEnvironmentId = nextId;
-    installRewriter();
+  let context: FeatureContext | undefined;
+  let active = false;
+  let token = 0;
+  let busy = false;
+  let error: string | null = null;
+  let selection: string | null = null;
+  let release: (() => void) | undefined;
+  let pending: Promise<void> | undefined;
+  const current = () => active && runtime.active && !!context && context.isCurrent() && !context.signal.aborted;
+  const notify = () => { listeners.forEach(listener => listener()); };
+  const publish = (issues: readonly ConfigIssue[] = []) => {
+    if (current()) { context!.setStatus({ phase: issues.length ? 'error' : config.items.length ? 'ready' : 'empty', issues }); }
     notify();
-    callManagedChange();
-
-    if (persist) {
-      try {
-        await persistSelection(activeEnvironmentId);
-      } catch (err) {
-        if (__DEV__) {
-          console.warn('[DebugToolkit] Failed to persist environment selection:', err);
-        }
-      }
-    }
   };
-
-  const loadPersistedSelection = async () => {
-    const token = ++loadToken;
+  const apply = (id: string | null) => {
+    release?.(); release = undefined;
+    const rewrite = buildEnvironmentUrlRewriter(
+      config.items.find(item => item.id === config.defaultId) ?? null,
+      config.items.find(item => item.id === id) ?? null,
+    );
+    if (rewrite && current()) { release = acquireRewriter(context!.owner, rewrite); }
+    selection = id;
+  };
+  const select = async (id: string, persist: boolean, initializing = false) => {
+    if (!current() || (!initializing && busy)) { return; }
+    const target = config.items.find(item => item.id === id);
+    if (!target || (!initializing && id === selection && !error)) { return; }
+    const generation = ++token;
+    const previous = initializing ? config.defaultId : selection;
+    const valid = () => current() && generation === token;
+    busy = true; error = null;
     try {
-      const stored = await getPreference(KEYS.environmentId);
-      if (token !== loadToken) return;
-      await applyEnvironment(getInitialEnvironmentId(config, stored), false);
-    } catch (err) {
-      if (token !== loadToken) return;
-      if (__DEV__) {
-        console.warn('[DebugToolkit] Failed to load persisted environment:', err);
-      }
-      await applyEnvironment(getInitialEnvironmentId(config, null), false);
+      apply(id); notify();
+      await options?.onChange?.(target);
+      if (!valid()) { return; }
+      if (persist) { await runtime.preferenceStorage.setItem(KEYS.environmentId, id); }
+      if (!valid()) { return; }
+      publish();
+    } catch (cause) {
+      if (!valid()) { return; }
+      error = cause instanceof Error ? cause.message : String(cause);
+      try { apply(previous); } catch { selection = previous; }
+      publish([{ path: 'environment.onChange', message: error }]);
+    } finally {
+      if (valid()) { busy = false; notify(); }
     }
   };
-
-  const restoreDefaultEnvironment = async () => {
-    ++loadToken;
-    if (config.mode === 'managed') {
-      const shouldRequireRestart = activeEnvironmentId != null || restartRequired;
-      await applyEnvironment(null, false);
-      try {
-        await removePreference(KEYS.environmentId);
-      } catch (err) {
-        if (__DEV__) {
-          console.warn('[DebugToolkit] Failed to clear environment selection:', err);
-        }
-      }
-      restartRequired = shouldRequireRestart;
-      notify();
-      return;
-    }
-
-    await applyEnvironment(null, true);
+  const dispose = () => {
+    if (!active) { return; }
+    active = false; ++token;
+    context?.signal.removeEventListener('abort', dispose);
+    release?.(); release = undefined;
+    selection = null; busy = false;
+    notify();
   };
-
+  const start = (ctx: FeatureContext): Promise<void> | void => {
+    if (pending || active) { return pending; }
+    if (ctx.signal.aborted || !ctx.isCurrent()) { return; }
+    context = ctx; active = true;
+    ctx.signal.addEventListener('abort', dispose, { once: true });
+    if (config.issues.length) { publish(config.issues); return; }
+    if (!config.items.length) { publish(); return; }
+    busy = true; notify();
+    pending = (async () => {
+      let saved: string | null = null;
+      try { saved = await runtime.preferenceStorage.getItem(KEYS.environmentId); }
+      catch { /* Preferences are optional; use the declared default. */ }
+      if (!current()) { return; }
+      const id = config.items.some(item => item.id === saved) ? saved : config.defaultId;
+      if (id) { await select(id, false, true); }
+    })();
+    return pending;
+  };
   return {
-    name: 'environment',
-    label: 'Environment',
-    renderContent: EnvironmentTab,
-    setup: () => {
-      if (initialized) return;
-
-      initialized = true;
-      loadPersistedSelection();
+    name: 'environment', label: 'Environment', renderContent: EnvironmentTab,
+    setup() {
+      const controller = new AbortController();
+      start({ owner: Symbol('environment'), signal: controller.signal, isCurrent: () => true, setStatus() {} });
     },
-    getSnapshot: getCurrentState,
-    clear: () => {
-      if (config.mode !== 'managed') {
-        void restoreDefaultEnvironment();
-      }
-    },
-    cleanup: () => {
-      if (!initialized) return;
-      ++loadToken;
-      setUrlRewriter(null);
-      activeEnvironmentId = null;
-      restartRequired = false;
-      notify();
-      initialized = false;
-    },
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    registerEnvironments: (envs: DebugEnvironmentInput) => {
-      ++loadToken;
-      config = normalizeEnvironmentInput(envs);
-      void applyEnvironment(getInitialEnvironmentId(config, activeEnvironmentId), true);
-    },
-    switchEnvironment: async (envId: string | null) => {
-      ++loadToken;
-      const shouldRequireRestart = config.mode === 'managed' && envId !== activeEnvironmentId;
-      await applyEnvironment(envId, true);
-      if (shouldRequireRestart) {
-        restartRequired = true;
-        notify();
-      }
-    },
-    restoreDefaultEnvironment,
-    getCurrentEnvironmentId: () => activeEnvironmentId,
-    badge: () => {
-      if (!activeEnvironmentId) return null;
-      const env = config.items.find((e) => e.id === activeEnvironmentId);
-      if (!env) return null;
-      return {
-        label: env.label.substring(0, 3).toUpperCase(),
-        color: env.color ?? '#FF9500',
-      };
+    start, dispose, cleanup: dispose,
+    getSnapshot: () => ({ environments: config.items, currentEnvironmentId: selection, defaultEnvironmentId: config.defaultId, busy, error }),
+    subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    switchEnvironment: id => select(id, true),
+    restoreDefaultEnvironment: () => config.defaultId ? select(config.defaultId, true) : Promise.resolve(),
+    getCurrentEnvironmentId: () => selection,
+    badge() {
+      const item = config.items.find(env => env.id === selection);
+      return item ? { label: item.title.substring(0, 3).toUpperCase(), color: '#FF9500' } : null;
     },
   };
 };

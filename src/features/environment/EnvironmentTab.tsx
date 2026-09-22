@@ -1,342 +1,70 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Modal,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../ui/theme/colors';
 import { FontSize, FontWeight, Radius, Spacing } from '../../ui/theme/layout';
-import type { DebugFeatureRenderProps, EnvironmentListItem, EnvironmentState } from '../../types';
+import type { DebugFeatureRenderProps } from '../../types/feature';
+import type { DebugEnvironment, EnvironmentState } from '../../types/environment';
 import type { EnvironmentFeatureAPI } from './index';
 import { t } from '../../i18n';
 
-const DEFAULT_COLORS: Record<string, string> = {
-  dev: '#22C55E',
-  development: '#22C55E',
-  staging: '#F59E0B',
-  stage: '#F59E0B',
-  production: '#EF4444',
-  prod: '#EF4444',
-};
-
-const URL_LABELS: Record<string, string> = {
-  app: 'App',
-  auth: 'Auth',
-  crmeb: 'Crmeb',
-  h5: 'H5',
-  iot: 'IoT',
-  shop: 'Shop',
-};
-
-export interface EnvironmentUrlRow {
-  label: string;
-  value: string;
+export interface EnvironmentUrlRow { label: string; value: string }
+export function getEnvironmentUrlRows(env: DebugEnvironment): EnvironmentUrlRow[] {
+  const labels: Record<string, string> = { app: 'App', auth: 'Auth', crmeb: 'Crmeb', h5: 'H5', iot: 'IoT', shop: 'Shop' };
+  return Object.entries(env.urls).map(([key, value]) => ({
+    label: labels[key.toLowerCase()] ?? key.split(/[-_\s]+/).filter(Boolean).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+    value,
+  }));
+}
+export function getEnvironmentFooterAction(state: EnvironmentState): 'restore' | null {
+  return !state.busy && state.currentEnvironmentId && state.currentEnvironmentId !== state.defaultEnvironmentId ? 'restore' : null;
+}
+export function isDefaultEnvironment(state: EnvironmentState, id: string): boolean { return state.defaultEnvironmentId === id; }
+export function getDefaultEnvironment(state: EnvironmentState): DebugEnvironment | null {
+  return state.environments.find(env => env.id === state.defaultEnvironmentId) ?? null;
+}
+export function getDisplayEnvironment(state: EnvironmentState): DebugEnvironment | null {
+  return state.environments.find(env => env.id === state.currentEnvironmentId) ?? getDefaultEnvironment(state);
 }
 
-function getEnvironmentColor(env: { id: string; color?: string }) {
-  return env.color || DEFAULT_COLORS[env.id.toLowerCase()] || Colors.primary;
-}
-
-function formatUrlLabel(key: string): string {
-  const mapped = URL_LABELS[key.toLowerCase()];
-  if (mapped) return mapped;
-
-  return key
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-export function getEnvironmentUrlRows(env: EnvironmentListItem): EnvironmentUrlRow[] {
-  if (env.mode === 'managed') {
-    const rows = Object.entries(env.urls).map(([key, value]) => ({
-      label: formatUrlLabel(key),
-      value,
-    }));
-    return rows.length > 0 ? rows : [{ label: t('environment.urls'), value: t('environment.noUrls') }];
+export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>> = React.memo(({ snapshot: state, feature }) => {
+  const environment = feature as EnvironmentFeatureAPI;
+  if (!state?.environments.length) {
+    return <View style={styles.container}><View style={styles.emptyContainer}>
+      <Text style={styles.emptyIcon}>⚙</Text>
+      <Text style={styles.emptyTitle}>{t('environment.noEnvironments')}</Text>
+      {state?.error ? <Text style={styles.emptyDesc}>{state.error}</Text> : null}
+    </View></View>;
   }
-
-  return [{ label: t('environment.host'), value: env.host }];
-}
-
-function canResetEnvironment(state: EnvironmentState) {
-  return state.mode === 'legacy';
-}
-
-export type EnvironmentFooterAction = 'restore' | 'reset';
-
-export function getEnvironmentFooterAction(state: EnvironmentState): EnvironmentFooterAction | null {
-  if (state.mode === 'managed' && state.currentEnvironmentId != null) {
-    return 'restore';
-  }
-
-  if (canResetEnvironment(state) && state.currentEnvironmentId != null) {
-    return 'reset';
-  }
-
-  return null;
-}
-
-export function isDefaultEnvironment(state: EnvironmentState, envId: string): boolean {
-  return state.mode === 'managed' && state.defaultEnvironmentId === envId;
-}
-
-export function getDefaultEnvironment(state: EnvironmentState): EnvironmentListItem | null {
-  if (state.mode !== 'managed' || !state.defaultEnvironmentId) {
-    return null;
-  }
-
-  return state.environments.find((env) => env.id === state.defaultEnvironmentId) ?? null;
-}
-
-export function getDisplayEnvironment(state: EnvironmentState): EnvironmentListItem | null {
-  const active = state.environments.find((env) => env.id === state.currentEnvironmentId);
-  if (active) return active;
-
-  return getDefaultEnvironment(state);
-}
-
-export function shouldShowRestartBlocker(state: EnvironmentState): boolean {
-  return state.mode === 'managed' && state.restartRequired;
-}
-
-function confirmEnvironmentSwitch(env: EnvironmentListItem, onConfirm: () => void) {
-  Alert.alert(
-    t('environment.switchConfirmTitle'),
-    t('environment.switchConfirmMessage', { label: env.label }),
-    [
-      { text: t('environment.cancel'), style: 'cancel' },
-      { text: t('environment.save'), style: 'destructive', onPress: onConfirm },
-    ],
-  );
-}
-
-function confirmRestoreDefault(onConfirm: () => void) {
-  Alert.alert(
-    t('environment.restoreConfirmTitle'),
-    t('environment.restoreConfirmMessage'),
-    [
-      { text: t('environment.cancel'), style: 'cancel' },
-      { text: t('environment.restore'), style: 'destructive', onPress: onConfirm },
-    ],
-  );
-}
-
-export const EnvironmentTab: React.FC<DebugFeatureRenderProps<EnvironmentState>> = React.memo(({
-  snapshot,
-  feature,
-}) => {
-  const state = snapshot;
-  if (!state || state.environments.length === 0) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>⚙</Text>
-          <Text style={styles.emptyTitle}>{t('environment.noEnvironments')}</Text>
-          <Text style={styles.emptyDesc}>
-            {t('environment.registerHint')}
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const { environments, currentEnvironmentId } = state;
-  const envFeature = feature as unknown as EnvironmentFeatureAPI;
-  const footerAction = getEnvironmentFooterAction(state);
-
-  const applyManagedEnvironment = async (envId: string) => {
-    await envFeature.switchEnvironment?.(envId);
-  };
-
-  const handleSelect = (env: EnvironmentListItem) => {
-    const envId = env.id;
-    const nextId = state.mode === 'managed'
-      ? envId
-      : currentEnvironmentId === envId ? null : envId;
-
-    if (nextId === currentEnvironmentId) {
-      return;
-    }
-
-    if (state.mode === 'managed') {
-      confirmEnvironmentSwitch(env, () => {
-        void applyManagedEnvironment(envId);
-      });
-      return;
-    }
-
-    envFeature.switchEnvironment?.(nextId);
-  };
-
-  const handleRestoreDefault = () => {
-    if (state.mode !== 'managed' || currentEnvironmentId == null) {
-      return;
-    }
-
-    confirmRestoreDefault(() => {
-      void (async () => {
-        await envFeature.restoreDefaultEnvironment?.();
-      })();
-    });
-  };
-
-  const defaultEnv = getDefaultEnvironment(state);
-  const showRestartWarning = shouldShowRestartBlocker(state);
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerSection}>
-        <Text style={styles.sectionTitle}>{t('environment.switch')}</Text>
-        <Text style={styles.sectionDesc}>
-          {t('environment.description')}
-        </Text>
-        {showRestartWarning ? (
-          <View style={styles.restartWarning}>
-            <Text style={styles.restartWarningTitle}>{t('environment.restartRequired')}</Text>
-            <Text style={styles.restartWarningText}>
-              {t('environment.restartWarning')}
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {defaultEnv ? (
-          <View style={styles.defaultSection}>
-            <Text style={styles.listSectionTitle}>{t('environment.builtInUrls')}</Text>
-            <View style={styles.builtInCard}>
-              <View style={styles.builtInHeaderRow}>
-                <View style={[styles.colorDot, { backgroundColor: getEnvironmentColor(defaultEnv) }]} />
-                <View style={styles.builtInTitleGroup}>
-                  <Text style={styles.builtInKicker}>{t('environment.currentAppDefault')}</Text>
-                  <Text style={styles.builtInLabel} numberOfLines={1}>
-                    {defaultEnv.label}
-                  </Text>
-                </View>
-                <View style={styles.defaultPill}>
-                  <Text style={styles.defaultPillText}>{t('common.default')}</Text>
-                </View>
-              </View>
-              <View style={styles.builtInUrlList}>
-                {getEnvironmentUrlRows(defaultEnv).map((row) => (
-                  <View key={`default-${row.label}`} style={styles.urlRow}>
-                    <Text style={styles.urlKey} numberOfLines={1}>
-                      {row.label}
-                    </Text>
-                    <Text style={styles.urlValue} numberOfLines={1} ellipsizeMode="middle">
-                      {row.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {state.mode === 'managed' ? (
-          <Text style={styles.listSectionTitle}>{t('environment.switchTo')}</Text>
-        ) : null}
-        <View style={styles.groupedCard}>
-          {environments.map((env, index) => {
-            const isActive = currentEnvironmentId === env.id;
-            const color = getEnvironmentColor(env);
-            const urlRows = getEnvironmentUrlRows(env);
-            const isDefault = isDefaultEnvironment(state, env.id);
-
-            return (
-              <TouchableOpacity
-                key={env.id}
-                style={[
-                  styles.envItem,
-                  index < environments.length - 1 && styles.envItemSeparator,
-                  isActive && styles.envItemActive,
-                ]}
-                onPress={() => handleSelect(env)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.envItemContent}>
-                  <View style={styles.envHeaderRow}>
-                    <View style={[styles.colorDot, { backgroundColor: color }]} />
-                    <Text style={styles.envLabel} numberOfLines={1}>
-                      {env.label}
-                    </Text>
-                    {isDefault ? (
-                      <View style={styles.defaultPill}>
-                        <Text style={styles.defaultPillText}>{t('common.default')}</Text>
-                      </View>
-                    ) : null}
-                    {isActive ? (
-                      <View style={styles.activePill}>
-                        <Text style={styles.activePillText}>{t('common.active')}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <View style={styles.urlList}>
-                    {urlRows.map((row) => (
-                      <View key={`${env.id}-${row.label}`} style={styles.urlRow}>
-                        <Text style={styles.urlKey} numberOfLines={1}>
-                          {row.label}
-                        </Text>
-                        <Text style={styles.urlValue} numberOfLines={1} ellipsizeMode="middle">
-                          {row.value}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      {footerAction ? (
-        <View style={styles.footer}>
-          {footerAction === 'restore' ? (
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={handleRestoreDefault}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.resetButtonText}>{t('common.restoreDefault')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={() => {
-                void envFeature.switchEnvironment?.(null);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.resetButtonText}>{t('common.reset')}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : null}
-      <Modal
-        visible={showRestartWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
-        <View style={styles.blockerBackdrop}>
-          <View style={styles.blockerCard}>
-            <Text style={styles.blockerTitle}>{t('environment.killAppNow')}</Text>
-            <Text style={styles.blockerText}>
-              {t('environment.savedRestart')}
-            </Text>
-            <Text style={styles.blockerHint}>{t('environment.noDismiss')}</Text>
-          </View>
-        </View>
-      </Modal>
+  return <View style={styles.container}>
+    <View style={styles.headerSection}>
+      <Text style={styles.sectionTitle}>{t('environment.switch')}</Text>
+      {state.error ? <Text accessibilityRole="alert" style={styles.restartWarningText}>{state.error}</Text> : null}
     </View>
-  );
+    <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      <View style={styles.groupedCard}>{state.environments.map((env, index) =>
+        <TouchableOpacity key={env.id} disabled={state.busy}
+          accessibilityState={{ disabled: state.busy, selected: env.id === state.currentEnvironmentId, busy: state.busy }}
+          onPress={async () => { await environment.switchEnvironment(env.id); }}
+          style={[styles.envItem, index < state.environments.length - 1 && styles.envItemSeparator, env.id === state.currentEnvironmentId && styles.envItemActive]}>
+          <View style={styles.envItemContent}>
+            <View style={styles.envHeaderRow}>
+              <Text style={styles.envLabel}>{env.title}</Text>
+              {isDefaultEnvironment(state, env.id) ? <Text style={styles.defaultPillText}>{t('common.default')}</Text> : null}
+              {env.id === state.currentEnvironmentId ? <Text style={styles.activePillText}>{t('common.active')}</Text> : null}
+            </View>
+            <View style={styles.urlList}>{getEnvironmentUrlRows(env).map(row =>
+              <View key={row.label} style={styles.urlRow}><Text style={styles.urlKey}>{row.label}</Text><Text style={styles.urlValue}>{row.value}</Text></View>,
+            )}</View>
+          </View>
+        </TouchableOpacity>,
+      )}</View>
+    </ScrollView>
+    {getEnvironmentFooterAction(state) ? <View style={styles.footer}>
+      <TouchableOpacity style={styles.resetButton} onPress={async () => { await environment.restoreDefaultEnvironment(); }}>
+        <Text style={styles.resetButtonText}>{t('common.restoreDefault')}</Text>
+      </TouchableOpacity>
+    </View> : null}
+  </View>;
 });
 
 const styles = StyleSheet.create({
