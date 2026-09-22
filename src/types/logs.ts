@@ -35,11 +35,30 @@ export interface ZustandLogEntry {
   storeName?: string;
 }
 
-export interface NavigationLogEntry {
+export interface StateEvent {
+  action: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface StateLogEntry extends StateEvent {
+  id: string;
+  timestamp: number;
+  storeId: string;
+}
+
+export interface NavigationEvent {
+  action: string;
+  from?: string;
+  to: string;
+  state?: unknown;
+}
+
+export interface NavigationLogEntry extends NavigationEvent {
   id: string;
   timestamp: number;
   action: string;
-  from: string;
+  from?: string;
   to: string;
   startTime?: number;
   duration?: number;
