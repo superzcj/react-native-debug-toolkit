@@ -56,10 +56,12 @@ test('component failures are contained and another custom page stays usable', ()
     { id: 'bad', title: 'Bad', component: () => { throw new Error('render failed'); } },
     { id: 'good', title: 'Good', component: () => <Text>Still usable</Text> },
   ] });
-  feature.start(ctx());
+  const context = ctx();
+  feature.start(context);
   let tree: Renderer.ReactTestRenderer;
   act(() => { tree = Renderer.create(<Host feature={feature} />); });
   expect(JSON.stringify(tree!.toJSON())).toContain('render failed');
+  expect(context.setStatus).toHaveBeenLastCalledWith({ phase: 'ready', issues: [] });
   act(() => { select(tree!.root, 'good'); });
   expect(JSON.stringify(tree!.toJSON())).toContain('Still usable');
   act(() => { tree!.unmount(); feature.dispose(); }); spy.mockRestore();

@@ -1,7 +1,9 @@
 import type { ComponentType } from 'react';
 import { normalizeConfig } from '../../core/config';
+import type { ConfigIssue } from '../../core/config';
 import type { FeatureContext, FeatureDriver } from '../../core/runtimeTypes';
 import type { DebugTab } from '../../types/config';
+import type { FeatureStatus } from '../../types/debug';
 import type { DebugFeature, FeatureConfig } from '../../types/feature';
 import { observeSource } from '../../utils/observeSource';
 import { TabsTab } from './TabsTab';
@@ -28,6 +30,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
   // Heterogeneous page snapshots remain paired with their own source/component.
   const items = parsed.options.items as readonly DebugTab<unknown>[];
   const listeners = new Set<() => void>();
+  let status: FeatureStatus = { phase: 'initializing', issues: [] };
   let snapshot: TabsSnapshot = { items: [], ...(parsed.issues.length ? { error: parsed.issues.map(issue => `${issue.path}: ${issue.message}`).join('\n') } : {}) };
   let active: { context: FeatureContext; controller: AbortController; cleanups: (() => void)[] } | undefined;
   const emit = () => { listeners.forEach(listener => { try { listener(); } catch { /* Subscriber isolation. */ } }); };
@@ -47,7 +50,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
     }
   };
   const feature: TabsFeature = {
-    name: 'tabs', label: 'Custom', status: { phase: 'initializing', issues: [] }, renderContent: TabsTab,
+    name: 'tabs', label: 'Custom', get status() { return status; }, renderContent: TabsTab,
     setup() {}, cleanup: dispose, dispose,
     getSnapshot: () => snapshot,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
@@ -63,11 +66,21 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
     start(context) {
       if (active || context.signal.aborted || !context.isCurrent()) { return; }
       if (!parsed.enabled) { return; }
-      if (parsed.issues.length) { context.setStatus({ phase: 'error', issues: parsed.issues }); return; }
+      if (parsed.issues.length) {
+        status = { phase: 'error', issues: parsed.issues };
+        context.setStatus(status); return;
+      }
       const run = { context, controller: new AbortController(), cleanups: [] as (() => void)[] };
+      const sourceIssues: ConfigIssue[] = [];
+      status = { phase: 'initializing', issues: [] };
       active = run;
       context.signal.addEventListener('abort', dispose, { once: true });
       const current = () => active === run && context.isCurrent() && !run.controller.signal.aborted;
+      const publishStatus = () => {
+        if (!current()) { return; }
+        status = { phase: sourceIssues.length ? 'error' : items.length ? 'ready' : 'empty', issues: [...sourceIssues] };
+        context.setStatus(status);
+      };
       snapshot = { items: items.map(item => ({ id: item.id, title: item.title,
         component: item.component as ComponentType<{ snapshot?: unknown }>, hasSource: !!item.source,
         badge: null, canClear: !!item.onClear })) };
@@ -75,7 +88,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
         try { return item.badge ? item.badge(value) : null; }
         catch (error) { if (current()) { update(item.id, { error: message(error) }); } return null; }
       };
-      for (const item of items) {
+      for (const [index, item] of items.entries()) {
         if (!current()) { break; }
         if (item.onDeactivate) { run.cleanups.push(item.onDeactivate); }
         try { item.onActivate?.(); }
@@ -88,7 +101,13 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
               const nextBadge = badge(item, value);
               if (current()) { update(item.id, { snapshot: value, badge: nextBadge }); }
             },
-            onError(error) { if (current()) { update(item.id, { error: message(error) }); } },
+            onError(error) {
+              if (!current()) { return; }
+              const reason = message(error);
+              sourceIssues.push({ path: `tabs.items[${index}].source`, message: reason });
+              update(item.id, { error: reason });
+              publishStatus();
+            },
           });
           run.cleanups.push(stop);
         } else {
@@ -97,7 +116,7 @@ export function createTabsFeature<S extends readonly unknown[] = readonly never[
         }
       }
       if (current()) { emit(); }
-      if (current()) { context.setStatus({ phase: items.length ? 'ready' : 'empty', issues: [] }); }
+      publishStatus();
     },
   };
   return feature;

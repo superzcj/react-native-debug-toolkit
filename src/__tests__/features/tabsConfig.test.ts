@@ -60,12 +60,64 @@ test('source failure cancels just that subscription and preserves other pages', 
       subscribe: (listener) => { notify = listener; return unsubscribe; },
     } }, { id: 'plain', title: 'Plain', component },
   ] });
-  feature.start(context());
+  const ctx = context();
+  feature.start(ctx);
+  expect(ctx.setStatus).toHaveBeenLastCalledWith({ phase: 'ready', issues: [] });
   fail = true; notify();
   expect(feature.getSnapshot().items[0]?.error).toBe('source failed');
   expect(feature.getSnapshot().items[1]?.error).toBeUndefined();
+  const errorStatus = { phase: 'error', issues: [{ path: 'tabs.items[0].source', message: 'source failed' }] };
+  expect(ctx.setStatus).toHaveBeenLastCalledWith(errorStatus);
+  expect(feature.status).toEqual(errorStatus);
   expect(unsubscribe).toHaveBeenCalledTimes(1);
   feature.dispose(); expect(unsubscribe).toHaveBeenCalledTimes(1);
+});
+
+test.each(['getSnapshot', 'subscribe'] as const)('source %s failure publishes feature error during startup', (failure) => {
+  const source = {
+    getSnapshot: () => { if (failure === 'getSnapshot') { throw new Error('initial source failure'); } return 1; },
+    subscribe: () => { if (failure === 'subscribe') { throw new Error('initial source failure'); } return () => {}; },
+  };
+  const config = { items: [
+    { id: 'bad', title: 'Bad', component, source },
+    { id: 'good', title: 'Good', component, source: { getSnapshot: () => 42, subscribe: () => () => {} } },
+  ] };
+  expect(normalizeConfig({ tabs: config }).features.tabs.issues).toEqual([]);
+  const feature = createTabsFeature(config);
+  const ctx = context();
+  feature.start(ctx);
+  const errorStatus = { phase: 'error', issues: [{ path: 'tabs.items[0].source', message: 'initial source failure' }] };
+  expect(ctx.setStatus).toHaveBeenLastCalledWith(errorStatus);
+  expect(feature.status).toEqual(errorStatus);
+  expect(feature.getSnapshot().items[0]?.error).toBe('initial source failure');
+  expect(feature.getSnapshot().items[1]?.snapshot).toBe(42);
+  expect(feature.getSnapshot().items[1]?.error).toBeUndefined();
+  feature.dispose();
+});
+
+test('source errors survive sibling updates and clear only with a new runtime start', () => {
+  let failed = true;
+  let value = 1;
+  let notify = () => {};
+  const feature = createTabsFeature({ items: [
+    { id: 'failing', title: 'Failing', component, source: {
+      getSnapshot: () => { if (failed) { throw new Error('source failed'); } return 2; }, subscribe: () => () => {},
+    } },
+    { id: 'healthy', title: 'Healthy', component, source: {
+      getSnapshot: () => value, subscribe: (listener) => { notify = listener; return () => {}; },
+    } },
+  ] });
+  const ctx = context();
+  feature.start(ctx);
+  value = 3; notify();
+  expect(feature.status.phase).toBe('error');
+  expect(feature.status.issues).toHaveLength(1);
+  expect(feature.getSnapshot().items[1]?.snapshot).toBe(3);
+  feature.dispose();
+  failed = false;
+  feature.start(ctx);
+  expect(feature.status).toEqual({ phase: 'ready', issues: [] });
+  feature.dispose();
 });
 
 test('contains item lifecycle, badge and clear errors and releases sources once', () => {
