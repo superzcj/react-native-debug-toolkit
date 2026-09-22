@@ -231,6 +231,54 @@ describe('atomic account source and serialized switching', () => {
     await feature.waitForStorage();
     expect(feature.getViewState().lastUsedAccountId).toBe('b');
   });
+  it.each(['empty', 'scope', 'source-error', 'remount'] as const)(
+    'does not let stale preference reads block %s',
+    async change => {
+      const reads = new Map<string, (value: string | null) => void>();
+      const data = source({ items: [a], scopeKey: 'one' });
+      const storage = {
+        getItem: jest.fn((key: string) => new Promise<string | null>(resolve => reads.set(key, resolve))),
+        setItem: jest.fn(), removeItem: jest.fn(),
+      };
+      const feature = createQuickAccountsFeature({ source: data }, { ...runtime(), preferenceStorage: storage });
+      let firstStarted = false;
+      const starting = Promise.resolve(feature.start(context())).then(() => { firstStarted = true; });
+      let storageDone = false;
+      const waiting = feature.waitForStorage().then(() => { storageDone = true; });
+      await flush();
+      expect(firstStarted).toBe(false);
+      expect(storageDone).toBe(false);
+      let remounted = false;
+      let restarting: Promise<void> | undefined;
+      if (change === 'remount') {
+        feature.dispose();
+        data.update({ items: [], scopeKey: 'one' });
+        restarting = Promise.resolve(feature.start(context())).then(() => { remounted = true; });
+      } else if (change === 'source-error') {
+        data.update({ items: [a, a], scopeKey: 'one' });
+      } else if (change === 'scope') {
+        data.update({ items: [b], scopeKey: 'two' });
+        await flush();
+        expect(firstStarted).toBe(false);
+        expect(storageDone).toBe(false);
+        reads.get('react-native-debug-toolkit.quick-accounts.last:two')?.('b');
+      } else {
+        data.update({ items: [], scopeKey: 'one' });
+      }
+      await flush();
+      expect(firstStarted).toBe(true);
+      expect(storageDone).toBe(true);
+      if (change === 'remount') { expect(remounted).toBe(true); }
+      await Promise.all([starting, waiting, restarting, feature.waitForStorage()]);
+      expect(feature.getStatus().phase).toBe(change === 'scope' ? 'ready' : change === 'source-error' ? 'error' : 'empty');
+      expect(feature.getViewState().lastUsedAccountId).toBe(change === 'scope' ? 'b' : null);
+      // The abandoned adapter call is still pending until here.
+      reads.get('react-native-debug-toolkit.quick-accounts.last:one')?.('a');
+      await flush();
+      expect(feature.getViewState().lastUsedAccountId).toBe(change === 'scope' ? 'b' : null);
+      if (change !== 'scope') { expect(storage.getItem).toHaveBeenCalledTimes(1); }
+    },
+  );
   it('preference failure remains visible without rolling back login', async () => {
     const rt = runtime();
     jest.spyOn(rt.preferenceStorage, 'setItem').mockImplementation(() => { throw new Error('disk unavailable'); });
@@ -240,6 +288,29 @@ describe('atomic account source and serialized switching', () => {
     await expect(feature.actions.switchTo('a')).resolves.toEqual({ status: 'success' });
     expect(onRollback).not.toHaveBeenCalled();
     expect(feature.getViewState().errorMessage).toContain('disk unavailable');
+  });
+  it('a nonempty remount waits for its fresh hydration rather than the previous host read', async () => {
+    const reads: Array<(value: string | null) => void> = [];
+    const storage = {
+      getItem: () => new Promise<string | null>(resolve => reads.push(resolve)),
+      setItem: jest.fn(), removeItem: jest.fn(),
+    };
+    const data = source({ items: [a, b] });
+    const feature = createQuickAccountsFeature({ source: data }, { ...runtime(), preferenceStorage: storage });
+    const first = feature.start(context());
+    feature.dispose();
+    let ready = false;
+    const second = Promise.resolve(feature.start(context())).then(() => { ready = true; });
+    await flush();
+    expect(reads).toHaveLength(2);
+    expect(ready).toBe(false);
+    reads[1]?.('b');
+    await second;
+    await first;
+    expect(feature.getViewState().lastUsedAccountId).toBe('b');
+    reads[0]?.('a');
+    await flush();
+    expect(feature.getViewState().lastUsedAccountId).toBe('b');
   });
   it('does not initiate persistence or success notifications after a commit observer changes scope', async () => {
     const rt = runtime();

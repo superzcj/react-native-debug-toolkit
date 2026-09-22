@@ -95,7 +95,7 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
   let lastResult: QuickAccountsLastResult = 'idle';
   let errorMessage: string | null = null;
   let storageGeneration = 0;
-  const storageTasks = new Set<Promise<void>>();
+  let hydration: { done: Promise<void>; finish(): void } | undefined;
   let request: { scope: string; target: A; lifecycle: AbortController | undefined } | undefined;
   const current = () => active && runtime.active && !!context && context.isCurrent() && !context.signal.aborted;
   const requestCurrent = (account: A) => current() && !failed && request?.lifecycle === lifecycle && request?.target === account &&
@@ -115,17 +115,24 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
     if (!failed && !errorMessage) { status = { phase: state.items.length ? 'ready' : 'empty', issues: [] }; }
     publish();
   };
-  const trackStorage = (promise: Promise<void>) => {
-    storageTasks.add(promise);
-    promise.then(() => storageTasks.delete(promise), () => storageTasks.delete(promise));
-    return promise;
+  const invalidateHydration = () => {
+    storageGeneration += 1;
+    const previous = hydration;
+    hydration = undefined;
+    // Adapter promises need not cooperate with cancellation. Release SDK
+    // waiters immediately while the generation guard discards late results.
+    previous?.finish();
   };
   const hydrate = () => {
-    const token = ++storageGeneration;
+    invalidateHydration();
+    const token = storageGeneration;
     const scope = state.scopeKey!;
     lastUsedAccountId = null;
     if (!current() || !state.items.length) { return; }
-    trackStorage((async () => {
+    let finish!: () => void;
+    const pending = { done: new Promise<void>(resolve => { finish = resolve; }), finish: () => finish() };
+    hydration = pending;
+    (async () => {
       try {
         const id = await runtime.preferenceStorage.getItem(getQuickAccountsLastUsedStorageKey(scope));
         if (token !== storageGeneration || !current()) { return; }
@@ -133,8 +140,11 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
         notify();
       } catch (error) {
         if (token === storageGeneration && current()) { showError(error, 'accounts.preferences'); }
+      } finally {
+        if (hydration === pending) { hydration = undefined; }
+        pending.finish();
       }
-    })());
+    })();
   };
   const controller = createQuickAccountsController<A>({
     onSwitch: options.onSwitch,
@@ -150,13 +160,13 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
       const scope = request!.scope;
       lastUsedAccountId = account.id;
       lastResult = 'success';
-      storageGeneration += 1;
+      invalidateHydration();
       notify();
       if (!requestCurrent(account)) { return; }
-      await trackStorage((async () => {
+      await (async () => {
         try { await runtime.preferenceStorage.setItem(getQuickAccountsLastUsedStorageKey(scope), account.id); }
         catch (error) { if (requestCurrent(account)) { showError(error, 'accounts.preferences'); } }
-      })());
+      })();
       if (!requestCurrent(account)) { return; }
       try { await options.onSuccess?.(account); }
       catch (error) {
@@ -173,10 +183,10 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
     failed = true;
     controller.invalidate();
     release?.(); release = undefined;
-    storageGeneration += 1;
+    invalidateHydration();
     showError(error, 'accounts.source');
   };
-  const update = (input: unknown, dynamic = false) => {
+  const update = (input: unknown, dynamic = false, initial = false) => {
     if (failed) { return; }
     try {
       const next = readState<A>(input, dynamic);
@@ -188,7 +198,7 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
       state = next;
       if (scopeChanged) { errorMessage = null; lastResult = 'idle'; }
       if (!state.items.some(item => item.id === lastUsedAccountId)) { lastUsedAccountId = null; }
-      if (scopeChanged || (previouslyEmpty && state.items.length > 0) || !state.items.length) { hydrate(); }
+      if (initial || scopeChanged || (previouslyEmpty && state.items.length > 0) || !state.items.length) { hydrate(); }
       publishData();
     } catch (error) { fail(error); }
   };
@@ -211,13 +221,14 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
   const suspend = () => { manuallySuspended = true; controller.suspend(); };
   const resume = () => { manuallySuspended = false; if (current() && !failed) { controller.resume(); } };
   const waitForStorage = async () => {
-    while (storageTasks.size) { await Promise.all([...storageTasks]); }
+    const owner = lifecycle;
+    while (owner === lifecycle && hydration) { await hydration.done; }
   };
   const actions: AccountsActions = { switchTo, suspend, resume, waitForIdle: () => controller.waitForIdle() };
   const dispose = () => {
     active = false;
     controller.suspend();
-    ++storageGeneration;
+    invalidateHydration();
     context?.signal.removeEventListener('abort', dispose);
     lifecycle?.abort();
     release?.(); release = undefined;
@@ -236,12 +247,14 @@ export function createQuickAccountsFeature<A extends DebugAccount = DebugAccount
     status = { phase: 'initializing', issues: [] };
     if (configError) { fail(configError); return; }
     if (options.source) {
+      let initial = true;
       release = observeSource(options.source, {
         signal: lifecycle.signal,
         onSnapshot: value => {
           // Throw validation errors so observeSource also stops synchronous subscriptions.
           readState<A>(value, true);
-          update(value, true);
+          update(value, true, initial);
+          initial = false;
         },
         onError: fail,
       });
