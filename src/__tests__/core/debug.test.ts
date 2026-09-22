@@ -101,6 +101,7 @@ test('copy reports Hub success only after its console event is acknowledged', as
     client.connect({ live: true });
     for (let i = 0; i < 30; i++) { await Promise.resolve(); }
     expect(client.getStatus().state).toBe('connected');
+    client.pauseSync(); debug.track('keep-this-log-paused');
     let completed = false;
     const copy = debug.copyToComputer('acknowledged copy', { label: 'Receipt' }).then(result => { completed = true; return result; });
     for (let i = 0; i < 30; i++) { await Promise.resolve(); }
@@ -113,6 +114,8 @@ test('copy reports Hub success only after its console event is acknowledged', as
     finish(new Response(JSON.stringify({ ok: true, ackThrough: body.events[0]!.sequence }), { status: 200 }));
     expect((await copy).hub.status).toBe('success');
     expect(debug.getReport().logs.console).toHaveLength(1);
+    expect(debug.getReport().logs.track).toHaveLength(1);
+    expect(client.isSyncPaused()).toBe(true);
   } finally { host.dispose(); fetch.mockRestore(); }
 });
 

@@ -74,6 +74,8 @@ interface EventDelivery {
   fail(message: string): void;
 }
 
+type FlushMode = 'live' | 'once' | 'copy';
+
 interface PendingEvent {
   timestamp: number;
   type: string;
@@ -488,7 +490,7 @@ export class HubClient {
         seen.add(consoleEntry.id);
         this._lastFeatureIds.set('console', seen);
       }
-      void this._doFlush(true);
+      void this._doFlush('copy');
     });
   }
 
@@ -505,7 +507,7 @@ export class HubClient {
     this._snapshotFeatures();
     // A one-shot flush never changes the persistent live/paused mode. Session
     // failure and its background retry therefore cannot promote it to live.
-    await this._doFlush(pauseAfterSync);
+    await this._doFlush('once');
     if (!this._current(generation)) { return; }
     if (pauseAfterSync && this._state === 'connected') {
       this.pauseSync();
@@ -610,7 +612,9 @@ export class HubClient {
         sessionId: data.sessionId as string,
         deviceId: data.deviceId as string,
       };
-      this._nextSequence = (data.expectedSequence as number) || 1;
+      // A reopened server may still expect an already assigned in-flight
+      // sequence. Retain the allocation high-water mark while replaying it.
+      this._nextSequence = Math.max(this._nextSequence, (data.expectedSequence as number) || 1);
       this._ackThrough = (data.ackThrough as number) || this._ackThrough;
       this._retryAttempt = 0;
       this._lastError = undefined;
@@ -739,25 +743,36 @@ export class HubClient {
 
   // ---- Private: Flush ----
 
+  private _isPendingDelivery(event: PendingEvent | InFlightEvent): boolean {
+    return event.deliveries?.some(delivery => this._deliveries.has(delivery)) ?? false;
+  }
+
   private _hasPendingDelivery(): boolean {
-    return [...this._pending, ...this._inFlight].some(event => event.deliveries?.some(delivery => this._deliveries.has(delivery)));
+    return [...this._pending, ...this._inFlight].some(event => this._isPendingDelivery(event));
   }
 
   private _scheduleFlush(): void {
     if (!this._active || this._flushTimer) return;
     this._flushTimer = setTimeout(() => {
       this._flushTimer = null;
-      this._doFlush(this._hasPendingDelivery());
+      this._doFlush(this._syncPaused && this._hasPendingDelivery() ? 'copy' : 'live');
     }, FLUSH_INTERVAL_MS);
   }
 
-  private async _doFlush(once = false): Promise<void> {
+  private async _doFlush(mode: FlushMode = 'live'): Promise<void> {
     const generation = this._generation;
     if (this._sending || !this._active || !this._session) return;
-    if (this._syncPaused && !once) return;
+    if (this._syncPaused && mode === 'live') return;
+    const copyOnly = this._syncPaused && mode === 'copy';
+    if (copyOnly && this._inFlight.some(event => !this._isPendingDelivery(event))) {
+      // Existing numbered records cannot be skipped without breaking the Hub
+      // sequence. Copy does not authorize retransmitting those paused logs.
+      [...this._deliveries].forEach(delivery => delivery.fail('Copy is blocked by paused unacknowledged logs. Resume log sync before retrying.'));
+      return;
+    }
 
     // Snapshot dirty features first
-    if (this._dirtyFeatures.size > 0) {
+    if (!copyOnly && this._dirtyFeatures.size > 0) {
       this._snapshotFeatures();
     }
 
@@ -778,7 +793,9 @@ export class HubClient {
         }
       } else {
         while (this._pending.length > 0 && batch.length < MAX_BATCH_EVENTS) {
-          const pending = this._pending[0]!;
+          const index = copyOnly ? this._pending.findIndex(event => this._isPendingDelivery(event)) : 0;
+          if (index < 0) { break; }
+          const pending = this._pending[index]!;
           const severity = normalizeSeverity(pending.severity);
           // Hash exactly the JSON-compatible value that will cross the wire.
           // Native Blob and other host objects can expose a different toJSON()
@@ -796,7 +813,7 @@ export class HubClient {
 
           if (batchBytes + event.wireBytes > MAX_BATCH_BYTES) break;
 
-          this._pending.shift();
+          this._pending.splice(index, 1);
           this._pendingBytes -= pending.estimatedBytes;
           this._inFlight.push(event);
           this._inFlightBytes += event.wireBytes;
@@ -940,7 +957,7 @@ export class HubClient {
       if (!this._session) {
         this._openSession();
       } else {
-        this._doFlush(this._hasPendingDelivery());
+        this._doFlush(this._syncPaused && this._hasPendingDelivery() ? 'copy' : 'live');
       }
     }, delay + jitter);
   }

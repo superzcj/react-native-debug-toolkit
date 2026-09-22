@@ -76,6 +76,87 @@ const openBody = {
 };
 
 describe('HubClient transport', () => {
+  it.each(['dirty', 'queued'] as const)('copies only the selected event while unrelated %s logs stay paused', async backlog => {
+    jest.useFakeTimers();
+    const fetch = jest.fn(async (url: string, init: { body?: string }) => {
+      if (!url.endsWith('/events')) { return response(201, openBody); }
+      const body = JSON.parse(init.body!) as { events: Array<{ sequence: number }> };
+      return response(200, { ok: true, ackThrough: body.events.at(-1)!.sequence });
+    });
+    const provider = createFeatureProviderWithConsoleEntry();
+    let changed!: () => void;
+    provider.features[0]!.subscribe = listener => { changed = listener; return () => {}; };
+    const client = new HubClient({ fetch, featureProvider: provider });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect({ live: backlog === 'queued' }); await flushPromises();
+    client.pauseSync(); changed();
+    try {
+      expect(await client.sendCopy('only this copy', 'Selection')).toBe('delivered');
+      const posts = () => fetch.mock.calls.filter(([url]) => url.endsWith('/events')).map(([, init]) => JSON.parse(init.body!));
+      expect(posts()).toHaveLength(1);
+      expect(posts()[0].events).toEqual([expect.objectContaining({ data: expect.objectContaining({ data: ['Selection', 'only this copy'] }) })]);
+      await jest.advanceTimersByTimeAsync(2000);
+      expect(posts()).toHaveLength(1);
+      expect(client.getStatus().state).toBe('paused');
+      expect(client.isSyncPaused()).toBe(true);
+      client.resumeSync();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(posts()).toHaveLength(2);
+      expect(posts()[1].events).toEqual([expect.objectContaining({ sequence: 2, data: expect.objectContaining({ message: 'hello' }) })]);
+    } finally { client.disconnect(); }
+  });
+
+  it('acknowledges a replay after 409 reopens at sequence one and then uploads the next event', async () => {
+    jest.useFakeTimers(); jest.spyOn(Math, 'random').mockReturnValue(0);
+    let eventRequests = 0;
+    const fetch = jest.fn(async (url: string, init: { body?: string }) => {
+      if (!url.endsWith('/events')) { return response(201, openBody); }
+      eventRequests++;
+      if (eventRequests === 1) { return response(409, { ok: false, expectedSequence: 1 }); }
+      const body = JSON.parse(init.body!) as { events: Array<{ sequence: number }> };
+      return response(200, { ok: true, ackThrough: body.events.at(-1)!.sequence });
+    });
+    const provider = createFeatureProviderWithConsoleEntry();
+    const entries = [{ id: 1, timestamp: 1700000000000, level: 'info', message: 'first' }];
+    provider.features[0]!.getSnapshot = () => entries;
+    let changed!: () => void;
+    provider.features[0]!.subscribe = listener => { changed = listener; return () => {}; };
+    const client = new HubClient({ fetch, featureProvider: provider });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect(); await flushPromises();
+    try {
+      await client.syncNow();
+      expect(fetch.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(2);
+      await jest.advanceTimersByTimeAsync(1000);
+      entries.push({ id: 2, timestamp: 1700000000001, level: 'info', message: 'second' }); changed();
+      await jest.advanceTimersByTimeAsync(1000);
+      const posts = fetch.mock.calls.filter(([url]) => url.endsWith('/events')).map(([, init]) => JSON.parse(init.body!));
+      expect(posts.map(body => body.firstSequence)).toEqual([1, 1, 2]);
+      expect(posts[2].events).toEqual([expect.objectContaining({ sequence: 2, data: expect.objectContaining({ message: 'second' }) })]);
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(fetch.mock.calls.filter(([url]) => url.endsWith('/events'))).toHaveLength(3);
+    } finally { client.disconnect(); }
+  });
+
+  it('does not retransmit paused unacknowledged logs to make room for a copy', async () => {
+    jest.useFakeTimers();
+    const fetch = jest.fn(async (url: string) => url.endsWith('/events')
+      ? response(503, { ok: false }) : response(201, openBody));
+    const client = new HubClient({ fetch, featureProvider: createFeatureProviderWithConsoleEntry() });
+    client.configure({ appId: 'app', endpoint: 'http://hub:3800' });
+    client.connect(); await flushPromises();
+    try {
+      await client.syncNow(); client.pauseSync();
+      const copy = client.sendCopy('blocked by earlier sequence').catch((error: Error) => error);
+      await flushPromises();
+      expect(fetch.mock.calls.filter(([url]) => url.endsWith('/events'))).toHaveLength(1);
+      expect(await copy).toEqual(expect.objectContaining({ message: expect.stringContaining('paused unacknowledged logs') }));
+      await jest.advanceTimersByTimeAsync(2000);
+      expect(fetch.mock.calls.filter(([url]) => url.endsWith('/events'))).toHaveLength(1);
+      expect(client.isSyncPaused()).toBe(true);
+    } finally { client.disconnect(); }
+  });
+
   it('delivers an explicit copy while paused without promoting the live mode', async () => {
     const fetch = jest.fn(async (url: string) => url.endsWith('/events')
       ? response(200, { ok: true, ackThrough: 1 }) : response(201, openBody));
