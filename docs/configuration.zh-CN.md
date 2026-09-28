@@ -61,6 +61,23 @@
 | `tabs.enabled` | `true` | boolean；固定自定义页与配置项生命周期。 |
 | `tabs.items` | `[]` | readonly 类型化 DebugTab 元组；每项必填 id/title/component。 |
 
+## 快捷操作
+
+`quickActions` 为浮动入口增加最多五个业务操作，不会新增功能页：
+
+```tsx
+quickActions: {
+  items: [
+    { id: 'reset-cart', title: '清空购物车', icon: '↺', onPress: () => cart.reset() },
+    { id: 'refresh', title: '刷新', onPress: async () => refreshData() },
+  ],
+}
+```
+
+长按浮动入口约 450 毫秒打开向内的放射菜单，再点击操作。移动会取消长按并继续拖动；菜单打开后松手仍保持菜单。点击中心、背景或 Android 返回键可关闭菜单。读屏用户可通过“打开快捷操作”自定义操作展开菜单，无需长按。`closeOnPress` 默认为 `true`，导航操作会在回调前关闭菜单；设为 `false` 时菜单保持打开，并显示忙碌指示及成功/失败反馈。禁用操作会被正确标记且不会执行。回调在点击后调用；需要最新业务数据时，在回调内读取应用的 ref/store，避免捕获旧值。动作配置在宿主生命周期内固定。
+
+操作 ID 必须唯一，ID 和标题必须是非空字符串，`onPress` 必须是函数。无效配置会产生带路径的全局错误。空间不足时使用带关闭按钮的可滚动网格，保留完整触摸区域。常规布局将标题和触摸区域一起纳入边界检查。iOS 使用核心 SafeAreaView 的实测内容区域；Android 使用宿主可用区域，不读取系统 WindowInsets，边到边布局应在安全内容区挂载工具箱。遵循系统“减少动态效果”设置。不额外触发整机振动。
+
 ## 默认页面与采集
 
 Network 采集初始化后的 React Native XHR；绕过 XHR 的原生客户端不在范围内。文本/JSON 响应可查看，部分 fetch 实现只暴露 Blob 元数据。Console 观察 JS console。Native 采集受支持的 iOS RCTLog 或 Android 当前进程可见的 logcat；原生能力不可用时显示真实状态。
@@ -95,6 +112,8 @@ onRollback 可补偿已触发后失败或过期的操作；SDK 无法替业务�
 
 debug.accounts.switchTo(id) 返回 success/error/superseded/disabled/busy/not_configured/not_found。suspend() 禁止新切换并取消当前操作，resume() 恢复，waitForIdle() 等待回调和补偿完成，而非仅等待 abort。非空账号的最近 ID 恢复纳入 ready；空页不等待未来账号数据。
 
+`debug.environment.switchTo(id)` 使用已配置的环境控制器，保证 SDK URL 重写、持久化选择、入口徽章和 `environment.onChange` 保持同步。环境功能不可用或关闭时，该操作保持无效。
+
 ## 自定义页与 Context
 
 每项必填唯一非空 id/title 和 component。ID 不可重复或与表中的内置 key 冲突。项级 enabled?: boolean 默认 true；可选 source、badge、onActivate、onDeactivate、onClear。有 source 时组件接收 { snapshot }，badge(snapshot) 返回 { label: string, color: string } 或 null；无 source 时组件无必填 props，badge() 无参数。生命周期回调返回 void。activate/deactivate 指运行时激活/释放，不是导航选中切换。
@@ -118,4 +137,3 @@ debug.ready() 返回结构化结果 ready/partial/disabled/not_started/cancelled
 在普通 React useEffect 或挂载后的用户操作中等待。HOC 在 layout effect 注册 ready 句柄；模块顶层、render、比父 layout effect 更早的子 layout effect 不属于可等待调用点。未挂载返回 not_started，卸载取消未完成的等待。同一 JS runtime 只能有一个宿主；HOC 定义在模块作用域，已有包装应修改原处，不重复添加。
 
 所属功能 ready 前或关闭后的 track/state/navigation 调用为 no-op，不重放。XHR/console 从各自完成安装后采集；ready 不补采此前 import、render、网络事件。ready 描述初始化结果，后续 source 错误在功能状态中呈现。原生存储失败时实时内存采集可能继续，History 不可用、偏好未保存；这不免除原生安装要求。
-

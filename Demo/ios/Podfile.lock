@@ -1411,7 +1411,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-  - react-native-debug-toolkit (5.0.0):
+  - react-native-debug-toolkit (4.1.1):
     - React-Core
   - react-native-safe-area-context (5.7.0):
     - hermes-engine
@@ -2177,7 +2177,7 @@ SPEC CHECKSUMS:
   React-logger: 4e7583fb51ef2aa76b298c88e1b9a5cff83e03f7
   React-Mapbuffer: 820bc13d35de93c05aacefb3ab43f061b247c64e
   React-microtasksnativemodule: d8115c4d1035b8671c036a47d82fe75d1ca44e44
-  react-native-debug-toolkit: 14110b3b811aa351a728fba29a9886381b7a5cd0
+  react-native-debug-toolkit: 3ed2396cf63411a3cb4e8b828e7b1e76d5320e42
   react-native-safe-area-context: 6b4966397ada0f7dd481e4486a2ef936834861a1
   React-NativeModulesApple: 647d3ab78e02b3a40fedffd856744215219ff0a6
   React-networking: 8d40769c4823a7e26ae98ca5cd691edc87828743

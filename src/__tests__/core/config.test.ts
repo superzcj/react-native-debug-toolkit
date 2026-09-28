@@ -167,4 +167,33 @@ describe('normalizeConfig', () => {
     expect(result.features.accounts.issues.map((issue) => issue.path)).toContain('accounts.source');
     expect((result.features.accounts.options.items as unknown[])[0]).toBe(account);
   });
+
+  test('normalizes bounded quick actions without adding a feature page', () => {
+    const first = { id: 'cart', title: 'Cart', onPress: jest.fn() };
+    const second = { id: 'refresh', title: 'Refresh', onPress: jest.fn(), closeOnPress: false };
+    const result = normalizeConfig({ quickActions: { items: [first, second] } });
+
+    expect(result.issues).toEqual([]);
+    expect(result.quickActions.items).toEqual([
+      expect.objectContaining({ id: 'cart', closeOnPress: true }),
+      expect.objectContaining({ id: 'refresh', closeOnPress: false }),
+    ]);
+    expect(result.quickActions.items[0]?.onPress).toBe(first.onPress);
+    expect(FEATURE_KEYS).toHaveLength(12);
+  });
+
+  test('rejects missing, duplicate, and over-limit quick action definitions', () => {
+    const actions = Array.from({ length: 6 }, (_, index) => ({
+      id: index === 0 || index === 4 ? 'a' : index === 5 ? 'a5' : `a${index}`,
+      title: `Action ${index}`,
+      onPress: jest.fn(),
+    }));
+    const result = normalizeConfig({ quickActions: { items: actions } });
+
+    expect(result.issues.map((issue) => issue.path)).toEqual([
+      'quickActions.items[4].id',
+      'quickActions.items[5]',
+    ]);
+    expect(result.quickActions.items).toHaveLength(4);
+  });
 });

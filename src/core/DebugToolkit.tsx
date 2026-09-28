@@ -1,4 +1,5 @@
 import type { AnyDebugFeature, FeatureDataProvider } from '../types/feature';
+import type { DebugQuickAction } from '../types/config';
 import type { DebugActions, DebugReport, FeatureStatus, ReadyResult } from '../types/debug';
 import type { ToolkitRuntime, RuntimeDependencies } from './runtimeTypes';
 import type { FeatureKey } from './featureCatalog';
@@ -19,6 +20,7 @@ const originalConsoleError = console.error.bind(console);
 export interface ToolkitHostSnapshot {
   features: AnyDebugFeature[];
   panelOpen: boolean;
+  quickActions: readonly DebugQuickAction[];
 }
 export interface ToolkitHost extends ToolkitRuntime, FeatureDataProvider {
   readonly actions: DebugActions;
@@ -33,7 +35,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
   const pages = new Map<FeatureKey, AnyDebugFeature>();
   const bindings = new Map<FeatureKey, FeatureDriverBinding>();
   let states: Partial<Record<FeatureKey, FeatureStatus>> = {};
-  let snapshot: ToolkitHostSnapshot = { features: [], panelOpen: false };
+  let snapshot: ToolkitHostSnapshot = { features: [], panelOpen: false, quickActions: [] };
   let result: ReadyResult = { status: 'not_started', features: {}, issues: [] };
   let started = false;
   let disposed = false;
@@ -87,6 +89,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
     detectDebugBuild: () => detect(), fallbackDev,
     publish(next) {
       if (disposed) { return; }
+      configureLocale(config.locale);
       states = next;
       snapshot = { ...snapshot, features: FEATURE_KEYS.filter(key => !!states[key]).map(key => {
         let page = pages.get(key);
@@ -98,7 +101,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
           pages.set(key, page);
         }
         return page;
-      }) };
+      }), quickActions: config.quickActions.enabled ? config.quickActions.items : [] };
       emit();
     },
     createDriver(feature) {
@@ -137,6 +140,10 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
     copyToComputer: (text, options) => usable() && bindings.get('clipboard')?.actions.copyToComputer
       ? bindings.get('clipboard')!.actions.copyToComputer!(text, options)
       : copyToComputer(text, { ...options, enabled: false, channels: {} }),
+    environment: {
+      switchTo: id => usable() ? bindings.get('environment')?.actions.environment?.switchTo(id) ?? Promise.resolve()
+        : Promise.resolve(),
+    },
     getReport() {
       const report: DebugReport = { status: result.status, features: {}, logs: {} };
       if (disposed || !snapshot.features.length) { return report; }
@@ -181,7 +188,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
       if (disposed) { return; }
       disposed = true; releaseServices(); runtime.dispose();
       result = { status: 'cancelled', features: {}, issues: [] };
-      snapshot = { features: [], panelOpen: false }; emit(); listeners.clear();
+      snapshot = { features: [], panelOpen: false, quickActions: [] }; emit(); listeners.clear();
     },
   };
   return host;

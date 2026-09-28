@@ -2,11 +2,11 @@
 
 [中文](integration.zh-CN.md) · [All configuration fields](configuration.md) · [Complete example](examples/integration/App.tsx)
 
-This guide is for humans and AI coding assistants using version 5. Read this file, then configuration.md and the included examples when binding business data. No integration Skill, source-code inspection, special AI product or new setup CLI is required.
+This guide is for humans and AI coding assistants using version 4.1.1. Read this file, then configuration.md and the included examples when binding business data. No integration Skill, source-code inspection, special AI product or new setup CLI is required.
 
 ## 1. Find the existing root
 
-Inspect package.json, the app's entry file (often index.js) and the component registered with AppRegistry. Preserve the registered app name and existing navigation, Providers, props and wrappers. If a toolkit wrapper already exists, update that location; do not add a second host. Define the HOC at module scope, never inside render. This major version does not retain legacy initialization APIs.
+Inspect package.json, the app's entry file (often index.js) and the component registered with AppRegistry. Preserve the registered app name and existing navigation, Providers, props and wrappers. If a toolkit wrapper already exists, update that location; do not add a second host. Define the HOC at module scope, never inside render. This release does not retain legacy initialization APIs.
 
 Current validation scope:
 
@@ -24,7 +24,7 @@ The candidate native baseline is iOS 15.1 / Android minSdk 24. Keep your existin
 From your app project, using its npm lockfile:
 
 ```sh
-npm install react-native-debug-toolkit@5 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit@4.1.1 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -79,7 +79,7 @@ For real business bindings, copy the self-contained [App.tsx](examples/integrati
 In another terminal at the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 ```
 
 Open http://127.0.0.1:3800 on the computer. Debug uses the native application identifier by default. Connect address precedence is saved manual address > config endpoint > Debug discovery through Metro/platform candidates. An unreachable explicit address reports failure instead of silently switching Hubs. Clear the saved manual address to return to config/discovery. Devices need the computer's reachable LAN address; localhost on a phone is the phone. The CLI also attempts Android adb reverse.
@@ -89,8 +89,8 @@ Open the floating inspector, verify all twelve pages, then generate a NEW Consol
 In the Hub, select the current App and Session and search for that marker in Console and Network. Check the request URL and real response. Record appId, sessionId, platform/build identity and marker. If zero config cannot obtain a native identity, keep the local inspector and supply a stable connect.appId using the config reference.
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@5 debug-toolkit status
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit diagnose --json
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit status
 ```
 
 Existing context/inspect/tail commands can inspect evidence; use `debug-toolkit <command> --help` for target flags. Hub /ready proves only that the server is ready. Old sessions or old logs do not prove the current app integration works. Report dependency/static checks, native build, current panel and current-session event receipt separately.

@@ -11,6 +11,10 @@
   "common.close": "Close",
   "common.clearAll": "Clear all",
   "common.closePanel": "Close panel",
+  "quickActions.close": "Close quick actions",
+  "quickActions.hint": "Hold to open quick actions",
+  "quickActions.success": "Action completed",
+  "quickActions.error": "Action failed",
   "common.bad": "Bad",
   "common.time": "Time",
   "common.duration": "Duration",
@@ -190,5 +194,6 @@
   "status.hint.history": "New debug sessions appear here.",
   "status.hint.environment": "Provide environment.items to switch environments.",
   "status.hint.accounts": "Provide accounts.items or accounts.source to inspect debug accounts.",
-  "status.hint.tabs": "Provide tabs.items to add custom pages."
+  "status.hint.tabs": "Provide tabs.items to add custom pages.",
+  "quickActions.open": "Open quick actions"
 }

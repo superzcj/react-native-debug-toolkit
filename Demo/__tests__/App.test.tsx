@@ -137,26 +137,16 @@ afterAll(() => {
 
 beforeEach(() => { NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true }; });
 
-test('switches demo modes with a single active root host', async () => {
+test('opens the complete showcase directly with a single active root host', async () => {
   global.fetch = mockHubFetch() as jest.MockedFunction<typeof fetch>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   try {
     await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<RootApp />); });
     await ReactTestRenderer.act(async () => { await debug.ready(); });
-    expect(debug.getReport().features.accounts?.phase).toBe('empty');
-    await ReactTestRenderer.act(async () => {
-      renderer.root.findByProps({ title: '完整 Showcase' }).props.onPress();
-    });
-    await ReactTestRenderer.act(async () => { await debug.ready(); });
     expect(debug.getReport().features.accounts?.phase).toBe('ready');
     expect(Object.keys(debug.getReport().features)).toHaveLength(12);
-    await ReactTestRenderer.act(async () => {
-      renderer.root.findByProps({ title: '零配置' }).props.onPress();
-    });
-    await ReactTestRenderer.act(async () => { await debug.ready(); });
-    expect(debug.getReport().features.accounts?.phase).toBe('empty');
-    expect(debug.getReport().features.environment?.phase).toBe('empty');
-    expect(debug.getReport().features.tabs?.phase).toBe('empty');
+    expect(renderer.root.findAllByProps({ title: '零配置' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ title: '完整 Showcase' })).toHaveLength(0);
   } finally { await ReactTestRenderer.act(async () => { renderer?.unmount(); }); }
 });
 

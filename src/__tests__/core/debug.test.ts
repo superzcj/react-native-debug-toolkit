@@ -5,6 +5,7 @@ import { debug } from '../../core/debug';
 import { FEATURE_KEYS, LOG_FEATURE_KEYS } from '../../core/featureCatalog';
 import { createDefaultLogStorage } from '../../utils/StorageAdapter';
 import type { HubClient } from '../../utils/HubClient';
+import type { DebugEnvironment } from '../../types/environment';
 
 let release: (() => void) | undefined;
 beforeEach(() => {
@@ -24,8 +25,34 @@ test('the unmounted facade never creates channels or storage', async () => {
   debug.clear(); debug.open(); debug.close();
   expect(debug.getReport()).toEqual({ status: 'not_started', features: {}, logs: {} });
   expect((await debug.accounts.switchTo('a')).status).toBe('disabled');
+  await debug.environment.switchTo('staging');
   expect((await debug.copyToComputer('secret')).status).toBe('disabled');
   expect(NativeModules.DebugToolkitDevConnect.isDebugBuild).not.toHaveBeenCalled();
+});
+
+test('the public environment action drives selection, business callback, badge, and restore', async () => {
+  const businessEnvironments: string[] = [];
+  const host = mount({
+    environment: {
+      defaultId: 'dev',
+      items: [
+        { id: 'dev', title: 'Development', urls: { api: 'https://dev.test' } },
+        { id: 'staging', title: 'Staging', urls: { api: 'https://staging.test' } },
+      ],
+      onChange: (environment: DebugEnvironment) => { businessEnvironments.push(environment.id); },
+    },
+  });
+  await debug.ready();
+
+  await debug.environment.switchTo('staging');
+  const feature = host.features.find(item => item.name === 'environment')!;
+  expect(feature.getSnapshot()).toMatchObject({ currentEnvironmentId: 'staging', busy: false, error: null });
+  expect(feature.badge?.()).toEqual({ label: 'STA', color: '#FF9500' });
+  expect(businessEnvironments).toEqual(['dev', 'staging']);
+
+  await debug.environment.switchTo('dev');
+  expect(feature.getSnapshot()).toMatchObject({ currentEnvironmentId: 'dev', busy: false, error: null });
+  expect(businessEnvironments).toEqual(['dev', 'staging', 'dev']);
 });
 
 test('global false keeps all actions inert including report and copy', async () => {

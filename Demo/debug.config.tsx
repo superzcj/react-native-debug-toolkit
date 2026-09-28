@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { AccountsSnapshot, DebugSource, DebugToolkitConfig } from 'react-native-debug-toolkit';
+import { debug, type AccountsSnapshot, type DebugSource, type DebugToolkitConfig } from 'react-native-debug-toolkit';
 import {
   createDemoSource, DEMO_ACCOUNTS, DEMO_HOST, demoSession,
   setDemoEnvironment, switchDemoAccount, type DemoAccount,
@@ -122,6 +122,15 @@ export const demoDebugConfig = {
         badge: snapshot => snapshot.cartItems.length
           ? { label: String(snapshot.cartItems.length), color: '#2563EB' } : null },
       { id: 'user-flow', title: 'User Flow', source: flowSource, component: FlowDebugTab },
+    ],
+  },
+  quickActions: {
+    items: [
+      { id: 'reset-cart', title: 'Reset cart', icon: '↺', onPress: () => shopSource.publish(INITIAL_STORE) },
+      { id: 'use-staging', title: 'Staging', icon: '⌁', onPress: () => debug.environment.switchTo('staging') },
+      { id: 'personal-account', title: 'Personal', icon: '◎', onPress: () => (
+        switchDemoAccount(DEMO_ACCOUNTS[0]!, new AbortController().signal)
+      ) },
     ],
   },
 } satisfies DebugToolkitConfig<DemoAccount, [StoreState, FlowTabSnapshot]>;

@@ -21,14 +21,14 @@ Connect 支持 IPv4 前缀、末段与端口，保留有效手动地址。真机
 在 App 根目录运行：
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 ```
 
 另开终端：
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@5 debug-toolkit status
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit diagnose --json
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit status
 ```
 
 | 命令 | 用途 |
@@ -42,7 +42,7 @@ npx --package=react-native-debug-toolkit@5 debug-toolkit status
 Hub 语言独立于 SDK locale：
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev --locale zh-CN
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev --locale zh-CN
 ```
 
 hub start 也支持此参数；DEBUG_TOOLKIT_HUB_LOCALE 同样可用，命令行优先。Hub auto 使用浏览器语言；更改后重启 Hub 并刷新。

@@ -13,6 +13,10 @@ export interface AccountsActions {
   waitForIdle(): Promise<void>;
 }
 
+export interface EnvironmentActions {
+  switchTo(id: string): Promise<void>;
+}
+
 export type FeaturePhase = 'initializing' | 'ready' | 'empty' | 'unavailable' | 'error';
 
 export interface FeatureStatus {
@@ -52,5 +56,6 @@ export interface DebugActions {
   navigation(event: NavigationEvent): void;
   copyToComputer: CopyAction;
   getReport(): DebugReport;
+  environment: EnvironmentActions;
   accounts: AccountsActions;
 }

@@ -1,3 +1,4 @@
+import { configureLocale, getLocale } from '../../i18n';
 import { NativeModules } from 'react-native';
 import { createDefaultLogStorage } from '../../utils/StorageAdapter';
 import { FEATURE_KEYS } from '../../core/featureCatalog';
@@ -35,6 +36,22 @@ test('panel open, close and subscriptions are idempotent and owner-scoped', asyn
   unsubscribe(); value.dispose();
   expect(listener).toHaveBeenCalledTimes(2);
   expect(value.getSnapshot().features).toEqual([]);
+});
+
+test('actions-only configuration publishes quick actions without creating feature pages', async () => {
+  const onPress = jest.fn();
+  const disabledFeatures = Object.fromEntries(FEATURE_KEYS.map((key) => [key, { enabled: false }]));
+  const value = host({
+    enabled: true,
+    ...disabledFeatures,
+    quickActions: { items: [{ id: 'refresh', title: 'Refresh', onPress }] },
+  });
+  value.start();
+  expect((await value.ready).status).toBe('ready');
+  expect(value.features).toEqual([]);
+  expect(value.getSnapshot().quickActions).toEqual([
+    expect.objectContaining({ id: 'refresh', closeOnPress: true }),
+  ]);
 });
 
 test('configuration errors keep their page while the other eleven start', async () => {
@@ -112,4 +129,18 @@ test('local release opt-in and unknown builds never discover or upload automatic
     const unknown = host({ enabled: true }); unknown.start(); await unknown.ready;
     expect(fetch).not.toHaveBeenCalled();
   } finally { global.fetch = previousFetch; }
+});
+
+test('actions-only hosts apply their explicit locale without starting feature services', async () => {
+  configureLocale('en');
+  const value = host({
+    enabled: true, locale: 'zh-CN',
+    ...Object.fromEntries(FEATURE_KEYS.map(key => [key, { enabled: false }])),
+    quickActions: { items: [{ id: 'run', title: '执行', onPress: () => {} }] },
+  });
+  value.start();
+  await value.ready;
+  expect(getLocale()).toBe('zh-CN');
+  value.dispose();
+  configureLocale('en');
 });

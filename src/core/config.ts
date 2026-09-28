@@ -1,6 +1,7 @@
 import { FEATURE_KEYS } from './featureCatalog';
 import { normalizeEnvironment } from '../features/environment/environmentConfig';
 import type { FeatureKey } from './featureCatalog';
+import type { DebugQuickAction } from '../types/config';
 
 export interface ConfigIssue { path: string; message: string }
 
@@ -23,7 +24,13 @@ export interface NormalizedConfig {
   locale: 'en' | 'zh-CN' | undefined;
   issues: readonly ConfigIssue[];
   features: Readonly<Record<FeatureKey, NormalizedFeature>>;
+  quickActions: {
+    enabled: boolean;
+    items: readonly DebugQuickAction[];
+  };
 }
+
+const MAX_QUICK_ACTIONS = 5;
 
 export const FEATURE_FIELDS: Readonly<Record<FeatureKey, readonly string[]>> = {
   network: ['maxLogs', 'excludeUrls'],
@@ -143,6 +150,86 @@ function snapshotValue(value: unknown): unknown {
   return Array.isArray(value) ? Object.freeze([...value]) : value;
 }
 
+function normalizeQuickActions(input: unknown, issues: ConfigIssue[]): {
+  enabled: boolean;
+  items: readonly DebugQuickAction[];
+} {
+  if (input === undefined) return { enabled: true, items: [] };
+  if (!isConfigObject(input)) {
+    issues.push({ path: 'quickActions', message: 'Expected a quick actions configuration object.' });
+    return { enabled: true, items: [] };
+  }
+
+  let enabled = true;
+  if (input.enabled !== undefined) {
+    if (typeof input.enabled === 'boolean') enabled = input.enabled;
+    else issues.push({ path: 'quickActions.enabled', message: 'Expected a boolean.' });
+  }
+  for (const field of Object.keys(input)) {
+    if (field !== 'enabled' && field !== 'items') {
+      issues.push({ path: `quickActions.${field}`, message: 'Unknown configuration field.' });
+    }
+  }
+  if (!Array.isArray(input.items)) {
+    issues.push({ path: 'quickActions.items', message: 'Expected an array of actions.' });
+    return { enabled, items: [] };
+  }
+
+  const ids = new Set<string>();
+  const items: DebugQuickAction[] = [];
+  Array.from(input.items).forEach((value: unknown, index: number) => {
+    const path = `quickActions.items[${index}]`;
+    if (index >= MAX_QUICK_ACTIONS) {
+      issues.push({ path, message: `At most ${MAX_QUICK_ACTIONS} quick actions are supported.` });
+      return;
+    }
+    if (!isConfigObject(value)) {
+      issues.push({ path, message: 'Expected a quick action configuration object.' });
+      return;
+    }
+    for (const field of Object.keys(value)) {
+      if (!['id', 'title', 'icon', 'onPress', 'disabled', 'closeOnPress'].includes(field)) {
+        issues.push({ path: `${path}.${field}`, message: 'Unknown quick action field.' });
+      }
+    }
+    if (typeof value.id !== 'string' || !value.id.trim()) {
+      issues.push({ path: `${path}.id`, message: 'Expected a non-empty string.' });
+    } else if (ids.has(value.id)) {
+      issues.push({ path: `${path}.id`, message: 'Quick action IDs must be unique.' });
+    } else {
+      ids.add(value.id);
+    }
+    if (typeof value.title !== 'string' || !value.title.trim()) {
+      issues.push({ path: `${path}.title`, message: 'Expected a non-empty string.' });
+    }
+    if (typeof value.onPress !== 'function') {
+      issues.push({ path: `${path}.onPress`, message: 'Expected a function.' });
+    }
+    if (value.disabled !== undefined && typeof value.disabled !== 'boolean') {
+      issues.push({ path: `${path}.disabled`, message: 'Expected a boolean.' });
+    }
+    if (value.closeOnPress !== undefined && typeof value.closeOnPress !== 'boolean') {
+      issues.push({ path: `${path}.closeOnPress`, message: 'Expected a boolean.' });
+    }
+    if (typeof value.id === 'string' && value.id.trim()
+      && typeof value.title === 'string' && value.title.trim()
+      && typeof value.onPress === 'function'
+      && (value.disabled === undefined || typeof value.disabled === 'boolean')
+      && (value.closeOnPress === undefined || typeof value.closeOnPress === 'boolean')
+      && !items.some((item) => item.id === value.id)) {
+      items.push(Object.freeze({
+        ...value,
+        id: value.id,
+        title: value.title,
+        onPress: value.onPress as DebugQuickAction['onPress'],
+        closeOnPress: value.closeOnPress ?? true,
+      }));
+    }
+  });
+
+  return { enabled, items: Object.freeze(items) };
+}
+
 function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
   if (key === 'environment') {
     const parsed = normalizeEnvironment(input);
@@ -247,6 +334,7 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
   const issues: ConfigIssue[] = [];
   let enabled: boolean | undefined;
   let locale: 'en' | 'zh-CN' | undefined;
+  let quickActions: unknown;
   let config: Record<string, unknown> = {};
   if (input !== undefined) {
     if (!isConfigObject(input)) {
@@ -260,6 +348,8 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
         } else if (field === 'locale') {
           if (value === undefined || value === 'en' || value === 'zh-CN') {locale = value;}
           else {issues.push({ path: field, message: 'Expected en or zh-CN.' });}
+        } else if (field === 'quickActions') {
+          quickActions = value;
         } else if (!FEATURE_KEYS.some((key) => key === field)) {
           issues.push({ path: field, message: 'Unknown configuration field.' });
         }
@@ -268,5 +358,5 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
   }
   // The fixed catalog supplies every key, including invalid or disabled features.
   const features = Object.fromEntries(FEATURE_KEYS.map((key) => [key, normalizeFeature(key, config[key])])) as Record<FeatureKey, NormalizedFeature>;
-  return { enabled, locale, issues, features };
+  return { enabled, locale, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
 }

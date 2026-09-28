@@ -19,6 +19,9 @@ export const debug: DebugActions = {
   navigation: event => active()?.actions.navigation(event),
   copyToComputer: (text, options) => active()?.actions.copyToComputer(text, options)
     ?? copyToComputer(text, { ...options, enabled: false, channels: {} }),
+  environment: {
+    switchTo: id => active()?.actions.environment.switchTo(id) ?? Promise.resolve(),
+  },
   getReport: () => active()?.actions.getReport() ?? { status: 'not_started', features: {}, logs: {} },
   accounts: {
     switchTo: id => active()?.actions.accounts.switchTo(id) ?? Promise.resolve({ status: 'disabled' }),

@@ -21,14 +21,14 @@ Connect accepts IPv4 prefix, last octet and port, retaining valid manual address
 Run from the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 ```
 
 In another terminal:
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@5 debug-toolkit status
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit diagnose --json
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit status
 ```
 
 | Command | Purpose |
@@ -42,7 +42,7 @@ Optional init creates .agents/skills/react-native-debug-toolkit/SKILL.md and upd
 Hub language is independent of SDK locale:
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev --locale zh-CN
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev --locale zh-CN
 ```
 
 hub start supports the same flag. DEBUG_TOOLKIT_HUB_LOCALE also works; the flag wins. Hub auto uses browser language. Restart Hub and reload after changing configuration.

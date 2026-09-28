@@ -5,7 +5,7 @@ import { FloatPanelView } from '../ui/panel/FloatPanelView';
 import { CopyActionContext } from '../ui/shared/CopyButton';
 import { copyToComputer } from '../utils/copyToComputer';
 
-const empty: ToolkitHostSnapshot = { features: [], panelOpen: false };
+const empty: ToolkitHostSnapshot = { features: [], panelOpen: false, quickActions: [] };
 const emptySnapshot = () => empty;
 const noSubscription = () => () => {};
 const disabledCopy = (text: string) => copyToComputer(text, { enabled: false, channels: {} });
@@ -16,8 +16,9 @@ export function DebugToolkitProvider({ host, children }: { host: ToolkitHost | n
   return (
     <CopyActionContext.Provider value={host?.actions.copyToComputer ?? disabledCopy}>
       {children}
-      {!!host && state.features.length > 0 && (
+      {!!host && (state.features.length > 0 || state.quickActions.length > 0) && (
         <FloatPanelView features={state.features} panelOpen={state.panelOpen}
+          quickActions={state.quickActions}
           onOpenPanel={host.actions.open} onClosePanel={host.actions.close} onClearAll={() => host.actions.clear()} />
       )}
     </CopyActionContext.Provider>

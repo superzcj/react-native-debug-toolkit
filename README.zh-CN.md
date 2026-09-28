@@ -9,7 +9,7 @@ React Native 完整 App 内调试面板与本地运行日志 Hub。
 在现有 React Native CLI App 安装包与原生依赖：
 
 ```sh
-npm install react-native-debug-toolkit@5 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit@4.1.1 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -46,7 +46,7 @@ export default withDebugToolkit(App);
 在 App 根目录运行：
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 ```
 
 电脑打开[本地 Hub](http://127.0.0.1:3800/)。Debug 可自动发现/上传，真机需使用可达电脑地址。ready 后生成新的唯一 Console 标记和真实 HTTP 请求，在 **当前 App 和 Session** 找到两者。[具体验证步骤](docs/integration.zh-CN.md)。

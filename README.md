@@ -9,7 +9,7 @@ A complete in-app inspector and local runtime log Hub for React Native.
 Install the package and native dependencies in your existing React Native CLI app:
 
 ```sh
-npm install react-native-debug-toolkit@5 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit@4.1.1 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -46,7 +46,7 @@ This is the complete toolkit. No feature registration list or twelve enabled fla
 From the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit@5 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 ```
 
 Open [the local Hub](http://127.0.0.1:3800/). Debug can discover/upload automatically; a phone needs a reachable computer address. After ready, generate a fresh unique Console marker and real HTTP request, then locate both in the **current App and Session**. [Exact verification steps](docs/integration.md).

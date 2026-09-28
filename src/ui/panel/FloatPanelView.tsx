@@ -6,6 +6,7 @@ import {
   Animated,
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
+import type { DebugQuickAction } from '../../types/config';
 import { Colors } from '../theme/colors';
 import { FontSize, Spacing } from '../theme/layout';
 import { getPreference, persistPreference, KEYS } from '../../utils/debugPreferences';
@@ -134,12 +135,13 @@ function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectio
 interface FloatPanelViewProps {
   features: AnyDebugFeature[];
   panelOpen: boolean;
+  quickActions?: readonly DebugQuickAction[];
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onClearAll: () => void;
 }
 
-export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
+export function FloatPanelView({ features, panelOpen, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [filters, dispatchFilters] = useReducer(
     panelFilterReducer,
@@ -268,7 +270,7 @@ export function FloatPanelView({ features, panelOpen, onOpenPanel, onClosePanel,
   return (
     <DebugErrorBoundary onError={onClosePanel}>
       <View style={styles.container} pointerEvents="box-none">
-        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={false} />
+        <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={false} quickActions={quickActions} />
         {panelOpen && (
           <DebugPanel
             onClose={onClosePanel}

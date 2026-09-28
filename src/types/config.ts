@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import type { EnvironmentOptions } from './environment';
 import type { FeatureConfig } from './feature';
 import type { NativeLogLevel } from './logs';
@@ -45,6 +45,20 @@ export type DebugTab<S = never> = { id: string } & FeatureConfig<{
   | { source: DebugSource<S>; component: ComponentType<{ snapshot: S }>; badge?(snapshot: S): { label: string; color: string } | null }
 )>;
 
+export interface DebugQuickAction {
+  id: string;
+  title: string;
+  icon?: ReactNode;
+  onPress: () => void | Promise<void>;
+  disabled?: boolean;
+  closeOnPress?: boolean;
+}
+
+export interface DebugQuickActionsConfig {
+  enabled?: boolean;
+  items: readonly DebugQuickAction[];
+}
+
 export interface DebugToolkitConfig<
   A extends DebugAccount = DebugAccount,
   S extends readonly unknown[] = readonly never[],
@@ -69,4 +83,5 @@ export interface DebugToolkitConfig<
   environment?: EnvironmentOptions;
   accounts?: FeatureConfig<AccountsOptions<A>>;
   tabs?: FeatureConfig<{ items?: { readonly [K in keyof S]: DebugTab<S[K]> } }>;
+  quickActions?: DebugQuickActionsConfig;
 }

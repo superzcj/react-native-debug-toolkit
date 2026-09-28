@@ -61,6 +61,25 @@ The following parser-default column uses JSON, with `undefined` for an absent va
 | `tabs.enabled` | `true` | boolean; fixed Custom page and configured item lifetimes. |
 | `tabs.items` | `[]` | readonly typed DebugTab tuple; id/title/component required per item. |
 
+## Quick actions
+
+Configure up to five business actions on the floating launcher, without adding feature pages:
+
+```tsx
+quickActions: {
+  items: [
+    { id: 'reset-cart', title: 'Reset cart', icon: '↺', onPress: () => cart.reset() },
+    { id: 'refresh', title: 'Refresh', onPress: async () => refreshData() },
+  ],
+}
+```
+
+Hold the launcher for about 450 ms to expand an inward radial menu. Moving cancels the hold and drags the launcher; releasing after expansion leaves the menu open. Tap an action to execute it. Tap the center, backdrop, or Android back to close. Screen readers can invoke the “Open quick actions” accessibility action. Character icons and React elements are supported.
+
+Each action requires a unique non-empty `id`, non-empty `title`, and `onPress` function. Optional `disabled` prevents invocation. `closeOnPress` defaults to true: the closing animation finishes and the overlay is removed before invoking the callback. Set it to false to keep the menu open, with a real loading indicator and transient success/error feedback. An unfinished action cannot be started again, even after reopening the menu. The fixed configuration lives for the host lifetime; read current data from your own store/ref inside the callback instead of capturing stale values. Invalid configuration produces global issues with field paths.
+
+Insufficient space falls back to a scrollable grid with a close button and full-size touch targets. Radial bounds include labels and hit areas. iOS measures the core SafeAreaView content area; Android uses the host's available area and does not read system WindowInsets, so mount the toolkit in safe content bounds for edge-to-edge layouts. System reduced-motion settings are respected. No whole-device vibration is triggered.
+
 ## Default pages and capture
 
 Network captures React Native XHR requests after initialization; native clients bypassing XHR are outside its scope. Text/JSON responses are inspectable; a fetch implementation may expose only Blob metadata. Console observes JS console output. Native uses supported iOS RCTLog output or Android process-visible logcat; unavailable native capture is shown honestly.
@@ -95,6 +114,8 @@ onRollback can compensate a started operation that fails or becomes superseded; 
 
 `debug.accounts.switchTo(id)` returns success/error/superseded/disabled/busy/not_configured/not_found. `suspend()` blocks new switches and cancels the current one; `resume()` permits new switches; `waitForIdle()` waits for callbacks and compensation, not just signal abortion. Recent-ID hydration for nonempty accounts participates in ready; an empty page does not wait for future accounts.
 
+`debug.environment.switchTo(id)` uses the configured environment controller, so SDK URL rewriting, persisted selection, the launcher badge, and `environment.onChange` stay in sync. An unavailable or disabled environment feature leaves the action inert.
+
 ## Custom pages and Context
 
 Each item requires a unique non-empty id/title and component. IDs cannot duplicate another custom item or any built-in key in the table. Item `enabled?: boolean` defaults true. Optional fields: source, badge, onActivate, onDeactivate, onClear. With source, component receives `{ snapshot }` and `badge(snapshot)` returns `{ label: string, color: string } | null`. Without source, component takes no required props and `badge()` takes none. Lifecycle callbacks return void. Activate/deactivate mean runtime activation/release, not switching the selected page.
@@ -118,4 +139,3 @@ History persists Network, Console, Native and Track only. State and Navigation r
 Wait in an ordinary React useEffect or a user action after mounting. The HOC registers readiness in its layout effect; module scope, render and child layout effects before it are not valid waiting points. Unmounted calls return not_started; disposal cancels pending readiness. Only one host may be mounted per JS runtime; keep HOC creation at module scope and update an existing wrapper instead of adding a second one.
 
 Explicit track/state/navigation calls before feature readiness or after disable are no-ops and are not replayed. XHR and console capture start after their setup; ready does not recover module-import, render or earlier network events. A ready result reports initialization, while later source errors are visible in feature statuses. Native storage failure can leave live memory capture working but History unavailable and preferences unsaved; it does not remove the native installation requirement.
-

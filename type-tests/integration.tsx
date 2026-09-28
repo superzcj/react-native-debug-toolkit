@@ -1,5 +1,5 @@
 import React from 'react';
-import { withDebugToolkit, debug, type DebugToolkitConfig, type DebugAccount, type AccountsSnapshot, type DebugSource } from '../src';
+import { withDebugToolkit, debug, type DebugToolkitConfig, type DebugAccount, type AccountsSnapshot, type DebugSource, type DebugQuickAction } from '../src';
 // @ts-expect-error Old bootstrap and default export were removed.
 import initializeDebugToolkit from '../src';
 // @ts-expect-error Old factories, Provider, hooks and utility exports were removed.
@@ -40,6 +40,8 @@ const mixedApp = <MixedApp greeting="hi" />;
 // @ts-expect-error Mixed tabs do not erase App props.
 const badMixedApp = <MixedApp />;
 const plain = { tabs: { items: [{ id: 'plain', title: 'Plain', component: Plain }] } } satisfies DebugToolkitConfig;
+const quickAction: DebugQuickAction = { id: 'refresh', title: 'Refresh', icon: '↻', onPress: async () => undefined };
+const quickActions = { quickActions: { items: [quickAction], enabled: true } } satisfies DebugToolkitConfig;
 // @ts-expect-error Feature boolean is not supported.
 const oldShape = { network: true } satisfies DebugToolkitConfig;
 // @ts-expect-error Feature arrays are not supported.
@@ -68,6 +70,7 @@ const invalidRef = { navigation: { ref: { current: {} } } } satisfies DebugToolk
 debug.track('checkout', { total: 20 });
 debug.state('cart', { action: 'add', before: 0, after: 1 });
 debug.navigation({ action: 'navigate', to: 'Cart' });
+void debug.environment.switchTo('staging');
 debug.clear('state');
 // @ts-expect-error clear only accepts the six current log features.
 debug.clear('environment');

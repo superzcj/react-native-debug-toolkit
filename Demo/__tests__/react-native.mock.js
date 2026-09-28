@@ -3,6 +3,7 @@ const React = require('react');
 global.__DEV__ = true;
 global.IS_REACT_ACT_ENVIRONMENT = true;
 global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+const backHandlers = new Set();
 
 function createComponent(name) {
   return React.forwardRef(({ children, ...props }, ref) =>
@@ -19,6 +20,8 @@ class AnimatedValue {
     this.value = value;
   }
 
+  stopAnimation(callback) { if (callback) callback(this.value); }
+
   interpolate() {
     return this;
   }
@@ -30,6 +33,8 @@ class AnimatedValueXY {
     this.y = new AnimatedValue(value?.y ?? 0);
   }
 
+  stopAnimation(callback) { if (callback) callback({ x: this.x.value, y: this.y.value }); }
+
   setValue(value) {
     this.x.setValue(value.x);
     this.y.setValue(value.y);
@@ -37,13 +42,16 @@ class AnimatedValueXY {
 }
 
 const animation = () => ({
+  stop: () => {},
   start: (callback) => {
-    if (callback) callback();
+    if (callback) callback({ finished: true });
   },
 });
 
 module.exports = {
   View: createComponent('View'),
+  SafeAreaView: createComponent('SafeAreaView'),
+  ActivityIndicator: createComponent('ActivityIndicator'),
   Button: createComponent('Button'),
   KeyboardAvoidingView: createComponent('KeyboardAvoidingView'),
   Text: createComponent('Text'),
@@ -95,6 +103,7 @@ module.exports = {
     timing: jest.fn(animation),
     parallel: jest.fn(animation),
     View: createComponent('AnimatedView'),
+    Text: createComponent('AnimatedText'),
   },
   Easing: {
     out: (easing) => easing,
@@ -104,7 +113,22 @@ module.exports = {
     ease: (t) => t,
   },
   PanResponder: {
-    create: () => ({ panHandlers: {} }),
+    create: (config) => {
+      const handlers = { ...config };
+      global.__lastPanResponder = handlers;
+      return { panHandlers: handlers };
+    },
+  },
+  AccessibilityInfo: {
+    isReduceMotionEnabled: jest.fn(async () => false),
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+  BackHandler: {
+    addEventListener: jest.fn((_event, handler) => {
+      backHandlers.add(handler);
+      return { remove: jest.fn(() => backHandlers.delete(handler)) };
+    }),
+    __emitBack: () => Array.from(backHandlers).some((handler) => handler()),
   },
   Linking: {
     openSettings: jest.fn(async () => undefined),

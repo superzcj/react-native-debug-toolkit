@@ -1,6 +1,6 @@
 # Demo
 
-用同一个 App 验证零业务配置和完整业务接入。[中文首页](../README.zh-CN.md) · [English](../README.md)
+用完整 Showcase 演示业务接入、调试面板和长按快捷动作。[中文首页](../README.zh-CN.md) · [English](../README.md)
 
 ## 启动
 
@@ -30,25 +30,9 @@ npm run demo:ios
 
 浏览器打开 [localhost:3800](http://127.0.0.1:3800/)。真机请把 [demoApi.ts](demoApi.ts) 的 `DEMO_HOST` 改为电脑局域网 IP，并确保 3800/3801/3802 可达。
 
-## 零配置模式
+## 完整 Showcase
 
-App 默认打开 **零配置**，根组件的接入只有一行：
-
-```tsx
-import { withDebugToolkit } from 'react-native-debug-toolkit';
-export default withDebugToolkit(ZeroConfigApp);
-```
-
-[ZeroConfigApp.tsx](ZeroConfigApp.tsx) 不传 appId、Hub 地址、环境列表、账号、导航 ref 或状态 adapter。打开悬浮面板后，Network、Console、Native、State、Navigation、Track、Connect、Clipboard、History、Environment、Accounts、Custom 十二类页面都在。缺业务数据时为空；原生能力或服务不可用时显示实际状态。
-
-- **生成标记日志**：写入一条 `integration-时间戳-序号` 日志。
-- **发送测试请求**：写入新的标记，并把同一个标记放入 `/health` 的 query；页面显示实际 HTTP 状态或 API 离线状态。
-
-API 地址来自 [demoApi.ts](demoApi.ts) 的业务约定，不通过 Toolkit 配置提供。
-
-## 完整 Showcase 模式
-
-点击顶部 **完整 Showcase**。两种模式的 HOC 都定义在模块作用域，切换时卸载前一个 App，运行中只挂载一个 Toolkit 宿主。完整配置集中在 [debug.config.tsx](debug.config.tsx)：
+App 启动后直接进入完整 Showcase，根组件只挂载一个 Toolkit 宿主。长按悬浮球可展开业务快捷动作。完整配置集中在 [debug.config.tsx](debug.config.tsx)：
 
 - Environment 的 `items/onChange` 同时更新真实 API 客户端和当前业务环境。
 - Accounts 的 `source/onSwitch` 读取、切换示例商店的本地账号；请求会携带实际选择的 `accountId`。这是本地演示身份，不是远程登录服务。
@@ -75,7 +59,7 @@ npm --prefix Demo run typecheck
 npm --prefix Demo run lint
 ```
 
-Renderer 测试覆盖两种模式、十二页、409 → 环境切换 → 201、状态与账号同步、复制通道结果；API 测试启动真实 HTTP 服务检查状态码。这些不代替原生构建、设备运行和独立安装包的验证。
+Renderer 测试覆盖默认 Showcase、独立零配置接入用例、十二页、409 → 环境切换 → 201、状态与账号同步、复制通道结果；API 测试启动真实 HTTP 服务检查状态码。这些不代替原生构建、设备运行和独立安装包的验证。
 
 AI 接入与人工接入使用同一份[接入指南](../docs/integration.zh-CN.md)、[配置参考](../docs/configuration.zh-CN.md)和[完整示例](../docs/examples/integration/App.tsx)。把根组件改为 `withDebugToolkit(App)`，随后按现有业务源补充配置，无需安装接入 Skill。需要排查实际运行日志时，可使用项目已有的 Hub 查询能力。
 

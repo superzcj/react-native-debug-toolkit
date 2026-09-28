@@ -11,6 +11,10 @@
   "common.close": "关闭",
   "common.clearAll": "全部清除",
   "common.closePanel": "关闭面板",
+  "quickActions.close": "关闭快捷操作",
+  "quickActions.hint": "长按打开快捷操作",
+  "quickActions.success": "操作已完成",
+  "quickActions.error": "操作失败",
   "common.bad": "异常",
   "common.time": "时间",
   "common.duration": "耗时",
@@ -190,5 +194,6 @@
   "status.hint.history": "新的调试会话会显示在此处。",
   "status.hint.environment": "配置 environment.items 提供可切换环境。",
   "status.hint.accounts": "配置 accounts.items 或 accounts.source 提供测试账号。",
-  "status.hint.tabs": "配置 tabs.items 提供自定义页面。"
+  "status.hint.tabs": "配置 tabs.items 提供自定义页面。",
+  "quickActions.open": "打开快捷操作"
 }

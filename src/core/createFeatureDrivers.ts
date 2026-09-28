@@ -74,7 +74,12 @@ export function createFeatureDrivers(services: {
         feature = createDevConnectFeature(options, { client: hubClient, isDebugBuild: services.debugBuild }); break;
       case 'clipboard': feature = createClipboardFeature({}, copy); actions.copyToComputer = copy; break;
       case 'history': feature = createSessionHistoryFeature(services.logs); break;
-      case 'environment': feature = createEnvironmentFeature(options, services.logs); break;
+      case 'environment': {
+        const environment = createEnvironmentFeature(options, services.logs);
+        feature = environment;
+        actions.environment = { switchTo: environment.switchEnvironment };
+        break;
+      }
       case 'accounts': {
         const accounts = createQuickAccountsFeature(options, { preferenceStorage: services.logs.preferenceStorage,
           get active() { return services.logs.active; }, closePanel: services.panel.close });
