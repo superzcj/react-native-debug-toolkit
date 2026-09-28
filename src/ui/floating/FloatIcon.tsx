@@ -280,15 +280,15 @@ export function FloatIcon({ visible, onPress, badge, streaming, quickActions = N
           }}
           style={[styles.root, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }], opacity: visible ? 1 : 0 }]}
           {...responder.panHandlers}>
-          <View style={[styles.button, menuOpen && { borderColor: Colors.primary, backgroundColor: Colors.primaryDim }]}>
+          <View style={[styles.button, menuOpen && { borderColor: Colors.primaryLight, backgroundColor: Colors.primary }]}>
             <View pointerEvents="none" style={styles.buttonHighlight} />
-            {menuOpen ? <Text style={{ color: Colors.primaryLight, fontSize: 26, lineHeight: 30 }}>×</Text> : (
+            {menuOpen ? <View pointerEvents="none" style={styles.closeGlyph}><View style={[styles.closeLine, { transform: [{ rotate: '45deg' }] }]} /><View style={[styles.closeLine, { transform: [{ rotate: '-45deg' }] }]} /></View> : (
               <View style={styles.launcherGlyph}>
                 <View style={styles.glyphDot} />
                 <View style={styles.glyphLines}><View style={styles.glyphLineLong} /><View style={styles.glyphLineShort} /></View>
               </View>
             )}
-            <View style={[styles.statusDot, streaming && styles.statusDotLive]} />
+            {!menuOpen && <View style={[styles.statusDot, streaming && styles.statusDotLive]} />}
           </View>
           {badge && !menuOpen && <View style={[styles.badge, { backgroundColor: badge.color }]}><Text style={styles.badgeText} numberOfLines={1}>{badge.label}</Text></View>}
         </Animated.View>
@@ -307,6 +307,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fabBackground, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   buttonHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 22, backgroundColor: Colors.fabHighlight },
+  closeGlyph: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  closeLine: { position: 'absolute', width: 18, height: 2, borderRadius: 1, backgroundColor: Colors.textInverse },
   launcherGlyph: {
     width: 24, height: 24, borderRadius: Radius.SM, borderWidth: 1, borderColor: Colors.borderLight,
     backgroundColor: Colors.surfaceElevated, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.XS,

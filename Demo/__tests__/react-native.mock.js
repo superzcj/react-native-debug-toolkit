@@ -7,7 +7,8 @@ const backHandlers = new Set();
 
 function createComponent(name) {
   return React.forwardRef(({ children, ...props }, ref) =>
-    React.createElement(name, { ...props, ref }, children),
+    React.createElement(name, { ...props, ref },
+      name === 'Pressable' && typeof children === 'function' ? children({ pressed: false }) : children),
   );
 }
 

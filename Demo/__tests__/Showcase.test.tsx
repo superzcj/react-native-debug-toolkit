@@ -103,6 +103,10 @@ test('the actual environment callback changes the checkout client before the suc
   expect(JSON.stringify(tree!.toJSON())).toContain('¥1398');
 });
 
+test('quick actions expose line glyph elements instead of text placeholders', () => {
+  expect(demoDebugConfig.quickActions.items.every((item) => typeof item.icon === 'object')).toBe(true);
+});
+
 test('the Staging quick action synchronizes the badge and can be switched back from the environment page', async () => {
   await Renderer.act(async () => {
     await demoDebugConfig.quickActions.items.find(item => item.id === 'use-staging')!.onPress();

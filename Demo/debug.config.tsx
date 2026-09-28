@@ -40,6 +40,21 @@ const T = {
   background: '#F4EEE4', hero: '#1B3653', surfaceSoft: '#F7EDDF',
   border: '#E5D8C6', text: '#1A2333', textMuted: '#6B7280', textOnHero: '#FFFDF8',
 };
+const actionGlyphStyles = StyleSheet.create({
+  reset: { width: 20, height: 20, borderWidth: 2, borderColor: '#8CC8FF', borderRightColor: 'transparent', borderRadius: 10, transform: [{ rotate: '-35deg' }] },
+  resetArrow: { position: 'absolute', right: -3, top: -1, width: 0, height: 0, borderTopWidth: 4, borderBottomWidth: 4, borderLeftWidth: 6, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#8CC8FF', transform: [{ rotate: '18deg' }] },
+  staging: { width: 22, height: 20, justifyContent: 'center', gap: 5 },
+  stagingLong: { height: 2, width: 18, borderRadius: 1, backgroundColor: '#8CC8FF' },
+  stagingShort: { height: 2, width: 12, borderRadius: 1, backgroundColor: '#B8C0C8', alignSelf: 'flex-end' },
+  account: { width: 22, height: 22, alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
+  accountHead: { width: 7, height: 7, borderRadius: 4, borderWidth: 1.5, borderColor: '#8CC8FF' },
+  accountBody: { width: 18, height: 9, borderWidth: 1.5, borderColor: '#8CC8FF', borderBottomWidth: 0, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
+});
+const quickActionIcons = {
+  reset: <View pointerEvents="none" style={actionGlyphStyles.reset}><View style={actionGlyphStyles.resetArrow} /></View>,
+  staging: <View pointerEvents="none" style={actionGlyphStyles.staging}><View style={actionGlyphStyles.stagingLong} /><View style={actionGlyphStyles.stagingShort} /></View>,
+  account: <View pointerEvents="none" style={actionGlyphStyles.account}><View style={actionGlyphStyles.accountHead} /><View style={actionGlyphStyles.accountBody} /></View>,
+};
 function formatPrice(price: number): string { return `¥${price.toFixed(0)}`; }
 
 function CartDebugTab({ snapshot: state }: { snapshot: StoreState }) {
@@ -126,9 +141,9 @@ export const demoDebugConfig = {
   },
   quickActions: {
     items: [
-      { id: 'reset-cart', title: 'Reset cart', icon: '↺', onPress: () => shopSource.publish(INITIAL_STORE) },
-      { id: 'use-staging', title: 'Staging', icon: '⌁', onPress: () => debug.environment.switchTo('staging') },
-      { id: 'personal-account', title: 'Personal', icon: '◎', onPress: () => (
+      { id: 'reset-cart', title: 'Reset cart', icon: quickActionIcons.reset, onPress: () => shopSource.publish(INITIAL_STORE) },
+      { id: 'use-staging', title: 'Staging', icon: quickActionIcons.staging, onPress: () => debug.environment.switchTo('staging') },
+      { id: 'personal-account', title: 'Personal', icon: quickActionIcons.account, onPress: () => (
         switchDemoAccount(DEMO_ACCOUNTS[0]!, new AbortController().signal)
       ) },
     ],

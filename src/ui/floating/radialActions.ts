@@ -1,7 +1,9 @@
 export const MAX_RADIAL_ACTIONS = 5;
 export const ACTION_HIT_SIZE = 52;
-const ACTION_CARD_WIDTH = 72;
-const ACTION_CARD_HEIGHT = 76;
+export const ACTION_ORB_SIZE = 42;
+export const ACTION_ORB_TOP = 8;
+const ACTION_CARD_WIDTH = 64;
+const ACTION_CARD_HEIGHT = 72;
 const ACTION_GAP = 8;
 
 export interface RadialActionLayoutInput {
@@ -21,6 +23,8 @@ export interface RadialActionLayout {
   height: number;
   centerX: number;
   centerY: number;
+  orbCenterX: number;
+  orbCenterY: number;
   angle: number;
   mode: 'radial' | 'grid';
 }
@@ -37,14 +41,18 @@ function makeCard(index: number, centerX: number, centerY: number, width: number
     height,
     centerX,
     centerY,
+    // The label occupies the lower part of the card. Keep animation geometry
+    // anchored to the visible orb so the menu grows out of the launcher.
+    orbCenterX: centerX,
+    orbCenterY: centerY - height / 2 + ACTION_ORB_TOP + ACTION_ORB_SIZE / 2,
     angle,
     mode,
   };
 }
 
 function contains(card: RadialActionLayout, viewport: RadialActionLayoutInput['viewport']): boolean {
-  return card.left >= 0 && card.top >= 0
-    && card.right <= viewport.width && card.bottom <= viewport.height;
+  return card.left >= 8 && card.top >= 8
+    && card.right <= viewport.width - 8 && card.bottom <= viewport.height - 8;
 }
 
 function overlaps(a: RadialActionLayout, b: RadialActionLayout): boolean {
@@ -89,13 +97,14 @@ function radialLayout(input: Required<RadialActionLayoutInput>): RadialActionLay
   const preferred = Number.isFinite(towardViewport) ? towardViewport : -Math.PI / 2;
   const maxRadius = Math.min(384, Math.hypot(input.viewport.width, input.viewport.height));
   const count = Math.max(1, Math.min(MAX_RADIAL_ACTIONS, Math.floor(input.count)));
-  const spans = count === 1 ? [0] : [150, 130, 110, 90, 70];
+  const spans = count === 1 ? [0] : [150, 130, 110, 90, 88, 86, 85, 84, 82, 80, 75, 70, 60];
   const inward = centerX > input.viewport.width / 2 ? Math.PI : 0;
   const diagonal = centerX > input.viewport.width / 2
     ? (centerY > input.viewport.height / 2 ? -3 * Math.PI / 4 : 3 * Math.PI / 4)
     : (centerY > input.viewport.height / 2 ? -Math.PI / 4 : Math.PI / 4);
   // Bounded candidates avoid searching thousands of almost identical fans per frame.
-  const orientations = [inward, diagonal, preferred, preferred - Math.PI / 12, preferred + Math.PI / 12,
+  const orientations = [inward, diagonal, diagonal - Math.PI / 180, diagonal + Math.PI / 180, diagonal - Math.PI / 72, diagonal + Math.PI / 72,
+    diagonal - Math.PI / 36, diagonal + Math.PI / 36, preferred, preferred - Math.PI / 12, preferred + Math.PI / 12,
     preferred - Math.PI / 6, preferred + Math.PI / 6];
 
   for (let radius = 80; radius <= maxRadius; radius += 8) {
@@ -104,7 +113,7 @@ function radialLayout(input: Required<RadialActionLayoutInput>): RadialActionLay
         const span = spanDegrees * Math.PI / 180;
         const cards = Array.from({ length: count }, (_, index) => {
           const angle = orientation - span / 2 + (count === 1 ? 0 : span * index / (count - 1));
-          return makeCard(index, centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius,
+          return makeCard(index, centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius + ACTION_CARD_HEIGHT / 2 - ACTION_ORB_TOP - ACTION_ORB_SIZE / 2,
             ACTION_CARD_WIDTH, ACTION_CARD_HEIGHT, angle, 'radial');
         });
         if (validCards(cards, input.viewport, centerX, centerY, input.launcherSize, input.origin)) return cards;

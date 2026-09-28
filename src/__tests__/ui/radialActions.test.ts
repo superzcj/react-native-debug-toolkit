@@ -41,6 +41,18 @@ describe('layoutRadialActions', () => {
     expect(Math.min(...cards.map((card) => card.left))).toBeGreaterThanOrEqual(0);
   });
 
+  test('reports the visible orb center separately from the label card center', () => {
+    const card = layoutRadialActions({
+      origin: { x: 256, y: 20 },
+      viewport: { width: 320, height: 568 },
+      count: 1,
+    })[0]!;
+
+    expect(card.orbCenterX).toBe(card.centerX);
+    expect(card.orbCenterY).toBe(card.top + 29);
+    expect(card.orbCenterY).not.toBe(card.centerY);
+  });
+
   test('falls back to a usable grid when a tiny viewport cannot fit the arc', () => {
     const cards = layoutRadialActions({
       origin: { x: 19, y: 136 },
@@ -71,5 +83,22 @@ test.each([
   }
   for (let i = 0; i < cards.length; i++) {
     for (let j = i + 1; j < cards.length; j++) expect(rectanglesOverlap(cards[i]!, cards[j]!)).toBe(false);
+  }
+});
+
+// The circles, rather than their labels, follow the arc around the launcher.
+test('visible orbs share a radius and leave room for selected feedback at screen edges', () => {
+  for (const origin of [{ x: 16, y: 16 }, { x: 256, y: 16 }, { x: 256, y: 504 }]) {
+    const cards = layoutRadialActions({ origin, viewport: { width: 320, height: 568 }, count: 5 });
+    expect(cards.every(card => card.mode === 'radial')).toBe(true);
+    const radii = cards.map(card => Math.hypot(card.orbCenterX - origin.x - 24, card.orbCenterY - origin.y - 24));
+    for (const radius of radii) expect(radius).toBeCloseTo(radii[0]!, 5);
+    for (const card of cards) {
+      const selectedRadius = 42 / 2 * 1.06;
+      expect(card.orbCenterX - selectedRadius).toBeGreaterThanOrEqual(8);
+      expect(card.orbCenterY - selectedRadius).toBeGreaterThanOrEqual(8);
+      expect(card.orbCenterX + selectedRadius).toBeLessThanOrEqual(312);
+      expect(card.orbCenterY + selectedRadius).toBeLessThanOrEqual(560);
+    }
   }
 });

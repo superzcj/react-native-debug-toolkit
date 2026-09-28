@@ -5,7 +5,7 @@ import {
 import type { DebugQuickAction } from '../../types/config';
 import { t } from '../../i18n';
 import { Colors } from '../theme/colors';
-import { layoutRadialActions } from './radialActions';
+import { ACTION_ORB_SIZE, ACTION_ORB_TOP, layoutRadialActions } from './radialActions';
 
 interface QuickActionsMenuProps {
   open: boolean;
@@ -27,6 +27,7 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
   const busyRef = useRef(new Set<string>());
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const pending = useRef<(() => void) | null>(null);
   const current = useRef({ active, open });
   current.current = { active, open };
@@ -45,6 +46,7 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
   useEffect(() => {
     if (open && active) setPresent(true);
     const entering = open && active;
+    if (entering) setSelectedActionId(null);
     const finish = () => { if (mounted.current && !entering) setPresent(false); };
     if (reduceMotion || !active) {
       backdrop.setValue(entering ? 1 : 0);
@@ -52,11 +54,14 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
       finish();
       return;
     }
+    const animatedValues = entering ? values : [...values].reverse();
     const animation = Animated.parallel([
       Animated.timing(backdrop, { toValue: entering ? 1 : 0, duration: entering ? 180 : 160, useNativeDriver: true }),
-      ...values.map((value, index) => Animated.timing(value, {
-        toValue: entering ? 1 : 0, duration: entering ? 240 : 160, delay: entering ? index * 20 : 0,
-        easing: entering ? Easing.bezier(0.2, 0.9, 0.25, 1.06) : Easing.out(Easing.cubic),
+      ...animatedValues.map((value, index) => Animated.timing(value, {
+        toValue: entering ? 1 : 0, duration: entering ? 260 : 180, delay: index * (entering ? 20 : 16),
+        // The slight overshoot gives the radial fan a spring-like arrival while
+        // retaining native-driver support in older React Native versions.
+        easing: entering ? Easing.bezier(0.2, 0.9, 0.25, 1.06) : Easing.bezier(0.4, 0, 1, 1),
         useNativeDriver: true,
       })),
     ]);
@@ -89,6 +94,7 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
     if (!current.current.active || !current.current.open || action.disabled || pending.current || busyRef.current.has(action.id)) return;
     busyRef.current.add(action.id);
     setBusy(new Set(busyRef.current));
+    setSelectedActionId(action.id);
     setFeedback(null);
     const invoke = () => {
       if (!mounted.current) return;
@@ -117,29 +123,36 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
       ? <Text style={styles.iconText}>{action.icon}</Text> : action.icon;
     const isBusy = busy.has(action.id);
     const success = feedback?.id === action.id && feedback.success;
+    const selected = selectedActionId === action.id;
+    const receded = selectedActionId !== null && !selected;
     return (
       <Animated.View key={action.id} testID={'quick-action-card-' + action.id}
         style={[styles.position, { left: card.left, top: card.top, width: card.width, height: card.height,
-          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, receded ? 0.48 : 1], extrapolate: 'clamp' }),
           transform: reduceMotion ? [] : [
-            { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: grid ? [0, 0] : [origin.x + 24 - card.centerX, 0] }) },
-            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: grid ? [6, 0] : [origin.y + 24 - card.centerY, 0] }) },
-            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }) },
+            { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: grid ? [0, 0] : [origin.x + 24 - card.orbCenterX, 0] }) },
+            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: grid ? [6, 0] : [origin.y + 24 - card.orbCenterY, 0] }) },
           ],
         }]}>
         <Pressable testID={'quick-action-' + action.id} accessibilityRole="button" accessibilityLabel={action.title}
           accessibilityState={{ disabled: !!action.disabled || isBusy, busy: isBusy }}
           disabled={!!action.disabled || isBusy} onPress={() => run(action)}
-          style={({ pressed }) => [styles.hitTarget, action.disabled && styles.disabled, pressed && styles.pressed]}>
-          <View style={[styles.orb, success && styles.successOrb]}>
+          style={[styles.hitTarget, action.disabled && styles.disabled]}>
+          {({ pressed }) => <>
+          <Animated.View style={[styles.orb, selected && styles.selectedOrb, success && styles.successOrb, {
+            transform: reduceMotion ? [] : [{ scale: progress.interpolate({
+              inputRange: [0, 1], outputRange: [0.6, pressed ? 0.94 : selected ? 1.06 : receded ? 0.92 : 1],
+            }) }],
+          }]}>
             {isBusy ? <ActivityIndicator testID={'quick-action-spinner-' + action.id} color={Colors.primaryLight} size="small" />
               : success ? <Text style={styles.iconText}>✓</Text>
               : icon ?? <Text style={styles.iconText}>{action.title.slice(0, 1)}</Text>}
-          </View>
+          </Animated.View>
           <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.3}
             style={[styles.label, { opacity: progress.interpolate({ inputRange: [0, 0.65, 1], outputRange: [0, 0, 1], extrapolate: 'clamp' }) }]}>
             {action.title}
           </Animated.Text>
+          </>}
         </Pressable>
       </Animated.View>
     );
@@ -186,16 +199,16 @@ const styles = StyleSheet.create({
   layer: { ...StyleSheet.absoluteFillObject, zIndex: 998 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,16,24,0.24)' },
   position: { position: 'absolute' },
-  hitTarget: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingTop: 2, gap: 6 },
-  pressed: { transform: [{ scale: 0.94 }], opacity: 0.8 },
+  hitTarget: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingTop: ACTION_ORB_TOP, gap: 4 },
   disabled: { opacity: 0.4 },
-  orb: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: Colors.chromeBorder,
-    backgroundColor: Colors.surfaceElevated, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 8, elevation: 8 },
+  orb: { width: ACTION_ORB_SIZE, height: ACTION_ORB_SIZE, borderRadius: ACTION_ORB_SIZE / 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: '#202B3A', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.16, shadowRadius: 10, elevation: 8 },
+  selectedOrb: { borderColor: Colors.primary, backgroundColor: Colors.primaryDim },
   successOrb: { borderColor: Colors.success },
   iconText: { color: Colors.primaryLight, fontSize: 20, lineHeight: 25 },
-  label: { maxWidth: 72, color: Colors.text, backgroundColor: Colors.fabBackground, borderRadius: 5,
-    paddingHorizontal: 4, paddingVertical: 2, fontSize: 11, lineHeight: 14, fontWeight: '500', textAlign: 'center', overflow: 'hidden' },
+  label: { maxWidth: 64, color: Colors.text, backgroundColor: 'rgba(15,17,20,0.90)', borderRadius: 8,
+    paddingHorizontal: 4, paddingVertical: 2, fontSize: 10, lineHeight: 14, fontWeight: '500', textAlign: 'center', overflow: 'hidden' },
   feedback: { position: 'absolute', left: 16, right: 16, bottom: 16, alignItems: 'center', zIndex: 1001 },
   feedbackText: { color: Colors.text, backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 12 },
