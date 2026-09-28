@@ -1,6 +1,10 @@
 import { createLogRuntime } from '../../utils/logRuntime';
 import { MemoryStorageAdapter } from '../../utils/StorageAdapter';
-import { resetInterceptors, startXMLHttpRequest } from '../../features/network/networkInterceptor';
+import {
+  resetInterceptors,
+  startFetch,
+  startXMLHttpRequest,
+} from '../../features/network/networkInterceptor';
 import { _resetNetworkForTesting, createNetworkFeature } from '../../features/network';
 
 import { setUrlRewriter } from '../../utils/urlRewriter';
@@ -214,7 +218,8 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
 
   it('uses XMLHttpRequest as the default network capture path', async () => {
     const feature = createNetworkFeature(undefined, testRuntime());
-    globalThis.fetch = jest.fn();
+    const fetchMock = jest.fn();
+    globalThis.fetch = fetchMock;
 
     feature.setup();
 
@@ -233,9 +238,117 @@ describe('networkInterceptor XMLHttpRequest setup', () => {
     await flushNetworkLog();
 
     expect(feature.getSnapshot()).toHaveLength(1);
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
 
     feature.cleanup();
+  });
+});
+
+describe('networkInterceptor global fetch', () => {
+  let originalFetch: typeof globalThis.fetch | undefined;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    resetInterceptors();
+    if (originalFetch) {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('captures fetch calls that never reach XMLHttpRequest', async () => {
+    const emit = jest.fn();
+    const original = jest.fn(async () =>
+      new Response('{"ok":true}', {
+        status: 201,
+        statusText: 'Created',
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    globalThis.fetch = original as unknown as typeof fetch;
+    const stop = startFetch(emit);
+
+    const response = await fetch('https://api.example.com/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"name":"demo"}',
+    });
+
+    expect(await response.json()).toEqual({ ok: true });
+    await flushNetworkLog();
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0]).toMatchObject({
+      request: {
+        url: 'https://api.example.com/items',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"name":"demo"}',
+      },
+      response: {
+        status: 201,
+        statusText: 'Created',
+        data: { ok: true },
+        success: true,
+      },
+    });
+    stop();
+    expect(globalThis.fetch).toBe(original);
+  });
+
+  it('records a failed fetch and rethrows', async () => {
+    const emit = jest.fn();
+    globalThis.fetch = jest.fn(async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
+    startFetch(emit);
+
+    await expect(fetch('https://api.example.com/down')).rejects.toThrow('offline');
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0]).toMatchObject({
+      request: { url: 'https://api.example.com/down', method: 'GET' },
+      error: 'offline',
+    });
+  });
+
+  it('does not read event-stream bodies', async () => {
+    const emit = jest.fn();
+    globalThis.fetch = jest.fn(async () =>
+      new Response('data: hi', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      }),
+    ) as unknown as typeof fetch;
+    startFetch(emit);
+
+    await fetch('https://api.example.com/stream');
+    await flushNetworkLog();
+
+    expect(emit.mock.calls[0][0].response.data).toBeUndefined();
+  });
+
+  it('logs an XHR-backed fetch once', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    const feature = createNetworkFeature(undefined, testRuntime());
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', String(input));
+      xhr.send();
+      return new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } });
+    }) as typeof fetch;
+    FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
+    feature.setup();
+
+    const response = await fetch('https://api.example.com/via-xhr');
+    expect(await response.text()).toBe('ok');
+    await flushNetworkLog();
+
+    expect(feature.getSnapshot()).toHaveLength(1);
+    expect(feature.getSnapshot()[0]?.request.url).toBe('https://api.example.com/via-xhr');
+    feature.cleanup();
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
   });
 });
 

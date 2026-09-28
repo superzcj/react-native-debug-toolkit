@@ -16,7 +16,7 @@
 
 | 字段 | 解析器默认值 | 类型与行为 |
 | --- | --- | --- |
-| `network.enabled` | `true` | boolean；注册页面并采集 XHR。 |
+| `network.enabled` | `true` | boolean；注册页面并采集 XMLHttpRequest 与全局 fetch。 |
 | `network.maxLogs` | `200` | 正安全整数；内存记录上限。 |
 | `network.excludeUrls` | `[]` | readonly (string 或 RegExp)[]；字符串按 URL 子串匹配。 |
 | `console.enabled` | `true` | boolean；页面与 JS console 采集。 |
@@ -80,7 +80,7 @@ quickActions: {
 
 ## 默认页面与采集
 
-Network 采集初始化后的 React Native XHR；绕过 XHR 的原生客户端不在范围内。文本/JSON 响应可查看，部分 fetch 实现只暴露 Blob 元数据。Console 观察 JS console。Native 采集受支持的 iOS RCTLog 或 Android 当前进程可见的 logcat；原生能力不可用时显示真实状态。
+Network 在初始化后采集 XMLHttpRequest 和全局 fetch，包括 Expo 的原生 fetch。不经过这两条路径的原生 HTTP 客户端不在范围内。文本/JSON 响应可查看；二进制、event-stream 和 multipart 正文不读取。Console 观察 JS console。Native 采集受支持的 iOS RCTLog 或 Android 当前进程可见的 logcat；原生能力不可用时显示真实状态。
 
 State 在无 adapter/显式事件时为空，Navigation 在无 ref/显式事件时为空，Track 等待埋点调用。Accounts、Environment、Custom 无列表也保留页面。Clipboard 只在用户操作时工作。History 展示已保留的受支持日志。Connect 使用原生 App 标识，Debug 下 Hub 可达时可自动发现并上传；Hub 离线不会阻断 App。
 
@@ -136,4 +136,4 @@ debug.ready() 返回结构化结果 ready/partial/disabled/not_started/cancelled
 
 在普通 React useEffect 或挂载后的用户操作中等待。HOC 在 layout effect 注册 ready 句柄；模块顶层、render、比父 layout effect 更早的子 layout effect 不属于可等待调用点。未挂载返回 not_started，卸载取消未完成的等待。同一 JS runtime 只能有一个宿主；HOC 定义在模块作用域，已有包装应修改原处，不重复添加。
 
-所属功能 ready 前或关闭后的 track/state/navigation 调用为 no-op，不重放。XHR/console 从各自完成安装后采集；ready 不补采此前 import、render、网络事件。ready 描述初始化结果，后续 source 错误在功能状态中呈现。原生存储失败时实时内存采集可能继续，History 不可用、偏好未保存；这不免除原生安装要求。
+所属功能 ready 前或关闭后的 track/state/navigation 调用为 no-op，不重放。XMLHttpRequest、全局 fetch 和 console 从各自完成安装后采集；ready 不补采此前 import、render、网络事件。ready 描述初始化结果，后续 source 错误在功能状态中呈现。原生存储失败时实时内存采集可能继续，History 不可用、偏好未保存；这不免除原生安装要求。

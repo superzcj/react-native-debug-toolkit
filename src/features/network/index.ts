@@ -5,7 +5,7 @@ import { createChannelFeature } from '../../utils/createChannelFeature';
 import { createEventChannel } from '../../utils/createEventChannel';
 import { sanitizeDebugLogEntry } from '../../utils/deviceReport';
 import { persistedLogLimit, type LogRuntimeContext } from '../../utils/logRuntime';
-import { startXMLHttpRequest, resetInterceptors } from './networkInterceptor';
+import { startFetch, startXMLHttpRequest, resetInterceptors } from './networkInterceptor';
 import type { NetworkLogPayload } from './networkInterceptor';
 
 // ─── Utilities ────────────────────────────────────────
@@ -64,9 +64,12 @@ export const createNetworkFeature = (
         return payload;
       },
       onSetup: () => {
-        const stopXhr = startXMLHttpRequest((entry) => networkChannel.emit(entry));
+        const emit = (entry: NetworkLogPayload) => networkChannel.emit(entry);
+        const stopXhr = startXMLHttpRequest(emit);
+        const stopFetch = startFetch(emit);
         return () => {
           stopXhr();
+          stopFetch();
         };
       },
     },
