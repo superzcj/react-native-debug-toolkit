@@ -81,9 +81,35 @@ function safeRead<T>(read: () => T): T | undefined {
 
 type Collector = { owner: symbol; emit: (record: XhrRecord) => void };
 type Rewriter = { rewrite: (url: string) => string };
+export interface XhrRequestMetadata {
+  readonly url: string;
+  readonly method: string;
+  readonly headers?: Record<string, string>;
+  readonly body?: unknown;
+}
+
+export interface XhrInvocationCapture {
+  shouldSuppress: () => boolean;
+}
+
+export interface XhrInvocationContext {
+  onRequest: (request: XhrRequestMetadata) => XhrInvocationCapture | undefined;
+}
+
 const collectors = new Map<symbol, Collector>();
 const rewriters = new Map<symbol, Rewriter>();
 let uninstall: (() => void) | undefined;
+let activeInvocationContext: XhrInvocationContext | undefined;
+
+export function withXhrInvocationContext<T>(context: XhrInvocationContext, invoke: () => T): T {
+  const previous = activeInvocationContext;
+  activeInvocationContext = context;
+  try {
+    return invoke();
+  } finally {
+    activeInvocationContext = previous;
+  }
+}
 
 function install(): void {
   if (uninstall) {
@@ -102,6 +128,8 @@ function install(): void {
     method: string;
     headers: Record<string, string>;
     collectors: Collector[];
+    invocationContext?: XhrInvocationContext;
+    invocationCapture?: XhrInvocationCapture;
     dispose?: () => void;
   };
   const requests = new WeakMap<XMLHttpRequestLike, RequestState>();
@@ -117,6 +145,7 @@ function install(): void {
         method: (method || 'GET').toUpperCase(),
         headers: {},
         collectors: [...collectors.values()],
+        invocationContext: activeInvocationContext,
       });
     }
     return originalOpen.call(this, method, rewritten, ...args);
@@ -133,6 +162,14 @@ function install(): void {
     if (!state || !state.collectors.some((item) => collectors.get(item.owner) === item)) {
       return originalSend.call(this, body);
     }
+    state.invocationCapture = safeRead(() => state.invocationContext?.onRequest({
+      url: state.url,
+      method: state.method,
+      headers: Object.keys(state.headers).length
+        ? Object.freeze({ ...state.headers })
+        : undefined,
+      body,
+    }));
     const startedAt = Date.now();
     let completed = false;
     let error: string | undefined;
@@ -159,7 +196,7 @@ function install(): void {
       dispose();
       requests.delete(this);
       const active = state.collectors.filter((item) => collectors.get(item.owner) === item);
-      if (!active.length) {
+      if (!active.length || safeRead(() => state.invocationCapture?.shouldSuppress()) === true) {
         return;
       }
       const text = safeRead(() => this.responseText);

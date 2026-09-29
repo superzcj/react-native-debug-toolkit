@@ -105,6 +105,7 @@ class FakeXMLHttpRequest {
 async function flushNetworkLog() {
   await Promise.resolve();
   await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
 describe('networkInterceptor XMLHttpRequest setup', () => {
@@ -349,6 +350,246 @@ describe('networkInterceptor global fetch', () => {
     expect(feature.getSnapshot()[0]?.request.url).toBe('https://api.example.com/via-xhr');
     feature.cleanup();
     globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('keeps an unrelated same-URL XHR while a fetch is pending', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    let finish!: (response: Response) => void;
+    globalThis.fetch = (() => new Promise<Response>((resolve) => { finish = resolve; })) as typeof fetch;
+    const emit = jest.fn();
+    startXMLHttpRequest(emit);
+    startFetch(emit);
+
+    const pending = fetch('https://api.example.com/shared');
+    const xhr = new XMLHttpRequest() as unknown as FakeXMLHttpRequest;
+    xhr.open('GET', 'https://api.example.com/shared');
+    xhr.send();
+    xhr.respond({ status: 200, body: 'xhr' });
+
+    expect(emit.mock.calls.map(([entry]) => entry.request.url)).toEqual([
+      'https://api.example.com/shared',
+    ]);
+    finish(new Response('fetch'));
+    await pending;
+    await flushNetworkLog();
+    expect(emit).toHaveBeenCalledTimes(2);
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('captures a Request body without consuming the original Request', async () => {
+    globalThis.fetch = (async () => new Response('ok')) as typeof fetch;
+    const emit = jest.fn();
+    startFetch(emit);
+    const request = new Request('https://api.example.com/request', {
+      method: 'POST',
+      body: '{"hello":"world"}',
+    });
+
+    await fetch(request);
+    expect(await request.text()).toBe('{"hello":"world"}');
+    await flushNetworkLog();
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0].request.body).toBe('{"hello":"world"}');
+  });
+
+  it.each([
+    [null, '{"hello":"world"}'],
+    [undefined, '{"hello":"world"}'],
+    ['', undefined],
+    ['replacement', 'replacement'],
+  ])('records the actual Request body with init body %s', async (body, expected) => {
+    let transportedBody: string | undefined;
+    globalThis.fetch = (async (input, init) => {
+      transportedBody = await new Request(input instanceof Request ? input : String(input), init).text();
+      return new Response('ok');
+    }) as typeof fetch;
+    let captured!: (entry: { request: { body?: unknown } }) => void;
+    const entryPromise = new Promise<{ request: { body?: unknown } }>((resolve) => {
+      captured = resolve;
+    });
+    startFetch(captured);
+    const request = new Request('https://api.example.com/request', {
+      method: 'POST',
+      body: '{"hello":"world"}',
+    });
+
+    await fetch(request, { body });
+    const entry = await entryPromise;
+
+    expect(transportedBody).toBe(expected ?? '');
+    expect(entry.request.body).toBe(expected);
+  });
+
+  it('records a rejected Request body while preserving the original error', async () => {
+    const failure = new Error('offline');
+    globalThis.fetch = (async () => { throw failure; }) as typeof fetch;
+    let captured!: (entry: { request: { body?: unknown }; error?: string }) => void;
+    const entryPromise = new Promise<{ request: { body?: unknown }; error?: string }>((resolve) => {
+      captured = resolve;
+    });
+    startFetch(captured);
+    const request = new Request('https://api.example.com/request', {
+      method: 'POST',
+      body: '{"hello":"world"}',
+    });
+
+    await expect(fetch(request)).rejects.toBe(failure);
+    const entry = await entryPromise;
+
+    expect(entry.request.body).toBe('{"hello":"world"}');
+    expect(entry.error).toBe('offline');
+  });
+
+  it('does not send a late fetch result to a remounted collector', async () => {
+    let finish!: (response: Response) => void;
+    globalThis.fetch = (() => new Promise<Response>((resolve) => { finish = resolve; })) as typeof fetch;
+    const first = jest.fn();
+    const stopFirst = startFetch(first);
+    const pending = fetch('https://api.example.com/old-session');
+    stopFirst();
+    const second = jest.fn();
+    startFetch(second);
+
+    finish(new Response('ok'));
+    await pending;
+    await flushNetworkLog();
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it('does not send a late fetch rejection to a remounted collector', async () => {
+    let fail!: (error: Error) => void;
+    globalThis.fetch = (() => new Promise<Response>((_, reject) => { fail = reject; })) as typeof fetch;
+    const first = jest.fn();
+    const stopFirst = startFetch(first);
+    const pending = fetch('https://api.example.com/old-session');
+    stopFirst();
+    const second = jest.fn();
+    startFetch(second);
+
+    fail(new Error('late failure'));
+    await expect(pending).rejects.toThrow('late failure');
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it('keeps one fetch record with actual XHR metadata until the fetch response resolves', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    let xhr!: FakeXMLHttpRequest;
+    let finish!: (response: Response) => void;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      xhr = new XMLHttpRequest() as unknown as FakeXMLHttpRequest;
+      xhr.open('GET', String(input));
+      xhr.send();
+      return new Promise<Response>((resolve) => { finish = resolve; });
+    }) as typeof fetch;
+    const emit = jest.fn();
+    startXMLHttpRequest(emit);
+    startFetch(emit);
+    FakeXMLHttpRequest.handler = (request) => { xhr = request; };
+
+    const pending = fetch('https://api.example.com/async-xhr');
+    expect(emit).not.toHaveBeenCalled();
+    xhr.respond({ status: 200, body: 'xhr body', responseType: 'blob' });
+    expect(emit).not.toHaveBeenCalled();
+    finish(new Response('fetch body', {
+      status: 200,
+      headers: { 'content-type': 'text/plain' },
+    }));
+    await pending;
+    await flushNetworkLog();
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0]).toMatchObject({
+      request: { url: 'https://api.example.com/async-xhr' },
+      response: { data: 'fetch body' },
+    });
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('records an XHR-backed fetch rejection once and rethrows it', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const xhr = new XMLHttpRequest() as unknown as FakeXMLHttpRequest;
+      xhr.open('GET', String(input));
+      xhr.send();
+      return Promise.reject(new Error('offline'));
+    }) as typeof fetch;
+    const emit = jest.fn();
+    startXMLHttpRequest(emit);
+    startFetch(emit);
+
+    await expect(fetch('https://api.example.com/xhr-error')).rejects.toThrow('offline');
+    await flushNetworkLog();
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0]).toMatchObject({
+      request: { url: 'https://api.example.com/xhr-error' },
+      error: 'offline',
+    });
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('uses the rewritten XHR URL for an XHR-backed fetch', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    setUrlRewriter((url) => url.replace('prod.example.com', 'dev.example.com'));
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const xhr = new XMLHttpRequest() as unknown as FakeXMLHttpRequest;
+      xhr.open('GET', String(input));
+      xhr.send();
+      xhr.respond({ status: 200, body: 'ok' });
+      return new Response('ok');
+    }) as typeof fetch;
+    const emit = jest.fn();
+    startXMLHttpRequest(emit);
+    startFetch(emit);
+    FakeXMLHttpRequest.handler = (xhr) => xhr.respond({ status: 200, body: 'ok' });
+
+    await fetch('https://prod.example.com/items');
+    await flushNetworkLog();
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0].request.url).toBe('https://dev.example.com/items');
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('keeps symbolicate requests filtered when fetch uses XHR', async () => {
+    const previousXMLHttpRequest = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXMLHttpRequest as unknown as typeof XMLHttpRequest;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const xhr = new XMLHttpRequest() as unknown as FakeXMLHttpRequest;
+      xhr.open('POST', String(input));
+      xhr.send('{}');
+      xhr.respond({ status: 200, body: '{}' });
+      return new Response('{}');
+    }) as typeof fetch;
+    const emit = jest.fn();
+    startXMLHttpRequest(emit);
+    startFetch(emit);
+
+    await fetch('https://api.example.com/symbolicate');
+    await flushNetworkLog();
+
+    expect(emit).not.toHaveBeenCalled();
+    globalThis.XMLHttpRequest = previousXMLHttpRequest;
+  });
+
+  it('isolates a throwing fetch collector from other collectors', async () => {
+    globalThis.fetch = (async () => new Response('ok')) as typeof fetch;
+    const good = jest.fn();
+    startFetch(() => { throw new Error('consumer'); });
+    startFetch(good);
+
+    await fetch('https://api.example.com/items');
+    await flushNetworkLog();
+
+    expect(good).toHaveBeenCalledTimes(1);
   });
 });
 

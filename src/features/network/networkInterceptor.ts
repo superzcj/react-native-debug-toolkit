@@ -1,5 +1,9 @@
 import type { NetworkLogEntry } from '../../types';
-import { acquireCollector } from '../../utils/xhrService';
+import {
+  acquireCollector,
+  withXhrInvocationContext,
+  type XhrRequestMetadata,
+} from '../../utils/xhrService';
 
 type NetworkLogPayload = Omit<NetworkLogEntry, 'id'>;
 export type { NetworkLogPayload };
@@ -21,14 +25,10 @@ function parseBody(body: unknown): unknown {
 const activeReleases = new Set<() => void>();
 const BODY_LIMIT = 100_000;
 
-// Expo replaces global fetch with a native client that never touches XMLHttpRequest.
-// While that wrapper is in flight, skip the XHR collector so RN's XHR-backed fetch is logged once.
-let fetchCaptureDepth = 0;
-
 // Axios and the React Native fetch polyfill share the XHR collector.
 export function startXMLHttpRequest(emit: (entry: NetworkLogPayload) => void): () => void {
   const release = acquireCollector(Symbol('network'), (record) => {
-    if (fetchCaptureDepth > 0 || /\/symbolicate$/.test(record.url)) {
+    if (/\/symbolicate$/.test(record.url)) {
       return;
     }
     emit({
@@ -59,6 +59,24 @@ export function startXMLHttpRequest(emit: (entry: NetworkLogPayload) => void): (
 }
 
 type FetchEmit = (entry: NetworkLogPayload) => void;
+type FetchRequest = {
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+type FetchDescription = {
+  request: FetchRequest;
+  requestBody?: Promise<string | undefined>;
+};
+type FetchCollectorSnapshot = readonly [symbol, FetchEmit];
+type FetchCapture = {
+  started: number;
+  request: FetchRequest;
+  requestBody?: Promise<string | undefined>;
+  collectors: FetchCollectorSnapshot[];
+  xhrRequest?: XhrRequestMetadata;
+};
 const fetchCollectors = new Map<symbol, FetchEmit>();
 let restoreFetch: (() => void) | undefined;
 
@@ -87,16 +105,40 @@ function headersToRecord(headers: unknown): Record<string, string> | undefined {
   return Object.keys(record).length > 0 ? record : undefined;
 }
 
-function describeFetch(input: RequestInfo | URL, init?: RequestInit) {
+function contentTypeFromHeaders(headers: Record<string, string> | undefined): string {
+  if (!headers) {
+    return '';
+  }
+  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === 'content-type');
+  return entry?.[1] ?? '';
+}
+
+function readRequestBody(
+  request: Request,
+  headers: Record<string, string> | undefined,
+): Promise<string | undefined> | undefined {
+  if (!request.body || !shouldReadBody(contentTypeFromHeaders(headers))) {
+    return undefined;
+  }
+  try {
+    return request.clone().text().then((text) => text || undefined).catch(() => undefined);
+  } catch {
+    return undefined;
+  }
+}
+
+function describeFetch(input: RequestInfo | URL, init?: RequestInit): FetchDescription {
   const request = typeof Request !== 'undefined' && input instanceof Request ? input : null;
   const url = request ? request.url : input instanceof URL ? input.toString() : String(input);
   const method = (init?.method ?? request?.method ?? 'GET').toUpperCase();
-  const body = typeof init?.body === 'string' && init.body ? init.body : undefined;
+  const headers = headersToRecord(init?.headers ?? request?.headers);
+  const hasBodyOverride = init?.body != null;
+  const body = hasBodyOverride && typeof init?.body === 'string' && init.body
+    ? init.body
+    : undefined;
   return {
-    url,
-    method,
-    headers: headersToRecord(init?.headers ?? request?.headers),
-    body,
+    request: { url, method, headers, body },
+    requestBody: !hasBodyOverride && request ? readRequestBody(request, headers) : undefined,
   };
 }
 
@@ -133,66 +175,108 @@ async function readResponseData(response: Response): Promise<unknown> {
   return parseBody(clipped);
 }
 
+function hasActiveFetchCollector(capture: FetchCapture): boolean {
+  return capture.collectors.some(([owner, emit]) => fetchCollectors.get(owner) === emit);
+}
+
+function emitFetchEntry(capture: FetchCapture, entry: NetworkLogPayload): void {
+  for (const [owner, emit] of capture.collectors) {
+    if (fetchCollectors.get(owner) !== emit) {
+      continue;
+    }
+    try {
+      emit(entry);
+    } catch {
+      /* Never interrupt transport or duplicate an entry after an observer error. */
+    }
+  }
+}
+
+function requestForFetch(capture: FetchCapture, body = capture.request.body): FetchRequest {
+  if (capture.xhrRequest) {
+    return {
+      url: capture.xhrRequest.url,
+      method: capture.xhrRequest.method,
+      headers: capture.xhrRequest.headers,
+      body: capture.xhrRequest.body,
+    };
+  }
+  return { ...capture.request, body };
+}
+
+function emitFetchResponse(capture: FetchCapture, response: Response, data?: unknown): void {
+  const emit = (body = capture.request.body) => {
+    emitFetchEntry(capture, {
+      timestamp: capture.started,
+      duration: Date.now() - capture.started,
+      request: requestForFetch(capture, body),
+      response: {
+        status: response.status,
+        statusText: response.statusText,
+        headers: headersToRecord(response.headers),
+        data,
+        success: response.ok,
+      },
+    });
+  };
+  if (capture.xhrRequest || !capture.requestBody) {
+    emit();
+    return;
+  }
+  capture.requestBody.then(emit, () => emit(undefined));
+}
+
+function emitFetchError(capture: FetchCapture, message: string): void {
+  const emit = (body = capture.request.body) => {
+    emitFetchEntry(capture, {
+      timestamp: capture.started,
+      duration: Date.now() - capture.started,
+      request: requestForFetch(capture, body),
+      error: message,
+    });
+  };
+  if (capture.xhrRequest || !capture.requestBody) {
+    emit();
+    return;
+  }
+  capture.requestBody.then(emit, () => emit(undefined));
+}
+
 function installFetchCapture(): void {
   if (restoreFetch || typeof globalThis.fetch !== 'function') {
     return;
   }
   const original = globalThis.fetch;
   const patched = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const started = Date.now();
-    const request = describeFetch(input, init);
-    if (/\/symbolicate$/.test(request.url)) {
+    const description = describeFetch(input, init);
+    if (/\/symbolicate$/.test(description.request.url)) {
       return Reflect.apply(original, globalThis, [input, init]);
     }
-    fetchCaptureDepth += 1;
+    const capture: FetchCapture = {
+      started: Date.now(),
+      request: description.request,
+      requestBody: description.requestBody,
+      collectors: [...fetchCollectors.entries()],
+    };
+    const invocationContext = {
+      onRequest: (xhrRequest: XhrRequestMetadata) => {
+        capture.xhrRequest = xhrRequest;
+        return { shouldSuppress: () => hasActiveFetchCollector(capture) };
+      },
+    };
     try {
-      const response = await Reflect.apply(original, globalThis, [input, init]);
-      readResponseData(response)
-        .then((data) => {
-          for (const emit of fetchCollectors.values()) {
-            emit({
-              timestamp: started,
-              duration: Date.now() - started,
-              request,
-              response: {
-                status: response.status,
-                statusText: response.statusText,
-                headers: headersToRecord(response.headers),
-                data,
-                success: response.ok,
-              },
-            });
-          }
-        })
-        .catch(() => {
-          for (const emit of fetchCollectors.values()) {
-            emit({
-              timestamp: started,
-              duration: Date.now() - started,
-              request,
-              response: {
-                status: response.status,
-                statusText: response.statusText,
-                headers: headersToRecord(response.headers),
-                success: response.ok,
-              },
-            });
-          }
-        });
+      const response = await withXhrInvocationContext(invocationContext, () => (
+        Reflect.apply(original, globalThis, [input, init])
+      ));
+      readResponseData(response).then(
+        (data) => emitFetchResponse(capture, response, data),
+        () => emitFetchResponse(capture, response),
+      );
       return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Network Error';
-      for (const emit of fetchCollectors.values()) {
-        emit({
-          timestamp: started,
-          duration: Date.now() - started,
-          request,
-          error: message,
-        });
-      }
+      emitFetchError(capture, message);
       throw error;
-    } finally {
-      fetchCaptureDepth -= 1;
     }
   }) as typeof fetch;
   globalThis.fetch = patched;

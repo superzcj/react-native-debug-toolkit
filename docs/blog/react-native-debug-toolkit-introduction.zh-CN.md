@@ -96,7 +96,7 @@ npx --package=react-native-debug-toolkit debug-toolkit init
 
 [Demo](../../Demo/README.md) 带有本地购物 API。启动后点 **Run failed checkout**，触发库存不足的 409 响应，再让 AI 查询刚才的失败。切到 Staging，点 **Try successful request**，还能看到返回 201 的请求进入 Hub。业务数据是示例，请求经过真实的 RN 网络链路。
 
-Network 和 Console 在初始化后自动采集，状态与埋点等业务记录需要接入。网络采集限于 RN XHR 链路，部分 fetch 实现只能提供 Blob 元数据；缓冲和事件大小限制也可能造成记录缺失。定位是否准确，仍取决于相关日志是否齐全，以及分析是否与源码吻合。
+Network 和 Console 在初始化后自动采集，状态与埋点等业务记录需要接入。网络采集覆盖 XMLHttpRequest 和全局 fetch（包括 Expo 的原生 fetch）；文本和 JSON 响应可查看，二进制、event-stream 与 multipart 正文不读取。缓冲和事件大小限制也可能造成记录缺失。定位是否准确，仍取决于相关日志是否齐全，以及分析是否与源码吻合。
 
 Toolkit 用于 Debug 和内测构建。Expo 需要 development build；内测 Release 包需显式启用 Toolkit 并手动开启上传，公开生产包应关闭。日志默认不脱敏，Hub 只在可信网络使用，交给 AI 前检查敏感信息。
 
