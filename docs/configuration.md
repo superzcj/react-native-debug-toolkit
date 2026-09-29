@@ -16,7 +16,7 @@ The following parser-default column uses JSON, with `undefined` for an absent va
 
 | Field | Parser default | Type and behavior |
 | --- | --- | --- |
-| `network.enabled` | `true` | boolean; register page and XHR collector. |
+| `network.enabled` | `true` | boolean; register the page and capture XMLHttpRequest plus global fetch. |
 | `network.maxLogs` | `200` | Positive safe integer; in-memory record limit. |
 | `network.excludeUrls` | `[]` | readonly (string or RegExp)[]; strings match URL substrings. |
 | `console.enabled` | `true` | boolean; page and JS console capture. |
@@ -82,7 +82,7 @@ Insufficient space falls back to a scrollable grid with a close button and full-
 
 ## Default pages and capture
 
-Network captures React Native XHR requests after initialization; native clients bypassing XHR are outside its scope. Text/JSON responses are inspectable; a fetch implementation may expose only Blob metadata. Console observes JS console output. Native uses supported iOS RCTLog output or Android process-visible logcat; unavailable native capture is shown honestly.
+Network captures XMLHttpRequest and global fetch after initialization, including Expo's native fetch. Native HTTP clients that use neither path stay outside its scope. Text/JSON responses are inspectable; binary, event-stream, and multipart bodies are not read. Console observes JS console output. Native uses supported iOS RCTLog output or Android process-visible logcat; unavailable native capture is shown honestly.
 
 State is empty without adapters or explicit events; Navigation is empty without a ref or explicit events; Track is empty until instrumented. Accounts, Environment and Custom stay visible with empty lists. Clipboard waits for user action. History shows retained supported logs if available. Connect resolves the native app identifier and, in Debug, can discover/upload when the Hub is reachable; an offline Hub does not stop the app.
 
@@ -138,4 +138,4 @@ History persists Network, Console, Native and Track only. State and Navigation r
 
 Wait in an ordinary React useEffect or a user action after mounting. The HOC registers readiness in its layout effect; module scope, render and child layout effects before it are not valid waiting points. Unmounted calls return not_started; disposal cancels pending readiness. Only one host may be mounted per JS runtime; keep HOC creation at module scope and update an existing wrapper instead of adding a second one.
 
-Explicit track/state/navigation calls before feature readiness or after disable are no-ops and are not replayed. XHR and console capture start after their setup; ready does not recover module-import, render or earlier network events. A ready result reports initialization, while later source errors are visible in feature statuses. Native storage failure can leave live memory capture working but History unavailable and preferences unsaved; it does not remove the native installation requirement.
+Explicit track/state/navigation calls before feature readiness or after disable are no-ops and are not replayed. XMLHttpRequest, global fetch, and console capture start after their setup; ready does not recover module-import, render or earlier network events. A ready result reports initialization, while later source errors are visible in feature statuses. Native storage failure can leave live memory capture working but History unavailable and preferences unsaved; it does not remove the native installation requirement.
