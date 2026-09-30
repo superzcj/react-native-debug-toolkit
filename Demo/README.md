@@ -1,6 +1,6 @@
 # Demo
 
-用完整 Showcase 演示业务接入、调试面板和长按快捷动作。[中文首页](../README.zh-CN.md) · [English](../README.md)
+用完整 Showcase 演示业务接入、调试面板和长按快捷动作。[中文首页](../README-zh-CN.md) · [English](../README.md)
 
 ## 启动
 

@@ -1,6 +1,6 @@
 # 演示素材
 
-[Demo 启动](../Demo/README.md) · [中文首页](../README.zh-CN.md)
+[Demo 启动](../Demo/README.md) · [中文首页](../README-zh-CN.md)
 
 | 素材 | 画面内容 | 参数 |
 | --- | --- | --- |

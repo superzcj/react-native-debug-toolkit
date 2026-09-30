@@ -1,7 +1,7 @@
 {
   "name": "react-native-debug-toolkit",
   "version": "4.1.2",
-  "description": "AI-first local runtime log Hub for React Native — debug with CLI and Web Console",
+  "description": "React Native debugging toolkit with an in-app HTTP inspector, console logs, a local Web Console, and runtime diagnostics for AI coding assistants",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
@@ -31,7 +31,7 @@
     "android",
     "react-native-debug-toolkit.podspec",
     "README.md",
-    "README.zh-CN.md",
+    "README-zh-CN.md",
     "docs/integration*.md",
     "docs/configuration*.md",
     "docs/examples/integration",
@@ -69,14 +69,19 @@
   },
   "keywords": [
     "react-native",
-    "debug",
-    "log-bridge",
-    "web-console",
-    "ai-debugging",
-    "toolkit",
+    "react-native-debugging",
+    "debugging",
+    "developer-tools",
+    "network-inspector",
     "http-inspector",
-    "development-tools",
-    "floating-panel"
+    "console-logs",
+    "runtime-logs",
+    "state-debugging",
+    "zustand",
+    "react-navigation",
+    "ai-debugging",
+    "cli",
+    "web-console"
   ],
   "author": "zcj",
   "license": "MIT",
@@ -128,8 +133,18 @@
     "source": "src",
     "output": "lib",
     "targets": [
-      ["commonjs", {"esm": true}],
-      ["module", {"esm": true}],
+      [
+        "commonjs",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "module",
+        {
+          "esm": true
+        }
+      ],
       [
         "typescript",
         {

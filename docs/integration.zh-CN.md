@@ -2,7 +2,7 @@
 
 [English](integration.md) · [全部配置字段](configuration.zh-CN.md) · [完整示例](examples/integration/App.tsx)
 
-本指南供人和 AI 编程助手使用，适用于版本 4.1.1。先读本页，补充业务数据时再读 configuration.zh-CN.md 和随包示例。无需接入 Skill、内部源码、指定 AI 产品或新的 setup CLI。
+本指南供人和 AI 编程助手使用，适用于版本 4.1.2。先读本页，补充业务数据时再读 configuration.zh-CN.md 和随包示例。无需接入 Skill、内部源码、指定 AI 产品或新的 setup CLI。
 
 ## 1. 找到现有根入口
 
@@ -10,21 +10,21 @@
 
 当前验证范围：
 
-| 入口 / 平台 | 证据与边界 |
-| --- | --- |
-| React Native CLI、npm、RN 0.85.1、新架构 | 已验证独立安装包消费者安装、TypeScript、renderer、原生 autolinking、iOS Pod 安装。原生 Debug/Release 构建与设备验收仍需单独验证。 |
-| RN 0.76.6 至 0.85.1 | 声明的候选 peer 范围；根 JS/类型测试使用 0.76.6。不代表整个范围或两个端点已通过原生构建。 |
-| Expo Go | 不支持，缺少所需自定义原生模块。 |
-| Expo development build / Router / 其他入口 / 旧架构 | 本次交付未验证，不提供猜测性的自动迁移步骤。 |
+| 入口 / 平台                                         | 证据与边界                                                                                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| React Native CLI、npm、RN 0.85.1、新架构            | 已验证独立安装包消费者安装、TypeScript、renderer、原生 autolinking、iOS Pod 安装。原生 Debug/Release 构建与设备验收仍需单独验证。 |
+| RN 0.76.6 至 0.85.1                                 | 声明的候选 peer 范围；根 JS/类型测试使用 0.76.6。不代表整个范围或两个端点已通过原生构建。                                         |
+| Expo Go                                             | 不支持，缺少所需自定义原生模块。                                                                                                  |
+| Expo development build / Router / 其他入口 / 旧架构 | 本次交付未验证，不提供猜测性的自动迁移步骤。                                                                                      |
 
-候选原生基线为 iOS 15.1 / Android minSdk 24。遵循现有 App 更严格的平台与 Node 要求（RN 0.85.1 Demo 需要 Node >=22.11）；Toolkit CLI 本身需要 Node >=20。
+文档化的 RN 0.85.1 Demo 基线为 iOS 15.1 / Android minSdk 24。库的 Gradle fallback 是 minSdk 23（消费 App 未覆盖时生效）。遵循现有 App 更严格的平台与 Node 要求（RN 0.85.1 Demo 需要 Node >=22.11）；Toolkit CLI 本身需要 Node >=20。
 
 ## 2. 安装依赖并重新构建
 
 在 App 项目根目录使用其 npm lockfile：
 
 ```sh
-npm install react-native-debug-toolkit@4.1.1 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit@4.1.2 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -39,8 +39,8 @@ Toolkit 使用 MMKV 4.3.2，必需 Nitro 0.35.10。两者在 App 显式声明以
 修改前完整 App.tsx：
 
 ```tsx
-import React from 'react';
-import { Text } from 'react-native';
+import React from "react";
+import { Text } from "react-native";
 
 export default function App() {
   return <Text>My App</Text>;
@@ -50,9 +50,9 @@ export default function App() {
 修改后完整 App.tsx：
 
 ```tsx
-import React from 'react';
-import { Text } from 'react-native';
-import { withDebugToolkit } from 'react-native-debug-toolkit';
+import React from "react";
+import { Text } from "react-native";
+import { withDebugToolkit } from "react-native-debug-toolkit";
 
 function App() {
   return <Text>My App</Text>;
@@ -63,9 +63,9 @@ export default withDebugToolkit(App);
 保留原 index.js 注册，例如：
 
 ```js
-import { AppRegistry } from 'react-native';
-import App from './App';
-import { name as appName } from './app.json';
+import { AppRegistry } from "react-native";
+import App from "./App";
+import { name as appName } from "./app.json";
 
 AppRegistry.registerComponent(appName, () => App);
 ```
@@ -79,7 +79,7 @@ AppRegistry.registerComponent(appName, () => App);
 在 App 根目录另开终端：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
+npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
 ```
 
 电脑打开 http://127.0.0.1:3800。Debug 默认使用原生应用标识；Connect 地址优先级为已保存手动地址 > 配置 endpoint > Debug 通过 Metro/平台候选发现。显式地址不可达会报错，不偷偷连接别的 Hub；清除手动地址可恢复配置/自动发现。真机使用电脑可达的局域网地址，手机 localhost 指手机自身；CLI 也会尝试 Android adb reverse。
@@ -89,8 +89,8 @@ npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit hub dev
 Hub 选择当前 App、Session，在 Console 与 Network 搜索标记，核对 URL、真实响应。记录 appId、sessionId、平台/构建身份和标记。零配置无法取得原生 App 标识时，本地面板仍可用；按配置参考补充稳定的 connect.appId。
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@4.1.1 debug-toolkit status
+npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
+npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
 ```
 
 已有 context/inspect/tail 可查询证据，目标参数见 debug-toolkit <command> --help。Hub /ready 只证明服务器就绪，旧会话或旧日志不证明当前 App 接入成功。分别报告依赖/静态检查、原生构建、当前面板、当前会话收到事件这四层证据。
@@ -104,4 +104,3 @@ Release 默认关闭。内部 Release 显式 enabled: true 后，Connect 仍不�
 无悬浮入口时检查构建模式和 enabled；空页检查真实业务绑定或生成事件；错误页按字段路径或能力原因修复。原生模块错误需检查安装/自动链接并重新构建。Hub 问题检查设备到电脑连通性及适用的 HTTP/ATS/局域网权限，保留 App 安全策略。详见[环境与 CLI 排障](setup.zh-CN.md)、[配置参考](configuration.zh-CN.md)。
 
 交给 AI 的工作要求：读当前已安装包的 README 和 docs/integration.zh-CN.md，定位原注册处，保留业务结构，只加一个模块级包装，使用真实数据源，完成构建，再生成新标记与请求，分四层报告验证。文档可从 node_modules/react-native-debug-toolkit 读取并与版本对应，不需要内部实现或接入 Skill。
-
