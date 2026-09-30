@@ -29,7 +29,7 @@ export async function verifyPackage(tarball) {
     }
     await exists(manifest.exports['./package.json']);
     for (const key of ['main', 'module', 'types', 'react-native']) await exists(manifest[key]);
-    for (const p of ['README.md', 'README.zh-CN.md', 'docs/integration.md', 'docs/integration.zh-CN.md', 'docs/configuration.md', 'docs/configuration.zh-CN.md', 'docs/examples/integration/App.tsx', 'react-native-debug-toolkit.podspec', 'android/build.gradle']) await exists(p);
+    for (const p of ['README.md', 'README-zh-CN.md', 'docs/integration.md', 'docs/integration.zh-CN.md', 'docs/configuration.md', 'docs/configuration.zh-CN.md', 'docs/examples/integration/App.tsx', 'react-native-debug-toolkit.podspec', 'android/build.gradle']) await exists(p);
     for (const prefix of ['package/ios/', 'package/android/src/']) {
       if (!paths.some(p => p.startsWith(prefix) && /\.(mm?|swift|java|kt)$/.test(p))) throw new Error(`missing native sources: ${prefix}`);
     }
