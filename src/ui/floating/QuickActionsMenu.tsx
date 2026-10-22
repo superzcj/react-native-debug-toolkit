@@ -196,8 +196,8 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
 }
 
 const styles = StyleSheet.create({
-  layer: { ...StyleSheet.absoluteFill, zIndex: 998 },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,16,24,0.24)' },
+  layer: { ...StyleSheet.flatten(StyleSheet.absoluteFill), zIndex: 998 },
+  backdrop: { ...StyleSheet.flatten(StyleSheet.absoluteFill), backgroundColor: 'rgba(7,16,24,0.24)' },
   position: { position: 'absolute' },
   hitTarget: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingTop: ACTION_ORB_TOP, gap: 4 },
   disabled: { opacity: 0.4 },
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   feedback: { position: 'absolute', left: 16, right: 16, bottom: 16, alignItems: 'center', zIndex: 1001 },
   feedbackText: { color: Colors.text, backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 12 },
-  gridPanel: { ...StyleSheet.absoluteFill, backgroundColor: Colors.background },
+  gridPanel: { ...StyleSheet.flatten(StyleSheet.absoluteFill), backgroundColor: Colors.background },
   gridClose: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   closeText: { color: Colors.primaryLight, fontSize: 12 },
 });
