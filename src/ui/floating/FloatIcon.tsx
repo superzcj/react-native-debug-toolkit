@@ -55,7 +55,7 @@ export function FloatIcon({ visible, onPress, badge, streaming, quickActions = N
   const lastPosition = useRef(origin);
   const touched = useRef(false);
   const mounted = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const gestureGeneration = useRef(0);
   const gesture = useRef<GestureState>({ active: false, moved: false, longPressed: false, startedOpen: false,
     generation: 0, positionReady: true, stopped: {}, latestDelta: { dx: 0, dy: 0 } });
@@ -259,7 +259,7 @@ export function FloatIcon({ visible, onPress, badge, streaming, quickActions = N
     else onPress();
   };
   return (
-    <SafeAreaView pointerEvents="box-none" accessibilityViewIsModal={menuOpen} style={StyleSheet.absoluteFillObject}>
+    <SafeAreaView pointerEvents="box-none" accessibilityViewIsModal={menuOpen} style={StyleSheet.absoluteFill}>
       <View pointerEvents="box-none" style={{ flex: 1 }} testID="quick-actions-viewport"
         onLayout={({ nativeEvent: { layout } }) => {
           if (layout.width <= 0 || layout.height <= 0) return;

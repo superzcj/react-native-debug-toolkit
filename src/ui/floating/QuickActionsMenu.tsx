@@ -167,7 +167,7 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
           <>
             <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
               <Pressable testID="quick-actions-backdrop" accessibilityRole="button" accessibilityLabel={t('quickActions.close')}
-                style={StyleSheet.absoluteFillObject} onPress={onClose} />
+                style={StyleSheet.absoluteFill} onPress={onClose} />
             </Animated.View>
             {grid ? (
               <View style={styles.gridPanel} accessibilityViewIsModal>
@@ -176,11 +176,11 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
                 </Pressable>
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ height: Math.max(viewport.height - 44, ...layout.map(card => card.bottom), 0) + 8 }}>
                   <Pressable testID="quick-actions-grid-backdrop" accessible={false}
-                    style={StyleSheet.absoluteFillObject} onPress={onClose} />
+                    style={StyleSheet.absoluteFill} onPress={onClose} />
                   {cards}
                 </ScrollView>
               </View>
-            ) : <View pointerEvents={open ? 'box-none' : 'none'} style={StyleSheet.absoluteFillObject}>{cards}</View>}
+            ) : <View pointerEvents={open ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>{cards}</View>}
           </>
         )}
       </View>
@@ -196,8 +196,8 @@ export function QuickActionsMenu({ open, active, actions, origin, viewport, onCl
 }
 
 const styles = StyleSheet.create({
-  layer: { ...StyleSheet.absoluteFillObject, zIndex: 998 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,16,24,0.24)' },
+  layer: { ...StyleSheet.absoluteFill, zIndex: 998 },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7,16,24,0.24)' },
   position: { position: 'absolute' },
   hitTarget: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'flex-start', paddingTop: ACTION_ORB_TOP, gap: 4 },
   disabled: { opacity: 0.4 },
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   feedback: { position: 'absolute', left: 16, right: 16, bottom: 16, alignItems: 'center', zIndex: 1001 },
   feedbackText: { color: Colors.text, backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border,
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 12 },
-  gridPanel: { ...StyleSheet.absoluteFillObject, backgroundColor: Colors.background },
+  gridPanel: { ...StyleSheet.absoluteFill, backgroundColor: Colors.background },
   gridClose: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   closeText: { color: Colors.primaryLight, fontSize: 12 },
 });
