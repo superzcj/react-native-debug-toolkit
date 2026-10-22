@@ -7,6 +7,7 @@ export interface PersistedStoreOptions<T> {
   storageKey: string;
   maxPersist: number;
   debounceMs?: number;
+  maxWaitMs?: number;
   serialize?: (entry: T) => unknown;
   isActive?: () => boolean;
   maxEntries?: number;
@@ -25,6 +26,7 @@ export function createPersistedObservableStore<T extends { id?: string }>(
   const { storage, storageKey, maxPersist, debounceMs = 2000, serialize } = options;
   const store = createObservableStore<T>();
   let writeTimer: ReturnType<typeof setTimeout> | null = null;
+  let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
   let idCounter = 0;
   let resolveReady: () => void;
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
@@ -64,16 +66,21 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     if (writeTimer !== null) {
       clearTimeout(writeTimer);
     }
-    writeTimer = setTimeout(() => {
-      writeTimer = null;
-      const data = store.getData().slice(-maxPersist);
-      const toStore = serialize ? data.map(serialize) : data;
-      try {
-        write(JSON.stringify(toStore));
-      } catch {
-        // stringify failed (circular refs, etc) — skip write
-      }
-    }, debounceMs);
+    writeTimer = setTimeout(flush, debounceMs);
+    if (options.maxWaitMs !== undefined && maxWaitTimer === null) maxWaitTimer = setTimeout(flush, options.maxWaitMs);
+  }
+
+  function cancelTimers(): void {
+    if (writeTimer !== null) clearTimeout(writeTimer);
+    if (maxWaitTimer !== null) clearTimeout(maxWaitTimer);
+    writeTimer = null; maxWaitTimer = null;
+  }
+
+  function flush(): void {
+    cancelTimers();
+    if (!active()) return;
+    const data = store.getData().slice(-maxPersist);
+    try { write(JSON.stringify(serialize ? data.map(serialize) : data)); } catch { /* Invalid serialized data does not affect capture. */ }
   }
 
   return {
@@ -101,12 +108,14 @@ export function createPersistedObservableStore<T extends { id?: string }>(
         clearTimeout(writeTimer);
         writeTimer = null;
       }
+      cancelTimers();
       write('[]');
     },
     subscribe: store.subscribe,
     nextId: () => String(idCounter++),
     ready,
     dispose: () => {
+      cancelTimers();
       if (writeTimer !== null) {
         clearTimeout(writeTimer);
         writeTimer = null;

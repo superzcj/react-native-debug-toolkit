@@ -1,3 +1,4 @@
+import type { LogChannelInput, LogRecordResult } from './logChannel';
 import type { ConfigIssue } from '../core/config';
 import type { FeatureKey, LogFeatureKey } from '../core/featureCatalog';
 import type { NavigationEvent, StateEvent } from './logs';
@@ -48,7 +49,8 @@ export interface DebugReport {
 
 export interface DebugActions {
   ready(): Promise<ReadyResult>;
-  open(): void;
+  open(feature?: FeatureKey): void;
+  log(channelId: string, input: LogChannelInput): LogRecordResult;
   close(): void;
   clear(feature?: LogFeatureKey): void;
   track(name: string, data?: unknown): void;

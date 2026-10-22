@@ -23,6 +23,7 @@ export interface DeviceInfo {
 export interface SessionInfo {
   id: string;
   startedAt: number;
+  channels?: readonly { id: string; title: string }[];
 }
 
 export interface DebugDeviceReport {
@@ -42,7 +43,7 @@ interface TruncatedValue {
   preview: string;
 }
 
-function utf8ByteLength(value: string): number {
+export function utf8ByteLength(value: string): number {
   let bytes = 0;
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);

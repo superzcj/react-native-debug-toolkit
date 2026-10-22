@@ -16,6 +16,7 @@ export interface LogRuntimeContext {
 }
 
 export interface LogRuntimeOptions {
+  channels?: readonly { id: string; title: string }[];
   history: { enabled: boolean; maxSessions: number };
   logDisk: StorageAdapter;
   preferenceDisk: StorageAdapter;
@@ -46,7 +47,7 @@ export function createLogRuntime(options: LogRuntimeOptions): LogRuntimeContext 
     options.history.enabled ? options.logDisk : new MemoryStorageAdapter(), failure('history'), false, () => active,
   );
   const preferenceStorage = createResilientStorage(options.preferenceDisk, failure('preferences'), true, () => active);
-  const sessionManager = new SessionManager(logStorage, { maxSessions: options.history.maxSessions });
+  const sessionManager = new SessionManager(logStorage, { maxSessions: options.history.maxSessions, channels: options.channels });
   const runtime: LogRuntimeContext = {
     logStorage, preferenceStorage, sessionManager,
     get historyAvailable() { return historyAvailable; },

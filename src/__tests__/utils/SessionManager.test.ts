@@ -77,3 +77,14 @@ describe('SessionManager', () => {
     ]);
   });
 });
+
+test('channel metadata survives session history and retired channel storage is cleaned up',async()=>{
+ const disk=new MemoryStorageAdapter();
+ const first=new SessionManager(disk,{maxSessions:1,channels:[{id:'ble',title:'蓝牙'}]});
+ await first.initialize();const session=first.getCurrentSession();
+ await disk.setItem(first.getLogStorageKey('channel.ble'),JSON.stringify({entries:[{id:'1',message:'raw'}],sources:[['sdk',1]],nextId:1}));
+ expect(await first.getSessionLogKeys(session.id)).toContain('channel.ble');
+ expect((await first.getSessionHistory())[0]?.channels).toEqual([{id:'ble',title:'蓝牙'}]);
+ const second=new SessionManager(disk,{maxSessions:1});await second.initialize();
+ expect(await disk.getItem(first.getLogStorageKey('channel.ble',session.id))).toBeNull();
+});

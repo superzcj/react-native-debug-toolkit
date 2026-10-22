@@ -144,3 +144,12 @@ test('actions-only hosts apply their explicit locale without starting feature se
   value.dispose();
   configureLocale('en');
 });
+
+test('configured channel is a first-level page and raw report/clear/open address the same store',async()=>{
+ const value=host({enabled:true,logChannels:[{id:'ble',title:'蓝牙'}]});value.start();await value.ready;
+ expect(value.features.find(f=>f.name==='channel.ble')?.label).toBe('蓝牙');
+ expect(value.actions.log('ble',{message:'raw frame',summary:'发送确认',data:{plaintext:'00 ff'}})).toBe('recorded');
+ const rows=value.actions.getReport().logs['channel.ble'];expect(rows).toEqual([expect.objectContaining({message:'raw frame',data:{plaintext:'00 ff'}})]);
+ value.actions.open('channel.ble');expect(value.getSnapshot()).toMatchObject({panelOpen:true,panelTarget:'channel.ble'});
+ value.actions.clear('channel.ble');expect(value.actions.getReport().logs['channel.ble']).toEqual([]);
+});

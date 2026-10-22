@@ -120,3 +120,33 @@ The [Demo](https://github.com/superzcj/react-native-debug-toolkit/blob/main/Demo
 Use in Debug and internal builds. Release is disabled by default; internal builds need explicit enablement and manual upload in Connect. Keep public production builds disabled. Run the Hub on a trusted network and review logs before sharing; they are not automatically redacted.
 
 [MIT license](LICENSE)
+
+## Application log channels
+
+Configure a static log channel to give application diagnostics their own first-level phone and Hub tab. Keep the original message and data; an optional summary improves scanning without replacing evidence.
+
+```tsx
+withDebugToolkit(App, {
+  logChannels: [
+    { id: "ble", title: "Bluetooth", maxLogs: 1000, maxBytes: 2 * 1024 * 1024 },
+  ],
+});
+
+await debug.ready();
+debug.log("ble", {
+  timestamp: Date.now(),
+  message: "ATT write acknowledged",
+  summary: "NFC setting · sent",
+  category: "tx",
+  source: { id: "sdk-instance", sequence: 1 },
+  attachments: [{ label: "Plaintext", value: "00 01 ff" }],
+  data: { receipt: "attWriteResponse" },
+});
+debug.open("channel.ble");
+```
+
+`debug.log` returns `recorded`, `duplicate`, `disabled`, `not_ready`, or `invalid`. It does not wait for disk or Hub delivery. `detail: true` hides process noise from the default list; search, “Include process,” and raw export retain it. Source sequences must increase within each source ID. Clearing preserves bounded replay watermarks, so old SDK cache entries do not reappear.
+
+The channel keeps the newest records within both configured limits (defaults: 1000 entries / 2 MiB). Oversized records are marked truncated at 16 KiB. Phone export includes all retained process records. Hub shows a recent 1000-event window; channel export pages through retained server records, including live arrivals through the export boundary. Buffer loss produces a visible gap. Phone clear does not delete Hub history.
+
+Channel IDs accept 1–40 ASCII letters, digits, underscores, or hyphens. Configure at most 16 channels. No Bluetooth protocol code is part of Toolkit.

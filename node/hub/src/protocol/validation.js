@@ -80,6 +80,18 @@ function validateDeviceMetadata(device) {
     }
   }
 
+  if (device.logChannels !== undefined) {
+    if (!Array.isArray(device.logChannels) || device.logChannels.length > 16) errors.push('logChannels must contain at most 16 channels');
+    else {
+      const ids = new Set();
+      for (const channel of device.logChannels) {
+        if (!channel || typeof channel.id !== 'string' || !/^channel\.[A-Za-z0-9_-]{1,40}$/.test(channel.id)
+          || ids.has(channel.id) || typeof channel.title !== 'string' || !channel.title.trim() || channel.title.length > 80)
+          errors.push('Invalid log channel descriptor');
+        else ids.add(channel.id);
+      }
+    }
+  }
   return errors.length > 0 ? errors.join('; ') : null;
 }
 

@@ -1,3 +1,4 @@
+import { isChannelKey } from '../core/featureCatalog';
 import type { SessionInfo } from './deviceReport';
 import type { StorageAdapter } from './StorageAdapter';
 import {
@@ -18,6 +19,7 @@ export interface SessionIndex {
 export interface SessionManagerOptions {
   maxSessions?: number;
   featureKeys?: LogFeatureKey[];
+  channels?: SessionInfo['channels'];
 }
 
 const SESSION_INDEX_KEY = '@react_native_debug_toolkit/sessions';
@@ -74,9 +76,11 @@ export class SessionManager {
   private currentSession: LogSession | null = null;
   private readonly maxSessions: number;
   private readonly featureKeys: readonly LogFeatureKey[];
+  private readonly channels: SessionInfo['channels'];
 
   constructor(storage: StorageAdapter, options: SessionManagerOptions = {}) {
     this.storage = storage;
+    this.channels = options.channels?.map(channel => ({...channel}));
     this.maxSessions = Math.max(1, Math.floor(options.maxSessions ?? DEFAULT_MAX_SESSIONS));
     this.featureKeys = options.featureKeys?.length ? options.featureKeys : DEFAULT_FEATURE_KEYS;
   }
@@ -107,12 +111,23 @@ export class SessionManager {
   }
 
   getCurrentSession(): LogSession {
-    return this.currentSession ??= createSession();
+    return this.currentSession ??= { ...createSession(), ...(this.channels?.length ? {channels:this.channels} : {}) };
   }
 
   async getSessionHistory(): Promise<LogSession[]> {
     const index = parseSessionIndex(await this.storage.getItem(SESSION_INDEX_KEY));
     return (index?.sessions ?? []).sort(compareNewestFirst);
+  }
+
+  async getSessionLogKeys(sessionId: string): Promise<LogFeatureKey[]> {
+    const session = sessionId === this.getCurrentSession().id ? this.getCurrentSession()
+      : (await this.getSessionHistory()).find(item => item.id === sessionId);
+    return this.keysFor(session);
+  }
+
+  private keysFor(session?: LogSession): LogFeatureKey[] {
+    const channels = Array.isArray(session?.channels) ? session.channels : [];
+    return [...new Set([...this.featureKeys, ...channels.map(channel => `channel.${channel.id}`).filter(isChannelKey)])];
   }
 
   getLogStorageKey(featureKey: LogFeatureKey, sessionId = this.getCurrentSession().id): string {
@@ -127,7 +142,7 @@ export class SessionManager {
 
     try {
       const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? parsed as T[] : [];
+      return Array.isArray(parsed) ? parsed as T[] : parsed && typeof parsed === 'object' && Array.isArray((parsed as { entries?: unknown }).entries) ? (parsed as { entries: T[] }).entries : [];
     } catch {
       return [];
     }
@@ -138,7 +153,7 @@ export class SessionManager {
     if (!raw) return 0;
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.length : 0;
+      return Array.isArray(parsed) ? parsed.length : Array.isArray(parsed?.entries) ? parsed.entries.length : 0;
     } catch {
       return 0;
     }
@@ -172,7 +187,7 @@ export class SessionManager {
 
   private async cleanupSessionLogs(sessions: LogSession[], signal?: AbortSignal): Promise<void> {
     for (const session of sessions) {
-      for (const featureKey of this.featureKeys) {
+      for (const featureKey of this.keysFor(session)) {
         if (signal?.aborted) { return; }
         await this.storage.removeItem(this.getLogStorageKey(featureKey, session.id));
       }

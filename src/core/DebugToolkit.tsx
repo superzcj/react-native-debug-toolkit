@@ -3,7 +3,7 @@ import type { DebugQuickAction } from '../types/config';
 import type { DebugActions, DebugReport, FeatureStatus, ReadyResult } from '../types/debug';
 import type { ToolkitRuntime, RuntimeDependencies } from './runtimeTypes';
 import type { FeatureKey } from './featureCatalog';
-import { FEATURE_KEYS, FEATURE_LABELS, LOG_FEATURE_KEYS } from './featureCatalog';
+import { FEATURE_LABELS, isChannelKey, isLogKey } from './featureCatalog';
 import { normalizeConfig } from './config';
 import { createToolkitRuntime } from './runtime';
 import { createFeatureDrivers, type FeatureDriverBinding } from './createFeatureDrivers';
@@ -20,6 +20,8 @@ const originalConsoleError = console.error.bind(console);
 export interface ToolkitHostSnapshot {
   features: AnyDebugFeature[];
   panelOpen: boolean;
+  panelTarget?: FeatureKey;
+  panelRequest?: number;
   quickActions: readonly DebugQuickAction[];
 }
 export interface ToolkitHost extends ToolkitRuntime, FeatureDataProvider {
@@ -60,9 +62,10 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
     lifetime.abort(); logs?.dispose(); releasePreferences?.(); releasePreferences = undefined;
   };
   const panel = {
-    open() {
-      if (disposed || !snapshot.features.length || snapshot.panelOpen) { return; }
-      snapshot = { ...snapshot, panelOpen: true }; emit();
+    open(target?: FeatureKey) {
+      if (disposed || !snapshot.features.length || !target && snapshot.panelOpen) { return; }
+      if (target && !snapshot.features.some(feature => feature.name === target)) return;
+      snapshot = { ...snapshot, panelOpen: true, ...(target ? {panelTarget:target,panelRequest:(snapshot.panelRequest ?? 0)+1} : {}) }; emit();
     },
     close() {
       if (!snapshot.panelOpen) { return; }
@@ -72,6 +75,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
   const startServices = () => {
     if (!initialize) {
       logs = createLogRuntime({
+        channels: Object.values(config.features).filter(feature => isChannelKey(feature.key)).map(feature => ({id:String(feature.options.id),title:String(feature.options.title)})),
         history: { enabled: config.features.history.enabled && !config.features.history.issues.length,
           maxSessions: config.features.history.options.maxSessions as number },
         logDisk: createDefaultLogStorage(), preferenceDisk: createDefaultLogStorage(),
@@ -91,11 +95,11 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
       if (disposed) { return; }
       configureLocale(config.locale);
       states = next;
-      snapshot = { ...snapshot, features: FEATURE_KEYS.filter(key => !!states[key]).map(key => {
+      snapshot = { ...snapshot, features: (Object.keys(config.features) as FeatureKey[]).filter(key => !!states[key]).map(key => {
         let page = pages.get(key);
         if (!page) {
           page = {
-            name: key, label: FEATURE_LABELS[key], get status() { return states[key]!; },
+            name: key, label: isChannelKey(key) ? String(config.features[key]!.options.title) : FEATURE_LABELS[key], get status() { return states[key]!; },
             setup() {}, cleanup() {}, getSnapshot: () => [],
           };
           pages.set(key, page);
@@ -130,9 +134,16 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
     open: panel.open, close: panel.close,
     clear(key) {
       if (!usable()) { return; }
-      for (const feature of LOG_FEATURE_KEYS) {
+      for (const feature of [...bindings.keys()].filter(isLogKey)) {
         if (key === undefined || key === feature) { bindings.get(feature)?.feature.clear?.(); }
       }
+    },
+    log(id, input) {
+      if (!usable()) return result.status === 'disabled' || disposed ? 'disabled' : 'not_ready';
+      const key = `channel.${id}`;
+      if (!isChannelKey(key)) return 'invalid';
+      if (!config.features[key]) return 'invalid';
+      return bindings.get(key)?.actions.log?.(id, input) ?? 'disabled';
     },
     track: (name, data) => { if (usable()) { bindings.get('track')?.actions.track?.(name, data); } },
     state: (id, event) => { if (usable()) { bindings.get('state')?.actions.state?.(id, event); } },
@@ -148,11 +159,11 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
       const report: DebugReport = { status: result.status, features: {}, logs: {} };
       if (disposed || !snapshot.features.length) { return report; }
       report.features = Object.fromEntries(Object.entries(states).map(([key, status]) => [key, {
-        phase: status.phase, issues: status.issues.map(issue => ({ ...issue })),
+        phase: status!.phase, issues: status!.issues.map(issue => ({ ...issue })),
       }]));
-      for (const key of LOG_FEATURE_KEYS) {
+      for (const key of [...bindings.keys()].filter(isLogKey)) {
         const feature = bindings.get(key)?.feature;
-        if (feature) { report.logs[key] = sanitizeDebugLogEntry(feature.getSnapshot()) as readonly unknown[]; }
+        if (feature) { report.logs[key] = (feature.getSnapshot() as unknown[]).map(entry => sanitizeDebugLogEntry(entry)); }
       }
       const connect = bindings.get('connect')?.feature.getSnapshot();
       if (connect?.appId) { report.appId = connect.appId; }

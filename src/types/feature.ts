@@ -7,6 +7,7 @@ export type DebugFeatureListener = () => void;
 
 export interface DebugFeatureRenderProps<TSnapshot = unknown> {
   snapshot: TSnapshot;
+  searchQuery?: string;
   feature: DebugFeature<TSnapshot>;
 }
 

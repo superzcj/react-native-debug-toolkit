@@ -554,7 +554,7 @@ export class HubClient {
       sessionId: this._sessionId,
       startedAt: Date.now(),
       clientAckThrough: this._ackThrough,
-      device,
+      device: { ...device, logChannels: this._featureProvider.features.filter(feature => feature.name.startsWith('channel.')).map(feature => ({id:feature.name,title:feature.label})) },
     };
 
     try {
@@ -776,6 +776,19 @@ export class HubClient {
       this._snapshotFeatures();
     }
 
+    if (!copyOnly) {
+      for (const [type, dropped] of Object.entries(this._overflowByType)) {
+        if (!type.startsWith('channel.') || !dropped || this._pending.length + this._inFlight.length >= MAX_BUFFER_EVENTS - 1
+          || this._pendingBytes + this._inFlightBytes > MAX_BUFFER_BYTES - 2048) continue;
+        const recorded = this._enqueueEvent({type, timestamp:Date.now(), severity:'warn', data:{
+          message:'Hub buffer overflow', summary:`Hub delivery gap: ${dropped} events dropped`,
+          channelTitle:this._featureProvider.features.find(feature => feature.name === type)?.label ?? type,
+          category:'sys', gap:{dropped,stage:'hub-buffer'},
+        }});
+        if (recorded) { delete this._overflowByType[type]; this._overflowCount -= dropped; }
+      }
+    }
+
     if (this._pending.length === 0 && this._inFlight.length === 0) return;
 
     this._sending = true;
@@ -887,7 +900,7 @@ export class HubClient {
       if (this._current(generation)) { this._scheduleRetry(); }
     } finally {
       if (this._current(generation)) { this._sending = false; }
-      if (this._current(generation) && (this._pending.length > 0 || this._inFlight.length > 0) &&
+      if (this._current(generation) && (this._pending.length > 0 || this._inFlight.length > 0 || Object.keys(this._overflowByType).some(type => type.startsWith('channel.'))) &&
           (!this._syncPaused || this._hasPendingDelivery()) && !this._retryTimer) {
         this._scheduleFlush();
       }

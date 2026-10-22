@@ -20,7 +20,6 @@ import { LEVEL_COLORS, LEVEL_ICONS } from '../../constants/logLevels';
 import type { DebugFeature, DebugFeatureRenderProps, LogSession } from '../../types';
 import { getLocale, t } from '../../i18n';
 import {
-  SESSION_HISTORY_LOG_KEYS,
   SESSION_LOG_COLORS,
   countSessionLogs,
   flattenSessionLogs,
@@ -108,7 +107,7 @@ function sessionLogLabel(key: LogFeatureKey): string {
     native_logs: 'feature.native',
     track_logs: 'feature.track',
   };
-  return t(keys[key]);
+  return keys[key] ? t(keys[key]!) : key.replace(/^channel\./, '');
 }
 
 // ── Main Tab ───────────────────────────────────────────────────────────
@@ -205,13 +204,13 @@ export const SessionHistoryTab: React.FC<DebugFeatureRenderProps<SessionHistoryS
 
                   {counts && total > 0 ? (
                     <View style={s.pillRow}>
-                      {SESSION_HISTORY_LOG_KEYS.map((key) => {
+                      {(Object.keys(counts) as LogFeatureKey[]).map((key) => {
                         const c = counts[key] ?? 0;
                         if (c === 0) return null;
                         return (
-                          <View key={key} style={[s.pill, { backgroundColor: SESSION_LOG_COLORS[key] + '18' }]}>
-                            <View style={[s.pillDot, { backgroundColor: SESSION_LOG_COLORS[key] }]} />
-                            <Text style={[s.pillText, { color: SESSION_LOG_COLORS[key] }]}>
+                          <View key={key} style={[s.pill, { backgroundColor: (SESSION_LOG_COLORS[key] ?? Colors.primary) + '18' }]}>
+                            <View style={[s.pillDot, { backgroundColor: SESSION_LOG_COLORS[key] ?? Colors.primary }]} />
+                            <Text style={[s.pillText, { color: SESSION_LOG_COLORS[key] ?? Colors.primary }]}>
                               {c} {sessionLogLabel(key)}
                             </Text>
                           </View>
@@ -265,7 +264,7 @@ const SessionDetail: React.FC<{
         renderListHeader={() => (
           <View style={s.filterBar}>
             <FilterChip label={t('common.all')} count={total} active={filter === 'all'} onPress={() => setFilter('all')} color={Colors.text} />
-            {SESSION_HISTORY_LOG_KEYS.map((key) => {
+            {(Object.keys(logs) as LogFeatureKey[]).map((key) => {
               const c = (logs[key] ?? []).length;
               return (
                 <FilterChip
@@ -274,7 +273,7 @@ const SessionDetail: React.FC<{
                   count={c}
                   active={filter === key}
                   onPress={() => setFilter(key)}
-                  color={SESSION_LOG_COLORS[key]}
+                  color={SESSION_LOG_COLORS[key] ?? Colors.primary}
                 />
               );
             })}
@@ -313,6 +312,10 @@ const FilterChip: React.FC<{
 export function renderSessionLogRow(entry: FlatSessionLogEntry) {
   const e = toRecord(entry);
 
+  if (entry.type.startsWith('channel.')) {
+    return <LogRow content={String(e.summary ?? e.message ?? '')} metadata={<Text>{String(e.category ?? '')} · {String(e.message ?? '')}</Text>}
+      trailingMetadata={<Text>{formatTime(entry.timestamp)}</Text>} />;
+  }
   if (entry.type === 'console_logs') {
     const level = e.level ?? 'log';
     const msg = Array.isArray(e.data)

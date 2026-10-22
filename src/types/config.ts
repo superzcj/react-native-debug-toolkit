@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from 'react';
+import type { LogChannelConfig } from './logChannel';
 import type { EnvironmentOptions } from './environment';
 import type { FeatureConfig } from './feature';
 import type { NativeLogLevel } from './logs';
@@ -64,6 +65,7 @@ export interface DebugToolkitConfig<
   S extends readonly unknown[] = readonly never[],
 > {
   enabled?: boolean;
+  logChannels?: readonly LogChannelConfig[];
   locale?: 'en' | 'zh-CN';
   network?: FeatureConfig<{ maxLogs?: number; excludeUrls?: readonly (string | RegExp)[] }>;
   console?: FeatureConfig<{ maxLogs?: number }>;

@@ -74,7 +74,7 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   document.title = t('web.title');
   const BASE = window.location.origin;
   const PAGE_SIZE = 200;
-  const state = { appId: '', sessions: [], sessionId: null, session: null, events: [], selectedType: '', failedOnly: false, search: '', page: 1, stream: null, maxSequence: 0, pendingLiveUpdates: 0, didAutoOpen: false };
+  const state = { appId: '', sessions: [], sessionId: null, session: null, events: [], selectedType: '', failedOnly: false, includeDetail: false, search: '', page: 1, stream: null, maxSequence: 0, pendingLiveUpdates: 0, didAutoOpen: false };
   const $ = selector => document.querySelector(selector);
   const app = $('#app');
   $('#appSelect').setAttribute('aria-label', t('web.app'));
@@ -93,7 +93,9 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   function writeHash(appId, sessionId) { const next = appId ? '#/' + encodeURIComponent(appId) + (sessionId ? '/' + encodeURIComponent(sessionId) : '') : '#/'; if (location.hash !== next) history.replaceState(null, '', next); }
   function sessionStatus(session) { if (session.syncState === 'paused') return { label: t('web.pausedStatus'), cls: 'paused' }; if (session.connectionState === 'active') return { label: t('web.online'), cls: 'live' }; return { label: t('web.offline'), cls: 'offline' }; }
   function formatBytes(bytes) { if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB'; return (bytes / 1073741824).toFixed(2) + ' GB'; }
-  function typeLabel(type) { const key = type ? 'web.type.' + type : ''; return type && (DICTIONARIES[LOCALE]?.[key] || DICTIONARIES.en?.[key]) ? t(key) : (type ? type.charAt(0).toUpperCase() + type.slice(1) : t('web.unknown')); }
+  function isChannelType(type) { return /^channel\.[A-Za-z0-9_-]{1,40}$/.test(type || ''); }
+  function channelDescriptors() { return Array.isArray(state.session?.device?.logChannels) ? state.session.device.logChannels : []; }
+  function typeLabel(type) { const channel = channelDescriptors().find(item => item.id === type); if (channel) return channel.title; const entry = state.events.find(event => event.type === type && typeof event.data?.channelTitle === 'string'); if (isChannelType(type) && entry) return entry.data.channelTitle; const key = type ? 'web.type.' + type : ''; return type && (DICTIONARIES[LOCALE]?.[key] || DICTIONARIES.en?.[key]) ? t(key) : (type ? type.charAt(0).toUpperCase() + type.slice(1) : t('web.unknown')); }
   function typeClass(type) { return String(type || 'unknown').replace(/[^a-z0-9_-]/gi, '_').toLowerCase(); }
   function deviceLabel(session) { const device = session.device || {}; const parts = []; if (device.platform) parts.push(device.platform === 'ios' ? 'iOS' : device.platform === 'android' ? 'Android' : device.platform); const model = [device.manufacturer, device.model].filter(Boolean).join(' '); if (model) parts.push(model); if (session.sourceIp) parts.push(session.sourceIp); if (device.osVersion) parts.push('OS ' + device.osVersion); if (device.appVersion) parts.push('v' + device.appVersion + (device.buildNumber ? ' (' + device.buildNumber + ')' : '')); return parts.join(' · ') || t('web.unknownDevice'); }
   function formatUrlParts(url) { try { const parsed = new URL(url); return { host: parsed.host, path: parsed.pathname + parsed.search }; } catch { return { host: '', path: url || '—' }; } }
@@ -101,8 +103,8 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   function buildCurl(request) { let command = "curl -X " + (request.method || 'GET') + " '" + quoteCurl(request.url || '') + "'"; if (request.headers) Object.entries(request.headers).forEach(([key, value]) => { command += " \\\n  -H '" + quoteCurl(key) + ': ' + quoteCurl(value) + "'"; }); if (request.body != null && request.body !== '') { command += " \\\n  -d '" + quoteCurl(typeof request.body === 'string' ? request.body : stringify(request.body)) + "'"; } return command; }
   function copyPayload(event, kind) { if (!event) return ''; const data = isRecord(event.data) ? event.data : { value: event.data }; const request = isRecord(data.request) ? data.request : data; const response = isRecord(data.response) ? data.response : null; if (kind === 'url') return request.url || ''; if (kind === 'request') return request.body == null ? '' : formatJson(request.body); if (kind === 'response') return response && response.data != null ? formatJson(response.data) : data.error ? String(data.error) : ''; if (kind === 'curl') return buildCurl(request); if (kind === 'message') { const messages = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return messages.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : formatJson(value)).join('\n'); } return stringify(event); }
   function copyButton(kind, sequence, label) { return '<button type="button" class="copy-btn" data-copy-kind="' + esc(kind) + '" data-copy-sequence="' + sequence + '" title="' + esc(t('common.copy')) + ' ' + esc(label) + '">⧉</button>'; }
-  function summary(event) { const data = event.data || {}; if (event.type === 'network') { const request = data.request || data; if (request.method || request.url) return formatUrlParts(request.url || '').path; } if (event.type === 'console') { const values = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return values.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : stringify(value)).join(' ').slice(0, 240); } if (event.type === 'navigation') return [data.from || data.path, data.to].filter(Boolean).join(' → '); if (event.type === 'track') return data.eventName || data.event || data.name || t('web.event'); if (event.type === 'zustand') return data.action || data.storeName || t('web.stateChange'); if (event.type === 'native') return [data.tag, data.message].filter(Boolean).join(': ') || t('web.nativeLog'); return data.message || data.text || stringify(data).slice(0, 240); }
-  function isFailed(event) { const data = event.data || {}; if (event.type === 'network') { const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return status >= 400; return Boolean(data.error); } return event.severity === 'error' || event.severity === 'fatal' || Boolean(data.error) || Number((data.response || {}).status) >= 400; }
+  function summary(event) { const data = event.data || {}; if (isChannelType(event.type)) return data.summary || data.message || '';  if (event.type === 'network') { const request = data.request || data; if (request.method || request.url) return formatUrlParts(request.url || '').path; } if (event.type === 'console') { const values = Array.isArray(data.data) ? data.data : data.data !== undefined ? [data.data] : [data.message]; return values.filter(value => value !== undefined).map(value => typeof value === 'string' ? value : stringify(value)).join(' ').slice(0, 240); } if (event.type === 'navigation') return [data.from || data.path, data.to].filter(Boolean).join(' → '); if (event.type === 'track') return data.eventName || data.event || data.name || t('web.event'); if (event.type === 'zustand') return data.action || data.storeName || t('web.stateChange'); if (event.type === 'native') return [data.tag, data.message].filter(Boolean).join(': ') || t('web.nativeLog'); return data.message || data.text || stringify(data).slice(0, 240); }
+  function isFailed(event) { const data = event.data || {}; if (event.type === 'network') { const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return status >= 400; return Boolean(data.error); } return event.severity === 'error' || event.severity === 'fatal' || Boolean(data.error) || (isChannelType(event.type) && Boolean(data.data?.error)) || Number((data.response || {}).status) >= 400; }
   function networkStatusLabel(event) { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); if (Number.isFinite(status) && status > 0) return String(status); if (data.error === 'Timeout') return t('web.timeout'); if (data.error === 'Aborted') return t('web.abort'); if (data.error === 'Network Error') return t('web.networkError'); return data.error ? t('web.errorBadge') : '…'; }
   function statusBadge(event) { if (event.type === 'network') { const data = event.data || {}; const response = isRecord(data.response) ? data.response : data; const status = Number(response && response.status); const failed = Number.isFinite(status) && status > 0 ? status >= 400 : Boolean(data.error); return '<span class="badge ' + (failed ? 'badge-error' : 'badge-info') + '">' + esc(networkStatusLabel(event)) + '</span>'; } if (event.severity === 'error' || event.severity === 'fatal') return '<span class="badge badge-error">' + esc(t('web.errorBadge')) + '</span>'; if (event.severity === 'warn') return '<span class="badge badge-warn">' + esc(t('web.warningBadge')) + '</span>'; return '<span class="badge badge-info">' + esc(event.severity || t('web.info')) + '</span>'; }
 
@@ -174,8 +176,17 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
       [t('common.store'), data.storeName], [t('common.action'), data.action], [t('web.duration'), data.actionCompleteTime !== undefined ? data.actionCompleteTime + 'ms' : undefined],
     ])) + renderCollapsedSection(t('web.previousState'), renderValue(data.prevState)) + renderSection(t('web.nextState'), renderValue(data.nextState));
   }
+  function renderChannelData(data) {
+    let html = renderSection(t('web.message'), '<pre>' + esc(data.message || '') + '</pre>');
+    if (data.truncated) html += '<div class="network-meta">' + esc(t('web.channelTruncated', {bytes:data.originalBytes})) + '</div>';
+    if (Array.isArray(data.attachments)) for (const part of data.attachments) {
+      html += renderCollapsedSection(esc(part.label), '<pre>' + esc(part.value) + '</pre>');
+    }
+    return html + renderCollapsedSection(t('web.rawEvent'), renderValue(data));
+  }
   function renderEventData(event) {
     const data = isRecord(event.data) ? event.data : { value: event.data };
+    if (isChannelType(event.type)) return renderChannelData(data);
     if (event.type === 'console') return renderConsoleData(data, event);
     if (event.type === 'native') return renderNativeData(data);
     if (event.type === 'network') return renderNetworkData(data, event);
@@ -217,12 +228,13 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
   }
 
   function countsByType() { return state.events.reduce((counts, event) => { counts[event.type] = (counts[event.type] || 0) + 1; return counts; }, {}); }
-  function filteredEvents() { const term = state.search.toLowerCase(); return state.events.filter(event => (!state.selectedType || event.type === state.selectedType) && (!state.failedOnly || isFailed(event)) && (!term || (summary(event) + ' ' + stringify(event.data)).toLowerCase().includes(term))).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); }
+  function filteredEvents() { const term = state.search.toLowerCase(); return state.events.filter(event => (!state.selectedType || event.type === state.selectedType) && (!isChannelType(event.type) || state.includeDetail || term || !event.data?.detail) && (!state.failedOnly || isFailed(event)) && (!term || (summary(event) + ' ' + stringify(event.data)).toLowerCase().includes(term))).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0) || (b.sequence || 0) - (a.sequence || 0)); }
   function renderLogEntry(event) {
     const data = event.data || {};
     const failed = isFailed(event);
     let typeHtml = '<div class="log-type log-type-' + typeClass(event.type) + '">' + esc(typeLabel(event.type)) + '</div>';
-    let meta = formatTimeShort(event.receivedAt || event.timestamp);
+    let meta = formatTimeShort(isChannelType(event.type) ? event.timestamp : event.receivedAt || event.timestamp);
+    if (isChannelType(event.type)) typeHtml = '<div class="log-type">' + esc(data.category?.toUpperCase() || 'LOG') + '</div>';
     let durationHtml = '<div class="log-duration"></div>';
     let copyKind = event.type === 'console' ? 'message' : 'event';
     if (event.type === 'network') {
@@ -234,7 +246,7 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
       if (data.duration != null) durationHtml = '<div class="log-duration' + (Number(data.duration) >= 1000 ? ' slow' : '') + '">' + esc(data.duration) + 'ms</div>';
       copyKind = (data.response && data.response.data != null) || data.error ? 'response' : 'url';
     }
-    return '<article class="log-entry' + (failed ? ' is-failed' : '') + '" id="entry-' + event.sequence + '"><div class="log-row">' + typeHtml + '<div class="log-summary-col"><div class="log-summary">' + esc(summary(event)) + '</div><div class="log-timestamp">' + esc(meta) + '</div></div><div class="log-status">' + statusBadge(event) + '</div>' + durationHtml + '<div class="log-copy"><button type="button" class="copy-btn" data-copy-kind="' + copyKind + '" data-copy-sequence="' + event.sequence + '" title="' + esc(t('common.copy')) + '">⧉</button></div><div class="log-expand" data-collapse title="' + esc(t('web.toggleDetails')) + '">›</div></div><div class="log-detail"><div class="log-detail-inner">' + renderEventDetails(event) + '</div></div></article>';
+    return '<article class="log-entry' + (failed ? ' is-failed' : '') + '" id="entry-' + event.sequence + '"><div class="log-row">' + typeHtml + '<div class="log-summary-col"><div class="log-summary">' + esc(summary(event)) + (isChannelType(event.type) && data.truncated ? ' · ' + esc(t('web.channelTruncated', {bytes:data.originalBytes})) : '') + '</div><div class="log-timestamp">' + esc(meta) + '</div></div><div class="log-status">' + statusBadge(event) + '</div>' + durationHtml + '<div class="log-copy"><button type="button" class="copy-btn" data-copy-kind="' + copyKind + '" data-copy-sequence="' + event.sequence + '" title="' + esc(t('common.copy')) + '">⧉</button></div><div class="log-expand" data-collapse title="' + esc(t('web.toggleDetails')) + '">›</div></div><div class="log-detail"><div class="log-detail-inner">' + renderEventDetails(event) + '</div></div></article>';
   }
   function bindLogEntry(entry) {
     entry.querySelector('.log-row').addEventListener('click', event => { if (event.target.closest('[data-copy-kind]')) return; entry.classList.toggle('expanded'); });
@@ -268,25 +280,28 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     updateLiveCounters();
   }
   function insertVisibleLiveRow(event) { if (state.page !== 1) return false; const visible = filteredEvents().slice(0, PAGE_SIZE); const position = visible.findIndex(value => value.sequence === event.sequence); if (position < 0) return false; const mount = $('#logMount'); if (!mount) return false; let list = mount.querySelector('.log-list'); if (!list) { mount.innerHTML = '<div class="log-list"></div>'; list = mount.querySelector('.log-list'); } list.insertAdjacentHTML('beforeend', renderLogEntry(event)); const entry = $('#entry-' + event.sequence); const next = visible[position + 1]; list.insertBefore(entry, next ? $('#entry-' + next.sequence) : null); bindLogEntry(entry); if (entry.getBoundingClientRect().top < 0) window.scrollBy(0, entry.offsetHeight); while (list.children.length > visible.length) list.lastElementChild.remove(); return true; }
-  function appendLiveEvent(event) { state.events.push(event); state.maxSequence = event.sequence; if (!insertVisibleLiveRow(event)) state.pendingLiveUpdates += 1; updateLiveCounters(); updateLiveUpdateButton(); }
+  function appendLiveEvent(event) { state.events.push(event); if (state.events.length > 1000) state.events = state.events.slice(-1000); state.maxSequence = event.sequence; if (!insertVisibleLiveRow(event)) state.pendingLiveUpdates += 1; updateLiveCounters(); updateLiveUpdateButton(); }
 
   function renderDetail() {
     const session = state.session;
     if (!session) return renderList();
     state.pendingLiveUpdates = 0;
-    const counts = countsByType(); const types = Object.keys(counts).sort(); const filtered = filteredEvents(); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); state.page = Math.min(state.page, pages); const start = (state.page - 1) * PAGE_SIZE; const visible = filtered.slice(start, start + PAGE_SIZE);
+    const counts = countsByType(); const types = [...new Set([...Object.keys(counts), ...channelDescriptors().map(channel => channel.id)])].sort(); const filtered = filteredEvents(); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)); state.page = Math.min(state.page, pages); const start = (state.page - 1) * PAGE_SIZE; const visible = filtered.slice(start, start + PAGE_SIZE);
     const status = sessionStatus(session);
     const barMeta = [esc(deviceLabel(session)), esc(formatAge(session.lastSeenAt) || formatTime(session.lastSeenAt)), '<span id="entryCount">' + state.events.length + '</span> ' + esc(t('web.logs'))].concat(session.sourceIp ? [esc(session.sourceIp)] : []).join(' · ');
     let html = '<div class="detail-chrome"><div class="detail-bar"><button type="button" class="back-link" id="backButton">← ' + esc(t('web.backDevices')) + '</button><div class="detail-bar-meta">' + barMeta + '</div><span class="tag tag-' + status.cls + '">' + esc(status.label) + '</span></div>';
     html += '<nav class="tabs"><button class="tab ' + (!state.selectedType ? 'active' : '') + '" data-type="">' + esc(t('common.all')) + '<span class="count">' + state.events.length + '</span></button>';
-    types.forEach(type => { html += '<button class="tab ' + (state.selectedType === type ? 'active' : '') + '" data-type="' + esc(type) + '">' + esc(typeLabel(type)) + '<span class="count">' + counts[type] + '</span></button>'; });
+    types.forEach(type => { html += '<button class="tab ' + (state.selectedType === type ? 'active' : '') + '" data-type="' + esc(type) + '">' + esc(typeLabel(type)) + '<span class="count">' + (counts[type] || 0) + '</span></button>'; });
     html += '</nav><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="searchInput" type="text" value="' + esc(state.search) + '" placeholder="' + esc(t('panel.searchLogs')) + '" aria-label="' + esc(t('panel.searchLogs')) + '" autocomplete="off"></div><label class="toggle-label">' + esc(t('web.failedOnly')) + ' <span id="failedToggle" class="toggle ' + (state.failedOnly ? 'on' : '') + '"></span></label><button type="button" class="btn ' + (state.stream ? 'on' : '') + '" id="liveButton" aria-pressed="' + (state.stream ? 'true' : 'false') + '" title="' + esc(state.stream ? t('web.pauseLive') : t('web.resumeLive')) + '">' + (state.stream ? '● ' + esc(t('web.live')) : '○ ' + esc(t('web.paused'))) + '</button><button type="button" class="btn" id="liveUpdateButton" hidden></button></div></div>';
+    if (types.some(isChannelType)) html += '<div class="toolbar"><button class="btn" id="processButton" aria-pressed="' + state.includeDetail + '">' + esc(t(state.includeDetail ? 'web.channelHideProcess' : 'web.channelIncludeProcess')) + '</button><button class="btn" id="channelExport">' + esc(t('web.channelExport')) + '</button><span class="network-meta">' + esc(t('web.channelRetainedHint')) + '</span></div>';
     html += '<div id="logMount">';
     if (!visible.length) html += '<div class="empty" style="padding:40px"><div class="empty-icon" style="font-size:24px">0</div><p>' + esc(t('web.noLogsMatch')) + '</p></div>';
     else html += '<div class="log-list">' + visible.map(renderLogEntry).join('') + '</div>';
     html += '</div>';
     html += '<div class="pager"><span id="pagerRange">' + esc(t('web.pageRange', { start: filtered.length ? start + 1 : 0, end: Math.min(start + PAGE_SIZE, filtered.length), total: filtered.length })) + '</span><button class="page-btn" id="previousPage" data-page="' + (state.page - 1) + '" ' + (state.page <= 1 ? 'disabled' : '') + '>' + esc(t('web.prev')) + '</button><span id="pagerPage">' + esc(t('web.page', { current: state.page, total: pages })) + '</span><button class="page-btn" id="nextPage" data-page="' + (state.page + 1) + '" ' + (state.page >= pages ? 'disabled' : '') + '>' + esc(t('web.next')) + '</button></div>';
     app.innerHTML = html;
+    $('#processButton')?.addEventListener('click', () => { state.includeDetail = !state.includeDetail; state.page = 1; renderDetail(); });
+    $('#channelExport')?.addEventListener('click', exportChannelLogs);
     $('#backButton').addEventListener('click', renderList);
     app.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => { state.selectedType = tab.dataset.type || ''; state.page = 1; app.querySelectorAll('.tab').forEach(node => node.classList.toggle('active', node === tab)); refreshLogList(); }));
     $('#searchInput').addEventListener('input', event => { state.search = event.target.value; state.page = 1; refreshLogList(); });
@@ -297,12 +312,46 @@ select,input[type=text]{width:100%;padding:6px 10px;font:12px var(--font-sans);b
     app.querySelectorAll('[data-page]').forEach(button => button.addEventListener('click', () => { state.page = Number(button.dataset.page); refreshLogList(); }));
   }
 
-  async function openSession(sessionId) {
-    const session = state.sessions.find(value => value.sessionId === sessionId); if (!session) return; closeStream(); state.sessionId = sessionId; state.session = session; state.events = []; state.selectedType = ''; state.failedOnly = false; state.search = ''; state.page = 1; state.pendingLiveUpdates = 0; writeHash(state.appId, sessionId); app.innerHTML = '<div class="empty"><div class="empty-icon">…</div><p>' + esc(t('web.loadingLogs')) + '</p></div>';
-    try { const result = await api('/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(sessionId) + '/events?limit=500'); state.events = result.events || []; state.maxSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), 0); renderDetail(); startStream(); renderDetail(); } catch (error) { app.innerHTML = '<div class="empty" style="color:var(--red)">' + esc(t('web.failedLoadLogs', { error: error.message })) + '</div>'; }
+  async function exportChannelLogs() {
+    const appId = state.appId, sessionId = state.sessionId, type = state.selectedType;
+    const through = Math.max(Number(state.session?.ackThrough) || 0, state.maxSequence);
+    const button = $('#channelExport'); if (button) button.disabled = true;
+    try {
+      const events = []; let cursor = 0;
+      while (cursor < through) {
+        const result = await api('/api/v1/apps/' + encodeURIComponent(appId) + '/sessions/' + encodeURIComponent(sessionId) + '/events?limit=500&sinceSequence=' + cursor + (isChannelType(type) ? '&type=' + encodeURIComponent(type) : ''));
+        events.push(...(result.events || []).filter(event => event.sequence <= through && isChannelType(event.type)));
+        if (!result.hasMore || !result.nextSequence || result.nextSequence <= cursor) break;
+        cursor = result.nextSequence;
+      }
+      const blob = new Blob([JSON.stringify({sessionId, throughSequence:through, retainedOnly:true, events}, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = (type || 'channels') + '-' + sessionId + '.json';
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+    } catch (error) { if (button) button.textContent = t('web.failedLoadLogs', {error:error.message}); }
+    finally { if (button) button.disabled = false; }
   }
 
-  function startStream() { if (!state.appId || !state.sessionId || state.stream) return; const stream = new EventSource(BASE + '/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(state.sessionId) + '/stream'); state.stream = stream; stream.addEventListener('event', message => { try { const event = JSON.parse(message.data); if (event.sequence > state.maxSequence) appendLiveEvent(event); } catch {} }); stream.onerror = () => { /* EventSource reconnects itself. */ }; }
+  async function openSession(sessionId) {
+    const session = state.sessions.find(value => value.sessionId === sessionId); if (!session) return; closeStream(); state.sessionId = sessionId; state.session = session; state.events = []; state.selectedType = ''; state.failedOnly = false; state.search = ''; state.page = 1; state.pendingLiveUpdates = 0; writeHash(state.appId, sessionId); app.innerHTML = '<div class="empty"><div class="empty-icon">…</div><p>' + esc(t('web.loadingLogs')) + '</p></div>';
+    const appId = state.appId, through = Number(session.ackThrough) || 0;
+    let cursor = Math.max(0, through - 1000);
+    try {
+      const events = [];
+      do {
+        const result = await api('/api/v1/apps/' + encodeURIComponent(appId) + '/sessions/' + encodeURIComponent(sessionId) + '/events?limit=200&sinceSequence=' + cursor);
+        if (state.sessionId !== sessionId || state.appId !== appId) return;
+        events.push(...(result.events || []).filter(event => !through || event.sequence <= through));
+        if (!result.hasMore || !result.nextSequence || result.nextSequence <= cursor) break;
+        cursor = result.nextSequence;
+      } while (!through || cursor < through);
+      state.events = events.slice(-1000);
+      state.maxSequence = state.events.reduce((max, event) => Math.max(max, event.sequence || 0), cursor);
+      renderDetail(); startStream(); renderDetail();
+    } catch (error) { if (state.sessionId === sessionId) app.innerHTML = '<div class="empty" style="color:var(--red)">' + esc(t('web.failedLoadLogs', {error:error.message})) + '</div>'; }
+  }
+
+  function startStream() { if (!state.appId || !state.sessionId || state.stream) return; const stream = new EventSource(BASE + '/api/v1/apps/' + encodeURIComponent(state.appId) + '/sessions/' + encodeURIComponent(state.sessionId) + '/stream?sinceSequence=' + state.maxSequence); state.stream = stream; stream.addEventListener('event', message => { try { const event = JSON.parse(message.data); if (event.sequence > state.maxSequence) appendLiveEvent(event); } catch {} }); stream.onerror = () => { /* EventSource reconnects itself. */ }; }
+
   function closeStream() { if (state.stream) { state.stream.close(); state.stream = null; } }
   function copyText(text) { navigator.clipboard?.writeText(text).then(() => showToast(t('web.copiedClipboard'))).catch(() => showToast(t('web.copyUnavailable'))); }
 

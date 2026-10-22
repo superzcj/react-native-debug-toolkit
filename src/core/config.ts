@@ -1,6 +1,6 @@
 import { FEATURE_KEYS } from './featureCatalog';
 import { normalizeEnvironment } from '../features/environment/environmentConfig';
-import type { FeatureKey } from './featureCatalog';
+import type { FeatureKey, BuiltinFeatureKey } from './featureCatalog';
 import type { DebugQuickAction } from '../types/config';
 
 export interface ConfigIssue { path: string; message: string }
@@ -32,7 +32,7 @@ export interface NormalizedConfig {
 
 const MAX_QUICK_ACTIONS = 5;
 
-export const FEATURE_FIELDS: Readonly<Record<FeatureKey, readonly string[]>> = {
+export const FEATURE_FIELDS: Readonly<Record<BuiltinFeatureKey, readonly string[]>> = {
   network: ['maxLogs', 'excludeUrls'],
   console: ['maxLogs'],
   native: ['maxLogs', 'minLevel', 'includeTags', 'excludeTags', 'pollIntervalMs'],
@@ -48,7 +48,7 @@ export const FEATURE_FIELDS: Readonly<Record<FeatureKey, readonly string[]>> = {
   tabs: ['items'],
 };
 
-export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, Readonly<Record<string, unknown>>>> = {
+export const FEATURE_DEFAULTS: Readonly<Record<BuiltinFeatureKey, Readonly<Record<string, unknown>>>> = {
   network: { maxLogs: 200, excludeUrls: [] },
   console: { maxLogs: 200 },
   native: { maxLogs: 200, includeTags: [], excludeTags: [], pollIntervalMs: 500 },
@@ -92,7 +92,7 @@ function isList(value: unknown, validate: (item: unknown) => boolean): boolean {
   return Array.isArray(value) && Array.from(value).every(validate);
 }
 
-function validField(key: FeatureKey, field: string, value: unknown): boolean {
+function validField(key: BuiltinFeatureKey, field: string, value: unknown): boolean {
   switch (field) {
     case 'enabled':
     case 'isAuthenticated':
@@ -230,7 +230,7 @@ function normalizeQuickActions(input: unknown, issues: ConfigIssue[]): {
   return { enabled, items: Object.freeze(items) };
 }
 
-function normalizeFeature(key: FeatureKey, input: unknown): NormalizedFeature {
+function normalizeFeature(key: BuiltinFeatureKey, input: unknown): NormalizedFeature {
   if (key === 'environment') {
     const parsed = normalizeEnvironment(input);
     return {
@@ -348,6 +348,8 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
         } else if (field === 'locale') {
           if (value === undefined || value === 'en' || value === 'zh-CN') {locale = value;}
           else {issues.push({ path: field, message: 'Expected en or zh-CN.' });}
+        } else if (field === 'logChannels') {
+          // Validated with IDs below.
         } else if (field === 'quickActions') {
           quickActions = value;
         } else if (!FEATURE_KEYS.some((key) => key === field)) {
@@ -358,5 +360,29 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
   }
   // The fixed catalog supplies every key, including invalid or disabled features.
   const features = Object.fromEntries(FEATURE_KEYS.map((key) => [key, normalizeFeature(key, config[key])])) as Record<FeatureKey, NormalizedFeature>;
+  if (config.logChannels !== undefined) {
+    if (!Array.isArray(config.logChannels) || config.logChannels.length > 16) issues.push({ path: 'logChannels', message: 'Expected an array.' });
+    else {
+      const ids = new Set<string>();
+      Array.from(config.logChannels).forEach((value: unknown, index) => {
+        const path = `logChannels[${index}]`;
+        if (!isConfigObject(value) || typeof value.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(value.id)
+          || typeof value.title !== 'string' || !value.title.trim() || value.title.length > 80 || ids.has(value.id)) {
+          issues.push({ path, message: 'Expected a unique channel ID and a non-empty title (max 80 characters).' }); return;
+        }
+        ids.add(value.id);
+        const maxLogs = value.maxLogs ?? 1000, maxBytes = value.maxBytes ?? 2 * 1024 * 1024;
+        if (!Number.isSafeInteger(maxLogs) || (maxLogs as number) < 1 || (maxLogs as number) > 10000
+          || !Number.isSafeInteger(maxBytes) || (maxBytes as number) < 16384 || (maxBytes as number) > 16 * 1024 * 1024
+          || value.enabled !== undefined && typeof value.enabled !== 'boolean') {
+          issues.push({ path, message: 'Invalid channel limits or enabled flag.' }); return;
+        }
+        for (const field of Object.keys(value)) if (!['id','title','maxLogs','maxBytes','enabled'].includes(field))
+          issues.push({ path: `${path}.${field}`, message: 'Unknown channel field.' });
+        const key = `channel.${value.id}` as const;
+        features[key] = { key, enabled: value.enabled !== false, options: Object.freeze({ id: value.id, title: value.title, maxLogs, maxBytes }), issues: [] };
+      });
+    }
+  }
   return { enabled, locale, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
 }

@@ -11,7 +11,8 @@ function active(): ToolkitHost | null {
 /** Public calls only query the mounted owner; importing/calling this never starts it. */
 export const debug: DebugActions = {
   ready: () => getActiveRuntime()?.ready ?? Promise.resolve({ status: 'not_started', features: {}, issues: [] }),
-  open: () => active()?.actions.open(),
+  open: feature => active()?.actions.open(feature),
+  log: (id, input) => active()?.actions.log(id, input) ?? 'not_ready',
   close: () => active()?.actions.close(),
   clear: feature => active()?.actions.clear(feature),
   track: (name, data) => active()?.actions.track(name, data),

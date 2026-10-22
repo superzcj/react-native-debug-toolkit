@@ -120,3 +120,32 @@ npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
 用于 Debug/内测构建。Release 默认关闭，内部构建需显式启用并在 Connect 手动上传；公开生产包保持关闭。Hub 仅在可信网络使用，分享前检查日志内容；日志默认不脱敏。
 
 [MIT 许可证](LICENSE)
+
+## 应用日志通道
+
+通过静态通道配置，让手机面板和 Hub 都有独立的一级日志 tab。原始 message/data 始终保留，summary 只提供辅助文案。
+
+```tsx
+withDebugToolkit(App, {
+  logChannels: [
+    { id: "ble", title: "蓝牙", maxLogs: 1000, maxBytes: 2 * 1024 * 1024 },
+  ],
+});
+
+await debug.ready();
+debug.log("ble", {
+  message: "ATT write acknowledged",
+  summary: "NFC 设置 · 已发送",
+  category: "tx",
+  source: { id: "sdk-instance", sequence: 1 },
+  attachments: [{ label: "明文", value: "00 01 ff" }],
+  data: { receipt: "attWriteResponse" },
+});
+debug.open("channel.ble");
+```
+
+`debug.log` 同步返回 recorded / duplicate / disabled / not_ready / invalid，不等待磁盘或 Hub。`detail: true` 的过程记录默认不展示，但搜索、“包含过程日志”和原始导出仍保留它。每个 source.id 内按递增 sequence 投递；清空保留有界去重水位，避免旧缓存补回来。
+
+默认最多保留最近 1000 条 / 2 MiB，先触及哪个就按哪个裁剪；单条超过 16 KiB 会明确标记截断。手机导出包含仍保留的全部过程记录。Hub 展示最近 1000 个事件，导出会分页读取服务器仍保留的日志，并包含导出开始前已接收的实时事件。传输缓冲丢失会产生缺口记录，手机清空不删除 Hub 历史。
+
+通道 ID 支持 1–40 位英文字母、数字、下划线和短横线，最多配置 16 个通道。Toolkit 不解析蓝牙业务协议。

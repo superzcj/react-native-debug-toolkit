@@ -18,3 +18,5 @@ export type {
   StateEvent, StateLogEntry, NavigationEvent, NavigationLogEntry,
   NetworkLogEntry, ConsoleLogEntry, NativeLogEntry, NativeLogLevel, NativeLogSource, TrackLogEntry,
 } from './types/logs';
+
+export type { LogChannelConfig, LogChannelInput, LogChannelEntry, LogRecordResult } from './types/logChannel';

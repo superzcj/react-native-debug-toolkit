@@ -2,7 +2,10 @@ import type { DebugFeature, FeatureDataProvider } from '../types/feature';
 import type { DebugActions, FeatureStatus } from '../types/debug';
 import type { FeatureContext, FeatureDriver, RuntimeDependencies } from './runtimeTypes';
 import type { FeatureKey } from './featureCatalog';
-import { FEATURE_LABELS } from './featureCatalog';
+import { createLogChannelFeature } from '../features/logChannels';
+import { LogChannelTab } from '../features/logChannels/LogChannelTab';
+import type { LogChannelConfig } from '../types/logChannel';
+import { FEATURE_LABELS, isChannelKey } from './featureCatalog';
 import type { LogRuntimeContext } from '../utils/logRuntime';
 import { createNetworkFeature } from '../features/network';
 import { createConsoleLogFeature } from '../features/console';
@@ -86,9 +89,15 @@ export function createFeatureDrivers(services: {
         feature = accounts; actions.accounts = accounts.actions; break;
       }
       case 'tabs': feature = createTabsFeature(options); break;
+      default: {
+        if (!isChannelKey(config.key)) throw new Error('Unknown feature');
+        const channel = createLogChannelFeature(options as unknown as LogChannelConfig, services.logs);
+        feature = channel; feature.renderContent = LogChannelTab;
+        actions.log = (_id, input) => channel.record(input);
+      }
     }
     feature.name = config.key;
-    Object.defineProperty(feature, 'label', { configurable: true, value: FEATURE_LABELS[config.key] });
+    Object.defineProperty(feature, 'label', { configurable: true, value: isChannelKey(config.key) ? String(options.title) : FEATURE_LABELS[config.key] });
     features.set(config.key, feature);
     let context: FeatureContext | undefined;
     let live = false;

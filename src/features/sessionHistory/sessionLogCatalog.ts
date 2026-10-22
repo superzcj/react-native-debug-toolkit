@@ -40,7 +40,7 @@ export function flattenSessionLogs(
   filter: DetailFilter,
 ): FlatSessionLogEntry[] {
   const keys: readonly LogFeatureKey[] = filter === 'all'
-    ? SESSION_HISTORY_LOG_KEYS
+    ? Object.keys(logs) as LogFeatureKey[]
     : [filter];
   const entries: FlatSessionLogEntry[] = [];
 

@@ -1,5 +1,4 @@
 import type { ConfigIssue, NormalizedConfig, NormalizedFeature } from './config';
-import { FEATURE_KEYS } from './featureCatalog';
 import type { FeatureKey } from './featureCatalog';
 import type {
   FeatureDriver, FeatureStatus, ReadyResult, RuntimeDependencies, ToolkitRuntime,
@@ -84,7 +83,7 @@ export function createToolkitRuntime(
         isCurrent,
         setStatus(status) {
           if (!isCurrent()) {return;}
-          features = { ...features, [feature.key]: { phase: status.phase, issues: [...status.issues] } };
+          features = { ...features, [feature.key]: { phase: status!.phase, issues: [...status!.issues] } };
           publish();
         },
       });
@@ -128,7 +127,7 @@ export function createToolkitRuntime(
       settle('disabled');
       return;
     }
-    const enabledFeatures = FEATURE_KEYS.map((key) => config.features[key]).filter((feature) => feature.enabled);
+    const enabledFeatures = Object.values(config.features).filter((feature) => feature.enabled);
     // Register all enabled pages atomically, including those with invalid options.
     features = Object.fromEntries(enabledFeatures.map((feature) => [feature.key, {
       phase: feature.issues.length > 0 ? 'error' : 'initializing', issues: [...feature.issues],
@@ -136,7 +135,7 @@ export function createToolkitRuntime(
     publish();
     await Promise.all(enabledFeatures.map(startFeature));
     if (!current) {return;}
-    const partial = Object.values(features).some((status) => status.phase === 'error' || status.phase === 'unavailable');
+    const partial = Object.values(features).some((status) => status!.phase === 'error' || status!.phase === 'unavailable');
     settle(partial ? 'partial' : 'ready');
   }
 
@@ -150,7 +149,7 @@ export function createToolkitRuntime(
         invalidate();
         const issue = { path: 'initialization', message: 'Toolkit initialization timed out after 10 seconds.' };
         features = Object.fromEntries(Object.entries(features).map(([key, status]) => [key, {
-          phase: 'error', issues: [...status.issues, issue],
+          phase: 'error', issues: [...status!.issues, issue],
         }]));
         // One controlled final publication; invalidated continuations cannot publish.
         if (Object.keys(features).length > 0) {

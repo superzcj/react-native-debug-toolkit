@@ -521,3 +521,23 @@ describe('HubClient transport', () => {
     client.disconnect();
   });
 });
+
+it('channel buffer overflow is delivered as a visible gap rather than silent loss',async()=>{
+ jest.useFakeTimers();const events: Array<{type:string;data:Record<string,unknown>}> = [];
+ const provider:FeatureDataProvider={features:[{name:'channel.ble',label:'蓝牙',status:{phase:'ready',issues:[]},setup(){},cleanup(){},
+  getSnapshot:()=>Array.from({length:1000},(_,i)=>({id:String(i),timestamp:1700000000000+i,channelTitle:'蓝牙',message:'frame',data:{frame:i}}))}],subscribe:()=>()=>{}};
+ const client=new HubClient({featureProvider:provider,fetch:async(url,init)=>{
+  if(!url.endsWith('/events'))return response(201,openBody);
+  const body=JSON.parse(init?.body as string);events.push(...body.events);
+  return response(200,{ok:true,ackThrough:body.events.at(-1).sequence});
+ }});
+ try {
+  client.configure({appId:'app',endpoint:'http://hub:3800'});client.connect({live:true});
+  // Ten 50-event flush slots drain the bounded backlog; the next slot carries the gap notice.
+  await jest.advanceTimersByTimeAsync(11000);
+  const gaps=events.filter(event=>event.type==='channel.ble'&&event.data.gap);
+  expect(gaps.length).toBeGreaterThan(0);
+  const dropped=gaps.reduce((n,event)=>n+(event.data.gap as {dropped:number}).dropped,0);
+  expect(events.filter(event=>event.data.message==='frame').length+dropped).toBe(1000);
+ }finally{client.disconnect();jest.useRealTimers();}
+});

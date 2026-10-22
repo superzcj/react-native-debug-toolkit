@@ -90,5 +90,10 @@
   "web.type.navigation": "导航",
   "web.type.track": "埋点",
   "web.type.zustand": "状态",
-  "web.type.native": "原生"
+  "web.type.native": "原生",
+  "web.channelTruncated": "已截断 · 原 {bytes} 字节",
+  "web.channelHideProcess": "隐藏过程日志",
+  "web.channelIncludeProcess": "包含过程日志",
+  "web.channelExport": "导出保留的原始通道日志",
+  "web.channelRetainedHint": "展示最近 1,000 条；导出包含 Hub 保留的过程日志。手机清空不删除 Hub 历史。"
 }

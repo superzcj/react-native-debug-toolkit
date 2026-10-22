@@ -112,7 +112,7 @@ describe('createToolkitRuntime', () => {
 
     expect(result.status).toBe('partial');
     expect(result.features.network?.phase).toBe('error');
-    expect(Object.values(result.features).filter((status) => status.phase === 'ready')).toHaveLength(11);
+    expect(Object.values(result.features).filter((status) => status?.phase === 'ready')).toHaveLength(11);
     expect(dispose).toHaveBeenCalledTimes(1);
     expect(statuses.at(-1)?.network?.phase).toBe('error');
   });
@@ -129,7 +129,7 @@ describe('createToolkitRuntime', () => {
 
     expect(result.status).toBe('ready');
     expect(Object.values(result.features)).toHaveLength(12);
-    expect(Object.values(result.features).every((status) => status.phase === 'empty')).toBe(true);
+    expect(Object.values(result.features).every((status) => status?.phase === 'empty')).toBe(true);
   });
 
   test('explicit enabled and fallback values take precedence over native detection', async () => {
@@ -195,7 +195,7 @@ describe('createToolkitRuntime', () => {
     expect(result.status).toBe('initialization_timeout');
     expect(disposes).toHaveLength(12);
     expect(disposes.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
-    expect(Object.values(result.features).every((status) => status.phase === 'error')).toBe(true);
+    expect(Object.values(result.features).every((status) => status?.phase === 'error')).toBe(true);
 
     finish();
     await Promise.resolve();

@@ -90,5 +90,10 @@
   "web.type.navigation": "Navigation",
   "web.type.track": "Track",
   "web.type.zustand": "State",
-  "web.type.native": "Native"
+  "web.type.native": "Native",
+  "web.channelTruncated": "Truncated · originally {bytes} bytes",
+  "web.channelHideProcess": "Hide process logs",
+  "web.channelIncludeProcess": "Include process logs",
+  "web.channelExport": "Export retained raw channel logs",
+  "web.channelRetainedHint": "Shows latest 1,000 events; export includes retained process logs. Phone clear does not erase Hub history."
 }

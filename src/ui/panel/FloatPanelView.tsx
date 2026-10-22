@@ -135,13 +135,15 @@ function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectio
 interface FloatPanelViewProps {
   features: AnyDebugFeature[];
   panelOpen: boolean;
+  panelTarget?: string;
+  panelRequest?: number;
   quickActions?: readonly DebugQuickAction[];
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onClearAll: () => void;
 }
 
-export function FloatPanelView({ features, panelOpen, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
+export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [filters, dispatchFilters] = useReducer(
     panelFilterReducer,
@@ -149,6 +151,7 @@ export function FloatPanelView({ features, panelOpen, quickActions = [], onOpenP
   );
   const { searchQuery, filterBad, searchExpanded } = filters;
   const tabLoaded = useRef(false);
+  const handledPanelRequest = useRef<number | undefined>(undefined);
 
   // Restore last tab on mount
   useEffect(() => {
@@ -179,6 +182,13 @@ export function FloatPanelView({ features, panelOpen, quickActions = [], onOpenP
       }
     }, [features]),
   });
+
+  useEffect(() => {
+    if (!panelTarget || !panelOpen || panelRequest === handledPanelRequest.current) return;
+    const index = features.findIndex(feature => feature.name === panelTarget);
+    if (index >= 0) { handledPanelRequest.current = panelRequest; tabLoaded.current = true; changeTabWithFilterReset(dispatchFilters, setActiveTab, index); }
+    // Explicit open requests win over a pending preference restore and manual tab selection remains local.
+  }, [panelTarget, panelRequest, panelOpen, features]);
 
   // Feature subscription → re-render on data changes
   const [, setTick] = useState(0);
@@ -257,7 +267,7 @@ export function FloatPanelView({ features, panelOpen, quickActions = [], onOpenP
     if (!feature) return <Text style={styles.emptyText}>{t('panel.featureNotFound')}</Text>;
     const snapshot = filteredSnapshot;
     const TabComponent = feature.renderContent;
-    if (TabComponent) return <TabComponent snapshot={snapshot} feature={feature} />;
+    if (TabComponent) return <TabComponent snapshot={snapshot} feature={feature} searchQuery={searchQuery} />;
     return (
       <View style={styles.genericContent}>
         <Text style={styles.jsonContent}>{JSON.stringify(snapshot, null, 2)}</Text>

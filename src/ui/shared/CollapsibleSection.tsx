@@ -6,12 +6,14 @@ import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 interface Props {
   title: string;
   initiallyExpanded?: boolean;
+  compact?: boolean;
   children: React.ReactNode;
 }
 
 export const CollapsibleSection: React.FC<Props> = ({
   title,
   initiallyExpanded = false,
+  compact = false,
   children,
 }) => {
   const [expanded, setExpanded] = useState(initiallyExpanded);
@@ -31,12 +33,12 @@ export const CollapsibleSection: React.FC<Props> = ({
   });
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, compact && styles.compactSection]}>
       <Pressable
-        style={styles.header}
+        style={[styles.header, compact && styles.compactHeader]}
         onPress={() => setExpanded(!expanded)}
       >
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, compact && styles.compactTitle]}>{title}</Text>
         <Animated.Text style={[styles.chevron, { transform: [{ rotate: chevronRotation }] }]}>
           ›
         </Animated.Text>
@@ -47,6 +49,9 @@ export const CollapsibleSection: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  compactSection: { backgroundColor: 'transparent', borderWidth: 0, marginBottom: 0 },
+  compactHeader: { paddingHorizontal: 0, paddingVertical: 4 },
+  compactTitle: { fontSize: 12, fontWeight: '500', color: Colors.primary },
   section: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.MD,
