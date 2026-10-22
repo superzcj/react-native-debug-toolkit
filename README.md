@@ -55,7 +55,7 @@ Network and console capture start automatically after initialization. State, nav
 
 ### Add the in-app inspector
 
-The documented integration path is React Native CLI. Expo Go is unsupported; Expo development builds, Expo Router, and legacy architecture are not yet verified. The declared RN version range is a candidate range, not a guarantee of native build compatibility. See the [support matrix](docs/integration.md#1-find-the-existing-root).
+The documented integration path is React Native CLI. An isolated Expo 58 / RN 0.88.0 / Nitro 0.37.1 app has also passed an iOS simulator Release build and native runtime checks. Expo Go is unsupported; Expo Router, Android on this newer combination, and legacy architecture remain unverified. See the [support matrix](docs/integration.md#1-find-the-existing-root) for the scope of each check.
 
 Install the package and native dependencies in your existing React Native CLI app:
 

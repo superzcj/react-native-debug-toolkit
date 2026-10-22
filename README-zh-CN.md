@@ -55,7 +55,7 @@ Network 和 Console 在初始化后自动采集；状态、导航、埋点及业
 
 ### 加入 App 内面板
 
-当前接入指南面向 React Native CLI。Expo Go 不支持；Expo development build、Expo Router 和旧架构尚未验证。声明的 RN 版本范围是候选范围，不代表每个版本都已通过原生构建。详见[支持矩阵](docs/integration.zh-CN.md#1-找到现有根入口)。
+当前接入指南面向 React Native CLI。另已使用隔离的 Expo 58 / RN 0.88.0 / Nitro 0.37.1 App，通过 iOS 模拟器 Release 构建和原生运行检查。Expo Go 不支持；Expo Router、新组合的 Android 和旧架构仍未验证。各项检查的范围见[支持矩阵](docs/integration.zh-CN.md#1-找到现有根入口)。
 
 在现有 React Native CLI App 安装包与原生依赖：
 

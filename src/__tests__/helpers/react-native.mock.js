@@ -1,4 +1,8 @@
 // Minimal React Native mock for testing pure JS/TS logic
+const absoluteFill = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 };
+const flatten = (style) => Array.isArray(style)
+  ? Object.assign({}, ...style.map(flatten))
+  : style && typeof style === 'object' ? style : undefined;
 module.exports = {
   View: 'View',
   Text: 'Text',
@@ -26,6 +30,9 @@ module.exports = {
   },
   StyleSheet: {
     create: (styles) => styles,
+    flatten,
+    absoluteFill,
+    absoluteFillObject: absoluteFill,
     hairlineWidth: 0.5,
   },
   Animated: {
