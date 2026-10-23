@@ -1,3 +1,5 @@
+import { filterFeatureSnapshot } from '../../ui/panel/filterFeatureSnapshot';
+import type { DebugFeature } from '../../types/feature';
 import {
   selectChannelLogs,
   channelRawText,
@@ -40,4 +42,29 @@ test('raw export includes process records, original message and byte-exact hex, 
   expect(
     selectChannelLogs(entries, false, 'aa bb cc').map((e) => e.id),
   ).toEqual(['2']);
+});
+
+const channel: DebugFeature<LogChannelEntry[]> = {
+  name: 'channel.ble', label: '蓝牙', status: { phase: 'ready', issues: [] },
+  setup() {}, cleanup() {}, getSnapshot: () => entries,
+};
+
+test('panel search preserves the retained count and complete raw export for a channel', () => {
+  const snapshot = filterFeatureSnapshot(channel, entries, 'raw evidence', 'all') as LogChannelEntry[];
+  expect(snapshot).toHaveLength(2);
+  expect(selectChannelLogs(snapshot, false, 'raw evidence').map(entry => entry.id)).toEqual(['2']);
+  expect(JSON.parse(channelRawText(snapshot))).toHaveLength(2);
+});
+
+test('channel search owns whitespace normalization and raw JSON field matching', () => {
+  for (const query of ['  queued  ', 'detail']) {
+    const snapshot = filterFeatureSnapshot(channel, entries, query, 'all') as LogChannelEntry[];
+    expect(selectChannelLogs(snapshot, false, query).map(entry => entry.id)).toEqual(['1']);
+  }
+});
+
+test('built-in console search and bad filtering continue to run in the panel', () => {
+  const consoleFeature = { ...channel, name: 'console' };
+  const logs = [{ level: 'info', message: 'good' }, { level: 'error', message: 'bad' }];
+  expect(filterFeatureSnapshot(consoleFeature, logs, 'bad', 'bad')).toEqual([logs[1]]);
 });

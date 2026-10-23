@@ -1,3 +1,4 @@
+import type { SessionInfo } from './deviceReport';
 import type { ConfigIssue } from '../core/config';
 import { SessionManager } from './SessionManager';
 import { MemoryStorageAdapter, createResilientStorage, type StorageAdapter } from './StorageAdapter';
@@ -16,7 +17,7 @@ export interface LogRuntimeContext {
 }
 
 export interface LogRuntimeOptions {
-  channels?: readonly { id: string; title: string }[];
+  channels?: SessionInfo['channels'];
   history: { enabled: boolean; maxSessions: number };
   logDisk: StorageAdapter;
   preferenceDisk: StorageAdapter;

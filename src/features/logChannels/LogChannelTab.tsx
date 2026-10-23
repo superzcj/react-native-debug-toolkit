@@ -145,13 +145,7 @@ export function LogChannelTab({
               </CollapsibleSection>
             )}
             <CollapsibleSection compact title={zh ? '原始详情' : 'Raw details'}>
-              <CopyButton
-                text={JSON.stringify(item, null, 2)}
-                label={zh ? '原始 JSON' : 'Raw JSON'}
-              />
-              <Text selectable style={styles.original}>
-                {JSON.stringify(item, null, 2)}
-              </Text>
+              <RawDetails entry={item} label={zh ? '原始 JSON' : 'Raw JSON'} />
             </CollapsibleSection>
           </View>
         )}
@@ -159,6 +153,15 @@ export function LogChannelTab({
     </View>
   );
 }
+// Mounted only when the section expands; copy and display share the same serialization.
+function RawDetails({ entry, label }: { entry: LogChannelEntry; label: string }) {
+  const raw = JSON.stringify(entry, null, 2);
+  return <>
+    <CopyButton text={raw} label={label} />
+    <Text selectable style={styles.original}>{raw}</Text>
+  </>;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, padding: 12 },

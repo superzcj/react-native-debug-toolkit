@@ -38,7 +38,6 @@ export function createLogChannelFeature(
     maxBytes = config.maxBytes ?? 2 * 1024 * 1024;
   const sources = new Map<string, number>();
   let nextId = 0,
-    started = false,
     ready = false,
     disposed = false,
     context: FeatureContext | undefined;
@@ -47,6 +46,9 @@ export function createLogChannelFeature(
     !disposed &&
     runtime.active &&
     (!context || (context.isCurrent() && !context.signal.aborted));
+  const envelope = (entries: readonly LogChannelEntry[], watermarks = [...sources], id = nextId) => ({
+    entries, sources: watermarks, nextId: id,
+  });
   const storage: StorageAdapter = {
     async getItem(storageKey) {
       const raw = await runtime.logStorage.getItem(storageKey);
@@ -78,22 +80,12 @@ export function createLogChannelFeature(
         .slice(-maxLogs);
       while (
         retained.length &&
-        bytes({
-          entries: retained,
-          sources: [...sources],
-          nextId,
-          title: config.title,
-        }) > maxBytes
+        bytes(envelope(retained)) > maxBytes
       )
         {retained.shift();}
       while (
         sources.size &&
-        bytes({
-          entries: retained,
-          sources: [...sources],
-          nextId,
-          title: config.title,
-        }) > maxBytes
+        bytes(envelope(retained)) > maxBytes
       )
         {sources.delete(sources.keys().next().value!);}
       for (const entry of retained)
@@ -103,12 +95,7 @@ export function createLogChannelFeature(
     setItem(storageKey, value) {
       return runtime.logStorage.setItem(
         storageKey,
-        JSON.stringify({
-          entries: JSON.parse(value),
-          sources: [...sources],
-          nextId,
-          title: config.title,
-        }),
+        JSON.stringify(envelope(JSON.parse(value))),
       );
     },
     removeItem: (storageKey) => runtime.logStorage.removeItem(storageKey),
@@ -156,8 +143,7 @@ export function createLogChannelFeature(
       if (current()) {ready = true;}
     },
     async start(ctx) {
-      if (started || disposed || ctx.signal.aborted || !ctx.isCurrent()) {return;}
-      started = true;
+      if (context || disposed || ctx.signal.aborted || !ctx.isCurrent()) {return;}
       context = ctx;
       ctx.signal.addEventListener('abort', dispose, { once: true });
       await store.ready;
@@ -197,7 +183,6 @@ export function createLogChannelFeature(
           (value.summary !== undefined && typeof value.summary !== 'string') ||
           (value.category !== undefined &&
             typeof value.category !== 'string') ||
-          (value.groupId !== undefined && typeof value.groupId !== 'string') ||
           (value.level !== undefined &&
             ![
               'trace',
@@ -239,7 +224,6 @@ export function createLogChannelFeature(
           ...(value.summary === undefined ? {} : { summary: value.summary }),
           ...(value.detail === undefined ? {} : { detail: value.detail }),
           ...(value.category === undefined ? {} : { category: value.category }),
-          ...(value.groupId === undefined ? {} : { groupId: value.groupId }),
           ...(value.level === undefined ? {} : { level: value.level }),
           ...(source ? { source } : {}),
           ...(value.data === undefined ? {} : { data: value.data }),
@@ -250,12 +234,7 @@ export function createLogChannelFeature(
           channelTitle: config.title,
         };
         const originalBytes = bytes(entry);
-        const envelopeBytes = bytes({
-          entries: [],
-          sources: source ? [[source.id, source.sequence]] : [],
-          nextId: nextId + 1,
-          title: config.title,
-        });
+        const envelopeBytes = bytes(envelope([], source ? [[source.id, source.sequence]] : [], nextId + 1));
         const entryBudget = Math.min(
           MAX_ENTRY_BYTES,
           maxBytes - envelopeBytes - 2,
@@ -273,7 +252,6 @@ export function createLogChannelFeature(
           entry.message = entry.message.slice(0, 1000);
           entry.summary = entry.summary?.slice(0, 500);
           entry.category = entry.category?.slice(0, 80);
-          entry.groupId = entry.groupId?.slice(0, 200);
           // Multi-byte text can exceed a character bound; shrink previews until the serialized entry fits.
           while (bytes(entry) > entryBudget)
             {entry.data = { preview: JSON.stringify(entry.data).slice(0, 500) };}
@@ -288,24 +266,14 @@ export function createLogChannelFeature(
         // Even metadata must fit a small channel. Evict oldest replay sources first.
         while (
           sources.size > 1 &&
-          bytes({
-            entries: [entry],
-            sources: [...sources],
-            nextId,
-            title: config.title,
-          }) > maxBytes
+          bytes(envelope([entry])) > maxBytes
         )
           {sources.delete(sources.keys().next().value!);}
         const existing = store.getData();
         let count = Math.min(existing.length, maxLogs - 1);
         while (
           count > 0 &&
-          bytes({
-            entries: [...existing.slice(-count), entry],
-            sources: [...sources],
-            nextId,
-            title: config.title,
-          }) > maxBytes
+          bytes(envelope([...existing.slice(-count), entry])) > maxBytes
         )
           {count--;}
         store.push(entry, count + 1);

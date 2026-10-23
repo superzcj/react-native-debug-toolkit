@@ -104,10 +104,6 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     clearPersisted: () => {
       revision += 1;
       store.clear();
-      if (writeTimer !== null) {
-        clearTimeout(writeTimer);
-        writeTimer = null;
-      }
       cancelTimers();
       write('[]');
     },
@@ -116,10 +112,6 @@ export function createPersistedObservableStore<T extends { id?: string }>(
     ready,
     dispose: () => {
       cancelTimers();
-      if (writeTimer !== null) {
-        clearTimeout(writeTimer);
-        writeTimer = null;
-      }
       revision += 1;
       store.clear();
     },

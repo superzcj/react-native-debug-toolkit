@@ -15,7 +15,6 @@ export interface LogChannelInput {
   timestamp?: number;
   level?: NativeLogLevel;
   category?: string;
-  groupId?: string;
   source?: { id: string; sequence: number };
   data?: unknown;
 }

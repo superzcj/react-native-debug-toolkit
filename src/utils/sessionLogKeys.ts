@@ -1,3 +1,5 @@
+import type { ChannelFeatureKey } from '../core/featureCatalog';
+
 export const SESSION_LOG_FEATURE_KEYS = [
   'console_logs',
   'network_logs',
@@ -5,7 +7,7 @@ export const SESSION_LOG_FEATURE_KEYS = [
   'track_logs',
 ] as const;
 
-export type LogFeatureKey = typeof SESSION_LOG_FEATURE_KEYS[number] | `channel.${string}`;
+export type LogFeatureKey = typeof SESSION_LOG_FEATURE_KEYS[number] | ChannelFeatureKey;
 
 export type LogCounts = Record<LogFeatureKey, number>;
 

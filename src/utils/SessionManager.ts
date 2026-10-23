@@ -149,14 +149,7 @@ export class SessionManager {
   }
 
   async getSessionLogCount(sessionId: string, featureKey: LogFeatureKey): Promise<number> {
-    const raw = await this.storage.getItem(this.getLogStorageKey(featureKey, sessionId));
-    if (!raw) return 0;
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.length : Array.isArray(parsed?.entries) ? parsed.entries.length : 0;
-    } catch {
-      return 0;
-    }
+    return (await this.loadSessionLogs(sessionId, featureKey)).length;
   }
 
   async clearCurrentSessionLogs(featureKey: LogFeatureKey): Promise<void> {

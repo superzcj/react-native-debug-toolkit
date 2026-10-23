@@ -1,3 +1,4 @@
+import { isChannelKey } from '../../core/featureCatalog';
 import type { AnyDebugFeature } from '../../types';
 
 export function filterFeatureSnapshot(
@@ -6,7 +7,8 @@ export function filterFeatureSnapshot(
   query: string,
   filterMode: 'all' | 'bad',
 ): unknown {
-  if (!Array.isArray(snapshot)) return snapshot;
+  // Channels own compact/search filtering and need the retained snapshot for counts.
+  if (!Array.isArray(snapshot) || isChannelKey(feature.name)) { return snapshot; }
 
   const name = feature.name;
   const supportsBad =
