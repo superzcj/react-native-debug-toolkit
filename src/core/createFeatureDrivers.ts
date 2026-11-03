@@ -20,7 +20,7 @@ import { createEnvironmentFeature } from '../features/environment';
 import { createQuickAccountsFeature } from '../features/quickAccounts/createQuickAccountsFeature';
 import { createTabsFeature } from '../features/tabs';
 import { HubClient } from '../utils/HubClient';
-import { copyToComputer, phoneCopyChannel } from '../utils/copyToComputer';
+import { copyToComputer, logToComputer, phoneCopyChannel } from '../utils/copyToComputer';
 import type { ConsoleLogEntry } from '../types/logs';
 
 export interface FeatureDriverBinding extends FeatureDriver {
@@ -43,7 +43,10 @@ export function createFeatureDrivers(services: {
       ...options, enabled: services.logs.active,
       channels: {
         copyPhone: services.logs.active ? phoneCopyChannel() : undefined,
-        recordConsole: consoleFeature ? (content, label) => { entry = consoleFeature!.record(content, label); } : undefined,
+        recordConsole: consoleFeature ? (content, label) => {
+          entry = consoleFeature!.record(content, label);
+          if (entry && services.debugBuild) { logToComputer(content, label); }
+        } : undefined,
         sendHub: hubClient ? (content, label) => hubClient!.sendCopy(content, label, entry) : undefined,
       },
     });

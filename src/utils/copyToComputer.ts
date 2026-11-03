@@ -42,7 +42,7 @@ export function phoneCopyChannel(): CopyChannels['copyPhone'] {
   return clipboard ? (text) => clipboard.setString(text) : undefined;
 }
 
-const MAX_LOG_SIZE = 10 * 1024; // 10KB
+const MAX_LOG_SIZE = 10 * 1024; // UTF-16 code units
 
 /**
  * Format data for copying (pretty JSON or raw string).
@@ -59,18 +59,19 @@ export function fmt(data: unknown): string {
 /**
  * Log content to console (Metro terminal / DevTools) with a structured prefix.
  * ConsoleLogFeature intercepts console.log but still calls the original first,
- * so output reliably appears in Metro terminal.
+ * allowing connected development tools to display the output.
  */
 export function logToComputer(content: string, label?: string): void {
   try {
     const header = label ? `[DebugToolkit:Copy] ─── ${label} ───` : '[DebugToolkit:Copy] ─── Content ───';
     console.log(header);
 
+    // Prefix every line so the Console collector does not capture a second copy.
     if (content.length > MAX_LOG_SIZE) {
-      console.log(content.slice(0, MAX_LOG_SIZE));
-      console.log(`[DebugToolkit:Copy] ... truncated (${content.length} bytes total)`);
+      console.log('[DebugToolkit:Copy]', content.slice(0, MAX_LOG_SIZE));
+      console.log(`[DebugToolkit:Copy] ... truncated (${content.length} code units total)`);
     } else {
-      console.log(content);
+      console.log('[DebugToolkit:Copy]', content);
     }
 
     console.log('[DebugToolkit:Copy] ─── END ───');

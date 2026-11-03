@@ -28,7 +28,7 @@ describe('logToComputer', () => {
     const spy = jest.spyOn(console, 'log').mockImplementation();
     logToComputer('test content', 'TestLabel');
     expect(spy).toHaveBeenCalledWith('[DebugToolkit:Copy] ─── TestLabel ───');
-    expect(spy).toHaveBeenCalledWith('test content');
+    expect(spy).toHaveBeenCalledWith('[DebugToolkit:Copy]', 'test content');
     expect(spy).toHaveBeenCalledWith('[DebugToolkit:Copy] ─── END ───');
     spy.mockRestore();
   });
