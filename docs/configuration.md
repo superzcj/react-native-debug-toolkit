@@ -132,6 +132,8 @@ History persists Network, Console, Native and Track only. State and Navigation r
 
 `await debug.copyToComputer(text, { label })` returns status completed or disabled, plus independent phone/console/hub results (success/unavailable/disabled/error, optional reason). Completed does not mean all channels succeeded. Phone success means the linked optional clipboard module wrote locally. Console success means a local Console record exists. Debug builds also attempt to write to Metro, truncating after 10,240 JavaScript string units; this does not guarantee terminal delivery. Hub success means the existing event protocol acknowledged that event, not that the computer clipboard changed. Inspect/copy the text in the Hub Console. Console or Connect being off disables its path; missing native clipboard affects only phone. A disconnected Hub is unavailable; failed delivery is error. Paused copy uploads only the explicit copy, not unrelated paused logs; blocked sequence delivery may return an error until you resume and retry. Global or Clipboard disable performs no copying or logging.
 
+The panel button shows successful destinations and actual delivery errors. Unavailable optional destinations are not shown as failures when another destination succeeds. The API result retains every destination's full status.
+
 ## Initialization and errors
 
 `debug.ready()` resolves a structured result: ready/partial/disabled/not_started/cancelled/initialization_timeout/error, with per-feature initializing/ready/empty/unavailable/error and field-path issues. Empty business features are normal. Local initialization has a 10-second deadline; it does not wait for an online Hub or future business data.

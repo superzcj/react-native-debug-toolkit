@@ -44,7 +44,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, label, compact, co
       const result = await action(text, { label });
       if (current()) { setFeedback(describeCopyResult(result)); }
     } catch {
-      if (current()) { setFeedback('Copy failed'); }
+      if (current()) { setFeedback(t('copy.failed')); }
     } finally {
       if (current()) { pending.current = undefined; setBusy(false); }
     }

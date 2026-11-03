@@ -130,6 +130,8 @@ debug.clear() 清理当前日志；debug.clear(feature) 只接受 network/consol
 
 await debug.copyToComputer(text, { label }) 返回 status completed 或 disabled，并分别返回 phone/console/hub 的 success/unavailable/disabled/error 及可选 reason。completed 不代表全部成功。phone success 表示已链接的可选剪贴板模块完成本机复制，console success 表示已有本地 Console 记录；Debug 构建也会尝试输出到 Metro，超过 10,240 个 JavaScript 字符串单位会截断，这不保证终端已收到。hub success 表示现有事件协议确认收到该事件，不代表电脑剪贴板已更改；在 Hub Console 查看并复制。Console/Connect 关闭则对应链路不工作；缺原生剪贴板只影响 phone，Hub 离线为 unavailable，发送失败为 error。暂停时复制只发送显式文本，不上传无关暂停日志；顺序交付受阻可能返回错误，需恢复同步后重试。全局或 Clipboard 关闭不复制也不写日志。
 
+面板按钮显示成功的目标和实际发送错误；未启用的可选目标不会在其他目标成功时显示为失败。程序仍可通过返回值查看每个目标的完整状态。
+
 ## 初始化与错误
 
 debug.ready() 返回结构化结果 ready/partial/disabled/not_started/cancelled/initialization_timeout/error，附各 feature 的 initializing/ready/empty/unavailable/error 及字段路径。空业务页是正常状态。本地初始化限时 10 秒，不等待 Hub 在线或未来数据。

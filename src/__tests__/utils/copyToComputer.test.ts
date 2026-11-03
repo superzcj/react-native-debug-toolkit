@@ -1,5 +1,6 @@
 import { fmt, logToComputer, copyToComputer, describeCopyResult } from '../../utils/copyToComputer';
 import { createClipboardFeature } from '../../features/clipboard';
+import { configureLocale } from '../../i18n';
 
 describe('fmt', () => {
   it('formats JSON objects', () => {
@@ -87,7 +88,34 @@ describe('copyToComputer', () => {
     expect(result.console.status).toBe('unavailable');
     expect(result.hub.status).toBe('unavailable');
     expect(result.hub.reason).toMatch(/confirm/i);
-    expect(describeCopyResult(result)).toContain('Computer delivery was not confirmed.');
+    configureLocale('en');
+    expect(describeCopyResult(result)).toBe('Copied to phone clipboard');
+  });
+});
+
+describe('copy feedback', () => {
+  afterEach(() => configureLocale('en'));
+
+  it('reports each successful destination without treating optional channels as failures', async () => {
+    configureLocale('zh-CN');
+    const result = await copyToComputer('text', { enabled: true, channels: {
+      copyPhone: jest.fn(), recordConsole: jest.fn(), sendHub: async () => 'delivered',
+    } });
+    expect(describeCopyResult(result)).toBe('已复制到手机剪贴板\n已写入调试日志\n已发送到 Hub');
+  });
+
+  it('reports actual failures even when another destination succeeds', async () => {
+    configureLocale('zh-CN');
+    const result = await copyToComputer('text', { enabled: true, channels: {
+      recordConsole: jest.fn(), sendHub: async () => { throw new Error('connection lost'); },
+    } });
+    expect(describeCopyResult(result)).toBe('已写入调试日志\nHub 发送失败：connection lost');
+  });
+
+  it('distinguishes unavailable and disabled actions', async () => {
+    configureLocale('zh-CN');
+    expect(describeCopyResult(await copyToComputer('text', { enabled: true, channels: {} }))).toBe('没有可用的复制方式');
+    expect(describeCopyResult(await copyToComputer('text', { enabled: false, channels: {} }))).toBe('复制功能已关闭');
   });
 });
 

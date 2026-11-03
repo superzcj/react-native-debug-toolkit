@@ -1,3 +1,6 @@
+import { t } from '../i18n';
+import type { CopyResult } from '../types/debug';
+
 type ClipboardModule = { setString: (value: string) => void };
 
 let clipboardModule: ClipboardModule | null = null;
@@ -106,8 +109,21 @@ export async function copyToComputer(content: string, options: CopyOptions): Pro
 }
 
 export function describeCopyResult(result: CopyResult): string {
-  const describe = (channel: CopyResult['phone']) => `${channel.status}${channel.reason ? ` (${channel.reason})` : ''}`;
-  return `Phone: ${describe(result.phone)}\nConsole: ${describe(result.console)}\nHub: ${describe(result.hub)}`;
+  if (result.status === 'disabled') { return t('copy.disabled'); }
+  const channels = [
+    [result.phone, 'copy.phoneSuccess', 'copy.phoneError'],
+    [result.console, 'copy.consoleSuccess', 'copy.consoleError'],
+    [result.hub, 'copy.hubSuccess', 'copy.hubError'],
+  ] as const;
+  const successes: string[] = [];
+  const errors: string[] = [];
+  for (const [channel, successKey, errorKey] of channels) {
+    if (channel.status === 'success') { successes.push(t(successKey)); }
+    if (channel.status === 'error') {
+      const message = t(errorKey);
+      errors.push(channel.reason ? t('copy.errorWithReason', { message, reason: channel.reason }) : message);
+    }
+  }
+  return [...successes, ...errors].join('\n') || t('copy.unavailable');
 }
-import type { CopyResult } from '../types/debug';
 export type { CopyResult } from '../types/debug';
