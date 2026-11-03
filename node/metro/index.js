@@ -4,11 +4,16 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { initializeState, statePath } = require('./activation');
 
-const activationModule = fs.realpathSync(path.join(__dirname, '../../src/utils/hubActivation.ts'));
+const packageRoot = fs.realpathSync(path.join(__dirname, '../..'));
+const activationModules = new Set([
+  'src/utils/hubActivation.ts',
+  'lib/module/utils/hubActivation.js',
+  'lib/commonjs/utils/hubActivation.js',
+].map((file) => path.join(packageRoot, file)));
 
 function isActivationImport(context, moduleName) {
-  if (moduleName !== './defaultHubActivation' || !context.originModulePath) { return false; }
-  try { return fs.realpathSync(context.originModulePath) === activationModule; }
+  if (!['./defaultHubActivation', './defaultHubActivation.js'].includes(moduleName) || !context.originModulePath) { return false; }
+  try { return activationModules.has(fs.realpathSync(context.originModulePath)); }
   catch { return false; }
 }
 

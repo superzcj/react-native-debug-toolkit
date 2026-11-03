@@ -20,4 +20,12 @@ describe('metroBundleHost adapter', () => {
     NativeModules.SourceCode = { getConstants: () => ({ scriptURL: 'http://192.168.1.8:8081/index.bundle' }) };
     expect(getMetroBundleHost()).toBe('192.168.1.8');
   });
+
+  it('falls back to legacy scriptURL if getConstants fails', () => {
+    NativeModules.SourceCode = {
+      scriptURL: 'http://192.0.2.8:8081/index.bundle',
+      getConstants: () => { throw new Error('unavailable'); },
+    };
+    expect(getMetroBundleHost()).toBe('192.0.2.8');
+  });
 });

@@ -6,7 +6,7 @@ const { execFile } = require('child_process');
 const { DEFAULT_PORT } = require('../../protocol/constants');
 const { createHubServer } = require('../../server/hubServer');
 const { isLoopback } = require('../../protocol/validation');
-const { enableState, disableState } = require('../../../../metro/activation');
+const { claimProject, enableState, disableState } = require('../../../../metro/activation');
 
 function findLanAddress() {
   const interfaces = os.networkInterfaces();
@@ -107,18 +107,17 @@ async function hubStartCommand(options) {
   const ownerPid = Number(process.env.DEBUG_TOOLKIT_HUB_OWNER_PID);
   const projectRoot = process.cwd();
   let closing = false;
-  let activated = false;
+  let claimed = false;
   const clearActivation = () => {
-    if (!activated) { return; }
+    if (!claimed) { return; }
     try { disableState(projectRoot, ownerPid); }
     catch (error) { process.stderr.write(`Failed to clear Hub activation: ${error.message}\n`); }
-    activated = false;
+    claimed = false;
   };
   const close = () => {
     if (closing) { return; }
     closing = true;
-    clearActivation();
-    stop().then(() => process.exit(0)).catch(() => process.exit(1));
+    stop().then(() => { clearActivation(); process.exit(0); }).catch(() => { clearActivation(); process.exit(1); });
   };
   process.on('SIGINT', close);
   process.on('SIGTERM', close);
@@ -131,11 +130,14 @@ async function hubStartCommand(options) {
   }
 
   try {
+    if (supervised) {
+      claimProject(projectRoot, ownerPid, process.pid);
+      claimed = true;
+    }
     await start();
     if (closing) { return { ok: false, exitCode: 0 }; }
     if (supervised) {
       enableState(projectRoot, ownerPid, process.pid, port);
-      activated = true;
     }
     process.stderr.write(`Hub loopback: http://127.0.0.1:${port}\n`);
     process.stderr.write(`Hub LAN:      ${advertiseUrl}\n`);
@@ -144,6 +146,7 @@ async function hubStartCommand(options) {
   } catch (err) {
     try { await stop(); }
     catch (cleanupError) { process.stderr.write(`Failed to clean up Hub: ${cleanupError.message}\n`); }
+    clearActivation();
     process.stderr.write(`Failed to start Hub: ${err.message}\n`);
     return { ok: false, exitCode: 1 };
   }

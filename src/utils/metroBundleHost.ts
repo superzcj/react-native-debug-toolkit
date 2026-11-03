@@ -32,7 +32,13 @@ export function getMetroBundleHost(source?: ScriptURLSource): string | null {
 function defaultGetScriptURL(): string | null {
   try {
     const sourceCode = (NativeModules as { SourceCode?: { scriptURL?: string; getConstants?: () => { scriptURL?: string } } }).SourceCode;
-    const scriptURL = sourceCode?.getConstants?.()?.scriptURL ?? sourceCode?.scriptURL;
+    let constantsURL: string | undefined;
+    try {
+      constantsURL = sourceCode?.getConstants?.()?.scriptURL;
+    } catch {
+      // Some older native modules expose the property but cannot return constants.
+    }
+    const scriptURL = typeof constantsURL === 'string' ? constantsURL : sourceCode?.scriptURL;
     return typeof scriptURL === 'string' ? scriptURL : null;
   } catch {
     return null;

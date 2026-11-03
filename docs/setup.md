@@ -34,6 +34,8 @@ Run from the app root:
 npx --no-install debug-toolkit hub dev
 ```
 
+Only one `hub dev` process can run for each app project.
+
 In another terminal:
 
 ```sh

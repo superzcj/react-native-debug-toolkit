@@ -34,6 +34,8 @@ Expo 项目使用 `expo/metro-config`。未接入包装器时仍可在 Connect �
 npx --no-install debug-toolkit hub dev
 ```
 
+每个 App 项目只能运行一个 `hub dev` 进程。
+
 另开终端：
 
 ```sh
