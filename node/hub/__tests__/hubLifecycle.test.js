@@ -37,10 +37,13 @@ async function reservePorts() {
   return ports;
 }
 
-function launch(port) {
+function launch(port, mode = 'dev') {
   const env = { ...process.env, PATH: path.join(projectRoot, 'no-adb'), DEBUG_TOOLKIT_HUB_WORKER: '' };
   delete env.DEBUG_TOOLKIT_LOCAL_HUB_ENDPOINT;
-  child = spawn(process.execPath, [entry, 'hub', 'dev', '--port', String(port), '--bind', '127.0.0.1'], {
+  child = spawn(process.execPath, [
+    entry, 'hub', mode, '--port', String(port), '--bind', '127.0.0.1',
+    '--data-dir', path.join(projectRoot, 'hub-data'),
+  ], {
     cwd: projectRoot,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -58,6 +61,24 @@ function waitForStart(state, process) {
     state,
     once(process, 'close').then(([code, signal]) => {
       throw new Error(`Hub exited before activation (${code ?? signal}): ${process.stderrOutput}`);
+    }),
+  ]);
+}
+
+function waitForReady(process) {
+  return Promise.race([
+    new Promise((resolve) => {
+      const onOutput = () => {
+        if (process.stderrOutput.includes('Hub loopback:')) {
+          process.stderr.off('data', onOutput);
+          resolve();
+        }
+      };
+      process.stderr.on('data', onOutput);
+      onOutput();
+    }),
+    once(process, 'close').then(([code, signal]) => {
+      throw new Error(`Hub exited before listening (${code ?? signal}): ${process.stderrOutput}`);
     }),
   ]);
 }
@@ -125,18 +146,30 @@ test('an abruptly stopped Hub worker causes its supervisor to clear activation',
   await exited;
 });
 
-test('rejects another Hub for the same project without disturbing the running Hub', async () => {
+test.each([
+  ['dev', 'dev'],
+  ['dev', 'start'],
+  ['start', 'dev'],
+  ['start', 'start'],
+])('rejects hub %s while hub %s is running in the same project', async (secondMode, firstMode) => {
   const [firstPort, secondPort] = await reservePorts();
-  const started = waitForState(true);
-  const first = launch(firstPort);
-  const state = await waitForStart(started, first);
-  const second = launch(secondPort);
+  const started = firstMode === 'dev' ? waitForState(true) : null;
+  const first = launch(firstPort, firstMode);
+  if (started) { await waitForStart(started, first); }
+  else { await waitForReady(first); }
+  const state = readState(projectRoot);
+  const second = launch(secondPort, secondMode);
   const [code] = await once(second, 'close');
 
   expect(code).toBe(1);
   expect(second.stderrOutput).toMatch(/Hub is already running for this project/);
   expect(readState(projectRoot)).toEqual(state);
   expect((await fetch(`http://127.0.0.1:${firstPort}/ready`)).ok).toBe(true);
+  const exited = once(first, 'close');
+  first.kill('SIGTERM');
+  await exited;
+  expect(readState(projectRoot)).toEqual({ enabled: false });
+  expect(fs.existsSync(path.join(projectRoot, '.debug-toolkit', 'hub.lock'))).toBe(false);
 });
 
 test('only one concurrent Hub can recover an abandoned project lock', async () => {

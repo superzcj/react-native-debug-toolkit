@@ -104,7 +104,7 @@ async function hubStartCommand(options) {
   });
 
   const supervised = process.env.DEBUG_TOOLKIT_HUB_WORKER === '1';
-  const ownerPid = Number(process.env.DEBUG_TOOLKIT_HUB_OWNER_PID);
+  const ownerPid = supervised ? Number(process.env.DEBUG_TOOLKIT_HUB_OWNER_PID) : process.pid;
   const projectRoot = process.cwd();
   let closing = false;
   let claimed = false;
@@ -121,19 +121,17 @@ async function hubStartCommand(options) {
   };
   process.on('SIGINT', close);
   process.on('SIGTERM', close);
+  process.on('exit', clearActivation);
   if (supervised) {
     process.on('SIGHUP', close);
     process.on('disconnect', close);
-    process.on('exit', clearActivation);
     process.channel?.unref();
     process.stderr.on('error', () => {});
   }
 
   try {
-    if (supervised) {
-      claimProject(projectRoot, ownerPid, process.pid);
-      claimed = true;
-    }
+    claimProject(projectRoot, ownerPid, process.pid);
+    claimed = true;
     await start();
     if (closing) { return { ok: false, exitCode: 0 }; }
     if (supervised) {
