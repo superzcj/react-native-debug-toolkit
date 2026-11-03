@@ -88,6 +88,12 @@ describe('HubEndpointResolver', () => {
     expect(probeReady).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the active Hub port for both the Metro host and Android fallback', () => {
+    expect(buildHubEndpointCandidates({
+      isDev: true, platform: 'android', metroHost: 'localhost', automaticPort: 3900,
+    })).toEqual(['http://localhost:3900', 'http://10.0.2.2:3900']);
+  });
+
   it('returns null and lists every attempted address when none are compatible', async () => {
     const result = await resolveHubEndpoint({
       isDev: true,

@@ -25,7 +25,7 @@
 在 App 项目根目录使用其 npm lockfile：
 
 ```sh
-npm install react-native-debug-toolkit@4.1.2 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -80,18 +80,18 @@ AppRegistry.registerComponent(appName, () => App);
 在 App 根目录另开终端：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
-电脑打开 http://127.0.0.1:3800。Debug 默认使用原生应用标识；Connect 地址优先级为已保存手动地址 > 配置 endpoint > Debug 通过 Metro/平台候选发现。显式地址不可达会报错，不偷偷连接别的 Hub；清除手动地址可恢复配置/自动发现。真机使用电脑可达的局域网地址，手机 localhost 指手机自身；CLI 也会尝试 Android adb reverse。
+电脑打开 http://127.0.0.1:3800。Hub 默认不自动探测；要在 `hub dev` 运行期间自动连接，使用 `withDebugToolkitMetro` 包装 App 的 Metro 配置并重启 Metro，见[设置指南](setup.zh-CN.md)。未接入时可在 Connect 手动上传或开始实时日志。Debug 默认使用原生应用标识；Connect 地址优先级为已保存手动地址 > 配置 endpoint > Debug 通过 Metro/平台候选发现。显式地址不可达会报错，不偷偷连接别的 Hub；清除手动地址可恢复配置/发现。真机使用电脑可达的局域网地址，手机 localhost 指手机自身；CLI 也会尝试 Android adb reverse。
 
 打开悬浮工具箱，核对十二页。在采集 ready 后生成一条新的 Console 唯一标记和真实 HTTP 请求。Verification 组件等待 debug.ready()，接收业务可达且无副作用的 health/test URL，生成 integration-时间戳-随机值，并把同一标记放进 query。请输入不含 URL fragment 的地址。界面展示真实 HTTP 状态或失败，不伪造成功。
 
 Hub 选择当前 App、Session，在 Console 与 Network 搜索标记，核对 URL、真实响应。记录 appId、sessionId、平台/构建身份和标记。零配置无法取得原生 App 标识时，本地面板仍可用；按配置参考补充稳定的 connect.appId。
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
+npx --no-install debug-toolkit diagnose --json
+npx --no-install debug-toolkit status
 ```
 
 已有 context/inspect/tail 可查询证据，目标参数见 debug-toolkit <command> --help。Hub /ready 只证明服务器就绪，旧会话或旧日志不证明当前 App 接入成功。分别报告依赖/静态检查、原生构建、当前面板、当前会话收到事件这四层证据。

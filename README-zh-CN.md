@@ -60,7 +60,7 @@ Network 和 Console 在初始化后自动采集；状态、导航、埋点及业
 在现有 React Native CLI App 安装包与原生依赖：
 
 ```sh
-npm install react-native-debug-toolkit@4.1.2 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -85,18 +85,28 @@ export default withDebugToolkit(App);
 
 ### 连接浏览器与 AI
 
+Hub 默认不自动探测。这需要包含 `withDebugToolkitMetro` 的 Toolkit 构建，已发布的 4.1.2 尚不包含。要在 `hub dev` 运行时自动连接，在 App 的 Metro 配置中包装已有配置并重启 Metro：
+
+```js
+const { getDefaultConfig } = require('@react-native/metro-config');
+const { withDebugToolkitMetro } = require('react-native-debug-toolkit/metro');
+module.exports = withDebugToolkitMetro(getDefaultConfig(__dirname), { projectRoot: __dirname });
+```
+
+Expo 使用 `expo/metro-config` 的 `getDefaultConfig`；已有自定义配置直接传给包装器。未接入包装器时，Connect 仍可手动上传。
+
 在业务 App 根目录启动 Hub：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
-打开 [localhost:3800](http://127.0.0.1:3800/)。Debug 构建通过 Metro 自动发现 Hub 并上传；真机需使用电脑可达的局域网地址。
+打开 [localhost:3800](http://127.0.0.1:3800/)。接入 Metro 包装器后，Debug 构建在 Hub 运行时连接，Hub 退出后停止。若关闭 Fast Refresh，启停 Hub 后需手动重载 App。真机需使用电脑可达的局域网地址。
 
 需要让 AI 帮忙排查时，可安装一次诊断 Skill：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit init
+npx --no-install debug-toolkit init
 ```
 
 提交生成的 `.agents/skills/react-native-debug-toolkit/SKILL.md` 和 `AGENTS.md` 改动。在能加载它们并访问 Hub 的编程助手中，复现问题后直接说：
@@ -108,7 +118,7 @@ Toolkit 提供运行证据，AI 编程助手负责分析。接入 App 本身不�
 复现问题后，读取供程序和 AI 处理的诊断结果：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
+npx --no-install debug-toolkit diagnose --json
 ```
 
 返回结果会指出可用的运行证据，或继续采集所需的下一步操作。诊断命令只读取证据；`hub dev` 在本地保存日志，`init` 安装可选 Skill。详见[诊断响应示例](docs/setup.zh-CN.md#最小-ai-诊断示例)。

@@ -14,6 +14,10 @@ jest.mock('../../features/devConnect/resolveAndApplyHubEndpoint', () => ({
   resolveAndApplyHubEndpoint: jest.fn(async () => 'http://10.20.4.10:3800'),
 }));
 
+jest.mock('../../utils/hubActivation', () => ({
+  getHubActivation: jest.fn(() => ({ enabled: true, port: 3800 })),
+}), { virtual: true });
+
 jest.mock('../../utils/debugPreferences', () => ({
   ...jest.requireActual('../../utils/debugPreferences'),
   getPreference: jest.fn(),
@@ -39,6 +43,8 @@ describe('createDevConnectFeature v4', () => {
     getPreference.mockResolvedValue(null);
     const { getDeviceLocalIp } = jest.requireMock('../../features/devConnect/nativeDevConnect');
     getDeviceLocalIp.mockResolvedValue(null);
+    const { getHubActivation } = jest.requireMock('../../utils/hubActivation');
+    getHubActivation.mockReturnValue({ enabled: true, port: 3800 });
   });
 
   afterEach(() => {

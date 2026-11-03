@@ -8,7 +8,7 @@
 
 | 构建           | 行为                                          |
 | -------------- | --------------------------------------------- |
-| Debug          | 默认启用，原生身份，可自动发现/上传           |
+| Debug          | 面板默认启用；Hub 默认不自动探测              |
 | Release        | 默认关闭；显式开启后仍需上传一次/开始实时日志 |
 | enabled: false | 无运行时采集/页面；原生依赖仍在               |
 
@@ -18,17 +18,27 @@ Connect 支持 IPv4 前缀、末段与端口，保留有效手动地址。真机
 
 ## 现有 Hub 与 CLI
 
+需要 Debug 自动连接时，包装 App 的 Metro 配置并重启 Metro：
+
+```js
+const { getDefaultConfig } = require('@react-native/metro-config');
+const { withDebugToolkitMetro } = require('react-native-debug-toolkit/metro');
+module.exports = withDebugToolkitMetro(getDefaultConfig(__dirname), { projectRoot: __dirname });
+```
+
+Expo 项目使用 `expo/metro-config`。未接入包装器时仍可在 Connect 手动上传。包装器与 `hub dev` 应使用相同的 App 根目录；将 `.debug-toolkit/` 加入 App 的 `.gitignore`，其中包含本地状态和日志。若关闭 Fast Refresh，启停 Hub 后需手动重载 App。
+
 在 App 根目录运行：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
 另开终端：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
+npx --no-install debug-toolkit diagnose --json
+npx --no-install debug-toolkit status
 ```
 
 | 命令                                | 用途                                 |
@@ -42,7 +52,7 @@ npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
 在业务 App 根目录启动 `hub dev`，复现问题，然后让 AI 编程助手执行：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
+npx --no-install debug-toolkit diagnose --json
 ```
 
 该命令读取运行证据并返回 JSON。如结果包含 `action.retryArgs` 或目标选择说明，按提示继续。选定目标后，通过 `context`、`inspect <entryId>` 或 `tail --duration-ms 10000` 查看相关日志，并沿用该目标参数。前两个命令返回 JSON，`tail` 输出 NDJSON 事件流。
@@ -66,7 +76,7 @@ npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
 Hub 语言独立于 SDK locale：
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev --locale zh-CN
+npx --no-install debug-toolkit hub dev --locale zh-CN
 ```
 
 hub start 也支持此参数；DEBUG_TOOLKIT_HUB_LOCALE 同样可用，命令行优先。Hub auto 使用浏览器语言；更改后重启 Hub 并刷新。

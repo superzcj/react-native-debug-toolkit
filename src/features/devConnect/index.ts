@@ -2,6 +2,7 @@ import { DevConnectTabV4 } from './DevConnectTabV4';
 import { extractIpv4SubnetPrefix } from './hubAddressRecommendations';
 import { normalizeHubEndpoint, type HubClient } from '../../utils/HubClient';
 import { getPreference, KEYS } from '../../utils/debugPreferences';
+import { getHubActivation } from '../../utils/hubActivation';
 import { getDeviceLocalIp, getNativeAppInfo, nativeIsDebugBuild, resolveAppId } from './nativeDevConnect';
 import { resolveAndApplyHubEndpoint } from './resolveAndApplyHubEndpoint';
 import type { DebugFeature, DebugFeatureListener } from '../../types';
@@ -20,6 +21,7 @@ export function createDevConnectFeature(
   dependencies: { client: HubClient; isDebugBuild?: boolean },
 ): DevConnectFeature {
   const client = dependencies.client;
+  const activation = getHubActivation();
   const configuredEndpoint = config.endpoint ? normalizeHubEndpoint(config.endpoint) || config.endpoint : '';
   const listeners = new Set<DebugFeatureListener>();
   let context: FeatureContext | undefined;
@@ -50,7 +52,7 @@ export function createDevConnectFeature(
     const request = new AbortController();
     probe = request;
     const resolved = await resolveAndApplyHubEndpoint(configuredEndpoint || null, {
-      client, signal: request.signal, isDev: debugBuild,
+      client, signal: request.signal, isDev: debugBuild, automaticPort: activation.port,
       isCurrent: () => current() && probe === request,
     });
     if (!current() || probe !== request || request.signal.aborted) { return null; }
@@ -106,6 +108,7 @@ export function createDevConnectFeature(
     state.reason = undefined;
     client.setDebugBuild(debugBuild);
     client.configure({ appId: state.appId, endpoint: configuredEndpoint || null });
+    if (debugBuild && !activation.enabled) { client.pauseSync(); }
     if (!current()) { return; }
     const manual = saved ? normalizeHubEndpoint(saved) : null;
     if (manual) { client.setRuntimeEndpoint(manual); }
@@ -116,10 +119,10 @@ export function createDevConnectFeature(
       cancelDiscovery(); retryAttempt = 0;
       state.canonicalEndpoint = client.getEffectiveEndpoint() || configuredEndpoint;
       notify();
-      if (debugBuild && current()) { void discover(); }
+      if (debugBuild && activation.enabled && current()) { void discover(); }
     }));
     ctx.setStatus({ phase: 'ready', issues: [] }); notify();
-    if (debugBuild && current()) { void discover(); }
+    if (debugBuild && activation.enabled && current()) { void discover(); }
   };
   return {
     name: 'connect', label: 'Connect', status: { phase: 'initializing', issues: [] }, renderContent: DevConnectTabV4,

@@ -21,6 +21,7 @@ export type ResolveHubEndpointOptions = {
   platform?: string;
   runtimeOverride?: string | null;
   configuredEndpoint?: string | null;
+  automaticPort?: number;
   getMetroHost?: () => string | null;
   probeReady: ProbeReady;
 };
@@ -62,6 +63,7 @@ export function buildHubEndpointCandidates(options: {
   runtimeOverride?: string | null;
   configuredEndpoint?: string | null;
   metroHost?: string | null;
+  automaticPort?: number;
 }): string[] {
   const explicit = selectEndpoint({ manual: options.runtimeOverride ?? undefined, configured: options.configuredEndpoint ?? undefined });
   if (explicit) {
@@ -70,17 +72,18 @@ export function buildHubEndpointCandidates(options: {
   }
 
   const candidates: string[] = [];
+  const port = options.automaticPort ?? HUB_DEFAULT_PORT;
 
   if (options.isDev) {
     if (options.metroHost) {
-      pushUnique(candidates, normalizeHubEndpoint(`${options.metroHost}:${HUB_DEFAULT_PORT}`));
+      pushUnique(candidates, normalizeHubEndpoint(`${options.metroHost}:${port}`));
     }
 
     const platform = options.platform.toLowerCase();
     if (platform === 'android') {
-      pushUnique(candidates, `http://10.0.2.2:${HUB_DEFAULT_PORT}`);
+      pushUnique(candidates, `http://10.0.2.2:${port}`);
     } else if (platform === 'ios') {
-      pushUnique(candidates, `http://127.0.0.1:${HUB_DEFAULT_PORT}`);
+      pushUnique(candidates, `http://127.0.0.1:${port}`);
     }
   }
 
@@ -101,6 +104,7 @@ export async function resolveHubEndpoint(
     runtimeOverride: options.runtimeOverride,
     configuredEndpoint: options.configuredEndpoint,
     metroHost,
+    automaticPort: options.automaticPort,
   });
 
   const attempted: string[] = [];

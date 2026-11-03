@@ -60,7 +60,7 @@ The documented integration path is React Native CLI. An isolated Expo 58 / RN 0.
 Install the package and native dependencies in your existing React Native CLI app:
 
 ```sh
-npm install react-native-debug-toolkit@4.1.2 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -85,18 +85,28 @@ Rebuild the native app, then tap the floating launcher. The in-app inspector als
 
 ### Connect your browser and AI assistant
 
+Hub discovery is off by default. This requires a Toolkit build that includes `withDebugToolkitMetro`; published 4.1.2 predates it. To enable discovery while `hub dev` is running, wrap the app's Metro config and restart Metro:
+
+```js
+const { getDefaultConfig } = require('@react-native/metro-config');
+const { withDebugToolkitMetro } = require('react-native-debug-toolkit/metro');
+module.exports = withDebugToolkitMetro(getDefaultConfig(__dirname), { projectRoot: __dirname });
+```
+
+For Expo, use `getDefaultConfig` from `expo/metro-config`; pass your existing config to the wrapper. Without the wrapper, Connect remains available for manual upload.
+
 From your app project, start the Hub:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
-Open [localhost:3800](http://127.0.0.1:3800/). Debug builds discover the Hub through Metro and upload automatically; physical devices need a reachable LAN address for your computer.
+Open [localhost:3800](http://127.0.0.1:3800/). With the Metro wrapper, Debug builds connect while the Hub runs and stop when it exits. If Fast Refresh is disabled, reload the app after starting or stopping the Hub. Physical devices need a reachable LAN address for your computer.
 
 To let an AI assistant investigate, optionally install the diagnosis Skill once:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit init
+npx --no-install debug-toolkit init
 ```
 
 Commit the generated `.agents/skills/react-native-debug-toolkit/SKILL.md` and `AGENTS.md` changes. In an assistant that can load them and reach the Hub, reproduce the problem and ask:
@@ -108,7 +118,7 @@ Toolkit supplies runtime evidence; your AI assistant does the analysis. App inte
 After reproducing the issue, retrieve machine-readable diagnostics:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
+npx --no-install debug-toolkit diagnose --json
 ```
 
 The response identifies available runtime evidence or the next step needed to collect it. Diagnostic commands read evidence; `hub dev` stores logs locally, and `init` installs the optional Skill. See the [diagnostic response example](docs/setup.md#minimal-ai-diagnosis-example).

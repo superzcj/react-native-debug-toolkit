@@ -5,7 +5,7 @@ type ScriptURLSource = {
 };
 
 /**
- * Read Metro's bundle host from React Native's internal SourceCode.scriptURL.
+ * Read Metro's bundle host from React Native's SourceCode constants.
  * Kept in one adapter so UI and network clients do not touch RN internals directly.
  */
 export function getMetroBundleHost(source?: ScriptURLSource): string | null {
@@ -31,8 +31,8 @@ export function getMetroBundleHost(source?: ScriptURLSource): string | null {
 
 function defaultGetScriptURL(): string | null {
   try {
-    const sourceCode = (NativeModules as { SourceCode?: { scriptURL?: string } }).SourceCode;
-    const scriptURL = sourceCode?.scriptURL;
+    const sourceCode = (NativeModules as { SourceCode?: { scriptURL?: string; getConstants?: () => { scriptURL?: string } } }).SourceCode;
+    const scriptURL = sourceCode?.getConstants?.()?.scriptURL ?? sourceCode?.scriptURL;
     return typeof scriptURL === 'string' ? scriptURL : null;
   } catch {
     return null;

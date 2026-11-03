@@ -8,7 +8,7 @@ The [integration guide](integration.md) covers native installation, root registr
 
 | Build          | Behavior                                                                          |
 | -------------- | --------------------------------------------------------------------------------- |
-| Debug          | Enabled by default; native identity, automatic discovery/upload                   |
+| Debug          | Panel enabled; Hub discovery is off until requested                              |
 | Release        | Disabled by default; if explicitly enabled, manual Upload Once or Start Live Logs |
 | enabled: false | No runtime collection/page; native dependencies remain                            |
 
@@ -18,17 +18,27 @@ Connect accepts IPv4 prefix, last octet and port, retaining valid manual address
 
 ## Existing Hub and CLI
 
+For automatic Debug connection, wrap the app's existing Metro config and restart Metro:
+
+```js
+const { getDefaultConfig } = require('@react-native/metro-config');
+const { withDebugToolkitMetro } = require('react-native-debug-toolkit/metro');
+module.exports = withDebugToolkitMetro(getDefaultConfig(__dirname), { projectRoot: __dirname });
+```
+
+Expo projects use `expo/metro-config`. Without the wrapper, Connect remains available for manual upload. The wrapper and `hub dev` must use the same app project root. Add `.debug-toolkit/` to the app's `.gitignore`; it contains local state and logs. If Fast Refresh is disabled, reload the app after starting or stopping the Hub.
+
 Run from the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
 In another terminal:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
+npx --no-install debug-toolkit diagnose --json
+npx --no-install debug-toolkit status
 ```
 
 | Command                             | Purpose                                                            |
@@ -42,7 +52,7 @@ npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
 From the app project root, start `hub dev`, reproduce the issue, and ask an AI coding assistant to run:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
+npx --no-install debug-toolkit diagnose --json
 ```
 
 The command reads runtime evidence and returns JSON. Follow `action.retryArgs` or the target-selection instructions when present. Once a target is selected, use `context`, `inspect <entryId>`, or `tail --duration-ms 10000` with that target to inspect the relevant logs. The first two return JSON; `tail` streams NDJSON.
@@ -66,7 +76,7 @@ Optional init creates .agents/skills/react-native-debug-toolkit/SKILL.md and upd
 Hub language is independent of SDK locale:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev --locale zh-CN
+npx --no-install debug-toolkit hub dev --locale zh-CN
 ```
 
 hub start supports the same flag. DEBUG_TOOLKIT_HUB_LOCALE also works; the flag wins. Hub auto uses browser language. Restart Hub and reload after changing configuration.

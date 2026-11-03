@@ -22,12 +22,17 @@ export async function verifyPackage(tarball) {
       try { if ((await stat(path.join(root, p))).isFile()) return; } catch {}
       throw new Error(`missing package file: ${p}`);
     };
-    if (JSON.stringify(Object.keys(manifest.exports || {}).sort()) !== JSON.stringify(['.', './adapters/zustand', './package.json'].sort())) throw new Error('exports must contain only the public API');
+    if (JSON.stringify(Object.keys(manifest.exports || {}).sort()) !== JSON.stringify(['.', './adapters/zustand', './metro', './package.json'].sort())) throw new Error('exports must contain only the public API');
     for (const key of ['.', './adapters/zustand']) {
       const entry = manifest.exports[key];
       for (const condition of ['types', 'react-native', 'import', 'require', 'default']) await exists(entry?.[condition]);
     }
     await exists(manifest.exports['./package.json']);
+    await exists(manifest.exports['./metro']?.types);
+    await exists(manifest.exports['./metro']?.default);
+    await exists('./node/metro/activation.js');
+    await exists('./src/utils/hubActivation.ts');
+    await exists('./src/utils/defaultHubActivation.ts');
     for (const key of ['main', 'module', 'types', 'react-native']) await exists(manifest[key]);
     for (const p of ['README.md', 'README-zh-CN.md', 'docs/integration.md', 'docs/integration.zh-CN.md', 'docs/configuration.md', 'docs/configuration.zh-CN.md', 'docs/examples/integration/App.tsx', 'react-native-debug-toolkit.podspec', 'android/build.gradle']) await exists(p);
     for (const prefix of ['package/ios/', 'package/android/src/']) {

@@ -25,7 +25,7 @@ The documented RN 0.85.1 Demo baseline is iOS 15.1 / Android minSdk 24. The libr
 From your app project, using its npm lockfile:
 
 ```sh
-npm install react-native-debug-toolkit@4.1.2 react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
+npm install react-native-debug-toolkit react-native-mmkv@4.3.2 react-native-nitro-modules@0.35.10 @react-native-clipboard/clipboard@1.16.3
 cd ios
 pod install
 cd ..
@@ -80,18 +80,18 @@ For real business bindings, copy the self-contained [App.tsx](examples/integrati
 In another terminal at the app root:
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit hub dev
+npx --no-install debug-toolkit hub dev
 ```
 
-Open http://127.0.0.1:3800 on the computer. Debug uses the native application identifier by default. Connect address precedence is saved manual address > config endpoint > Debug discovery through Metro/platform candidates. An unreachable explicit address reports failure instead of silently switching Hubs. Clear the saved manual address to return to config/discovery. Devices need the computer's reachable LAN address; localhost on a phone is the phone. The CLI also attempts Android adb reverse.
+Open http://127.0.0.1:3800 on the computer. Hub discovery is off until explicitly requested. For automatic Debug connection while `hub dev` runs, wrap the app's Metro config with `withDebugToolkitMetro` and restart Metro; see the [setup guide](setup.md). Without it, use Connect to upload once or start live logs. Debug uses the native application identifier by default. Connect address precedence is saved manual address > config endpoint > Debug discovery through Metro/platform candidates. An unreachable explicit address reports failure instead of silently switching Hubs. Clear the saved manual address to return to config/discovery. Devices need the computer's reachable LAN address; localhost on a phone is the phone. The CLI also attempts Android adb reverse.
 
 Open the floating inspector, verify all twelve pages, then generate a NEW Console marker and real HTTP request after capture is ready. The included Verification component waits for debug.ready(), accepts your reachable non-mutating health/test URL, emits a unique integration-timestamp-random marker and adds it to the request query. Use an endpoint without a URL fragment. It shows the actual HTTP status or failure; it does not fabricate a successful response.
 
 In the Hub, select the current App and Session and search for that marker in Console and Network. Check the request URL and real response. Record appId, sessionId, platform/build identity and marker. If zero config cannot obtain a native identity, keep the local inspector and supply a stable connect.appId using the config reference.
 
 ```sh
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit diagnose --json
-npx --package=react-native-debug-toolkit@4.1.2 debug-toolkit status
+npx --no-install debug-toolkit diagnose --json
+npx --no-install debug-toolkit status
 ```
 
 Existing context/inspect/tail commands can inspect evidence; use `debug-toolkit <command> --help` for target flags. Hub /ready proves only that the server is ready. Old sessions or old logs do not prove the current app integration works. Report dependency/static checks, native build, current panel and current-session event receipt separately.

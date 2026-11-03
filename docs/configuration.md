@@ -84,7 +84,7 @@ Insufficient space falls back to a scrollable grid with a close button and full-
 
 Network captures XMLHttpRequest and global fetch after initialization, including Expo's native fetch. Native HTTP clients that use neither path stay outside its scope. Text/JSON responses are inspectable; binary, event-stream, and multipart bodies are not read. Console observes JS console output. Native uses supported iOS RCTLog output or Android process-visible logcat; unavailable native capture is shown honestly.
 
-State is empty without adapters or explicit events; Navigation is empty without a ref or explicit events; Track is empty until instrumented. Accounts, Environment and Custom stay visible with empty lists. Clipboard waits for user action. History shows retained supported logs if available. Connect resolves the native app identifier and, in Debug, can discover/upload when the Hub is reachable; an offline Hub does not stop the app.
+State is empty without adapters or explicit events; Navigation is empty without a ref or explicit events; Track is empty until instrumented. Accounts, Environment and Custom stay visible with empty lists. Clipboard waits for user action. History shows retained supported logs if available. Connect resolves the native app identifier. Hub discovery is off by default; with the Metro wrapper it starts while `hub dev` runs, and manual upload remains available without the wrapper. An offline Hub does not stop the app.
 
 ## Sources, state and navigation
 

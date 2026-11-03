@@ -82,7 +82,7 @@ quickActions: {
 
 Network 在初始化后采集 XMLHttpRequest 和全局 fetch，包括 Expo 的原生 fetch。不经过这两条路径的原生 HTTP 客户端不在范围内。文本/JSON 响应可查看；二进制、event-stream 和 multipart 正文不读取。Console 观察 JS console。Native 采集受支持的 iOS RCTLog 或 Android 当前进程可见的 logcat；原生能力不可用时显示真实状态。
 
-State 在无 adapter/显式事件时为空，Navigation 在无 ref/显式事件时为空，Track 等待埋点调用。Accounts、Environment、Custom 无列表也保留页面。Clipboard 只在用户操作时工作。History 展示已保留的受支持日志。Connect 使用原生 App 标识，Debug 下 Hub 可达时可自动发现并上传；Hub 离线不会阻断 App。
+State 在无 adapter/显式事件时为空，Navigation 在无 ref/显式事件时为空，Track 等待埋点调用。Accounts、Environment、Custom 无列表也保留页面。Clipboard 只在用户操作时工作。History 展示已保留的受支持日志。Connect 使用原生 App 标识，默认不自动探测 Hub；接入 Metro 包装器后在 `hub dev` 运行期间自动连接，未接入时仍可手动上传。Hub 离线不会阻断 App。
 
 ## Source、状态与导航
 

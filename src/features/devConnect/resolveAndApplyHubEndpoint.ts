@@ -11,7 +11,7 @@ function isDevRuntime(): boolean {
 
 export async function resolveAndApplyHubEndpoint(
   configuredEndpoint: string | null | undefined,
-  options: { client: HubClient; signal?: AbortSignal; isCurrent?: () => boolean; isDev?: boolean },
+  options: { client: HubClient; signal?: AbortSignal; isCurrent?: () => boolean; isDev?: boolean; automaticPort?: number },
 ): Promise<string | null> {
   const client = options.client;
   const manual = client.getRuntimeEndpoint();
@@ -24,6 +24,7 @@ export async function resolveAndApplyHubEndpoint(
     platform: Platform.OS,
     runtimeOverride: manual,
     configuredEndpoint: configuredEndpoint ?? client.getConfiguredEndpoint(),
+    automaticPort: options.automaticPort,
     probeReady: (endpoint) => probeHubReady(endpoint, { signal: options.signal }),
   });
 

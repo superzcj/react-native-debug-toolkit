@@ -20,11 +20,16 @@
       "require": "./lib/commonjs/adapters/zustand.js",
       "default": "./lib/commonjs/adapters/zustand.js"
     },
+    "./metro": {
+      "types": "./metro.d.ts",
+      "default": "./node/metro/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "src",
     "lib",
+    "metro.d.ts",
     "bin",
     "node",
     "ios",
