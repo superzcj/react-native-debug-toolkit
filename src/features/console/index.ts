@@ -104,7 +104,20 @@ export const createConsoleLogFeature = (
       logStore.dispose();
       initialized = false;
     },
-    subscribe: (listener) => logStore.subscribe(listener),
+    subscribe: (listener) => {
+      let active = true;
+      let queued = false;
+      const unsubscribe = logStore.subscribe(() => {
+        if (!active || queued) { return; }
+        queued = true;
+        // Console calls can occur during React render; notify observers after that call stack.
+        queueMicrotask(() => {
+          queued = false;
+          if (active && initialized && runtime.active) { listener(); }
+        });
+      });
+      return () => { active = false; unsubscribe(); };
+    },
   };
 };
 
