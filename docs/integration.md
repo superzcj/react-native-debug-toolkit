@@ -2,7 +2,7 @@
 
 [中文](integration.zh-CN.md) · [All configuration fields](configuration.md) · [Complete example](examples/integration/App.tsx)
 
-This guide is for humans and AI coding assistants using version 4.1.2. Read this file, then configuration.md and the included examples when binding business data. No integration Skill, source-code inspection, special AI product or new setup CLI is required.
+This guide is for humans and AI coding assistants using version 4.2.0. Read this file, then configuration.md and the included examples when binding business data. No integration Skill, source-code inspection, special AI product or new setup CLI is required.
 
 ## 1. Find the existing root
 

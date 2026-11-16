@@ -49,6 +49,11 @@ const animation = () => ({
   },
 });
 
+const absoluteFill = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 };
+const flatten = (style) => Array.isArray(style)
+  ? Object.assign({}, ...style.map(flatten))
+  : style && typeof style === 'object' ? style : undefined;
+
 module.exports = {
   View: createComponent('View'),
   SafeAreaView: createComponent('SafeAreaView'),
@@ -94,8 +99,10 @@ module.exports = {
   useWindowDimensions: () => ({ width: 390, height: 844 }),
   StyleSheet: {
     create: (styles) => styles,
+    flatten,
     hairlineWidth: 1,
-    absoluteFillObject: {},
+    absoluteFill,
+    absoluteFillObject: absoluteFill,
   },
   Animated: {
     Value: AnimatedValue,

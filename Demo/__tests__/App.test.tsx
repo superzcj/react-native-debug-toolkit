@@ -114,7 +114,7 @@ async function openConnectTab(renderer: ReactTestRenderer.ReactTestRenderer) {
     await Promise.resolve();
   });
   await ReactTestRenderer.act(async () => {
-    pressText(renderer.root, '连接');
+    renderer.root.findByProps({ testID: 'debug-tab-connect' }).props.onPress();
     await flushHub();
   });
 }
@@ -151,7 +151,7 @@ test('opens the complete showcase directly with a single active root host', asyn
 });
 
 
-test('opens the v4 local Hub controls', async () => {
+test('opens local Hub controls with live logs opted in manually', async () => {
   global.fetch = mockHubFetch() as jest.MockedFunction<typeof fetch>;
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -163,19 +163,21 @@ test('opens the v4 local Hub controls', async () => {
 
   expect(findText(renderer!.root, 'Hub 地址')).toBeTruthy();
   expect(findText(renderer!.root, '上传一次')).toBeTruthy();
-  expect(findText(renderer!.root, '停止实时日志')).toBeTruthy();
-  expect(renderer!.root.findByProps({ placeholder: 'x' }).props.value).toBe('1');
+  expect(findText(renderer!.root, '开始实时日志')).toBeTruthy();
+  expect(renderer!.root.findByProps({ placeholder: 'x' }).props.value).toBe('');
   expect(renderer!.root.findByProps({ placeholder: '3800' }).props.value).toBe('3800');
+
+  await ReactTestRenderer.act(async () => {
+    pressText(renderer!.root, '开始实时日志');
+    await flushHub();
+  });
+  expect(findText(renderer!.root, '停止实时日志')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     pressText(renderer!.root, '停止实时日志');
     await Promise.resolve();
   });
-  await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, '开始实时日志');
-    await Promise.resolve();
-  });
-  expect(findText(renderer!.root, '停止实时日志')).toBeTruthy();
+  expect(findText(renderer!.root, '开始实时日志')).toBeTruthy();
 
   await ReactTestRenderer.act(async () => {
     renderer!.unmount();
@@ -211,7 +213,7 @@ test('uploads a snapshot batch to the local Hub', async () => {
   });
 });
 
-test('automatically flushes navigation logs without pressing Upload Once', async () => {
+test('flushes navigation logs after manually starting live logs', async () => {
   jest.useFakeTimers();
   const fetchMock = mockHubFetch();
   fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -242,8 +244,15 @@ test('automatically flushes navigation logs without pressing Upload Once', async
     await flushHub();
   });
 
+  await openConnectTab(renderer!);
   await ReactTestRenderer.act(async () => {
-    pressText(renderer!.root, 'Profile');
+    pressText(renderer!.root, '开始实时日志');
+    await flushHub();
+    debug.close();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    debug.navigation({ action: 'navigate', from: 'Explore', to: 'Profile' });
     await flushHub();
     await jest.advanceTimersByTimeAsync(1000);
   });

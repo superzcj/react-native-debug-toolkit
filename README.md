@@ -85,7 +85,7 @@ Rebuild the native app, then tap the floating launcher. The in-app inspector als
 
 ### Connect your browser and AI assistant
 
-Hub discovery is off by default. This requires a Toolkit build that includes `withDebugToolkitMetro`; published 4.1.2 predates it. To enable discovery while `hub dev` is running, wrap the app's Metro config and restart Metro:
+Hub discovery is off by default. The 4.2.0 build includes `withDebugToolkitMetro`; to enable discovery while `hub dev` is running, wrap the app's Metro config and restart Metro:
 
 ```js
 const { getDefaultConfig } = require('@react-native/metro-config');

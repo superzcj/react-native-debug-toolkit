@@ -93,9 +93,9 @@ test('copy feedback displays separate channel failures and unavailable reasons',
   expect(recordConsole).not.toHaveBeenCalled();
   await act(async () => { await tree!.root.find(node => typeof node.props.onPress === 'function').props.onPress(); });
   const output = JSON.stringify(tree!.toJSON());
-  expect(output).toContain('Phone: error (Phone denied)');
-  expect(output).toContain('Console: success');
-  expect(output).toContain('Hub: unavailable (Computer delivery was not confirmed.)');
+  expect(output).toContain('Recorded in debug logs');
+  expect(output).toContain('Phone clipboard failed: Phone denied');
+  expect(output).not.toContain('Hub');
   expect(recordConsole).toHaveBeenCalledTimes(1);
   act(() => { tree!.unmount(); });
 });
@@ -119,7 +119,7 @@ test('editing text discards a pending result without releasing a newer copy acti
   expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
   await act(async () => { resolvers[1]!(result); await newRequest!; });
   expect(button().props.disabled).toBe(false);
-  expect(JSON.stringify(tree!.toJSON())).toContain('Phone: success');
+  expect(JSON.stringify(tree!.toJSON())).toContain('Copied to phone clipboard');
   expect(copy.mock.calls).toHaveLength(2);
   act(() => { tree!.unmount(); });
 });
@@ -129,9 +129,9 @@ test('editing after success clears the previous text feedback', async () => {
   let tree: Renderer.ReactTestRenderer;
   act(() => { tree = Renderer.create(<CopyButton text="old text" copy={copy} />); });
   await act(async () => { await tree!.root.find(node => typeof node.props.onPress === 'function').props.onPress(); });
-  expect(JSON.stringify(tree!.toJSON())).toContain('Phone: success');
+  expect(JSON.stringify(tree!.toJSON())).toContain('Copied to phone clipboard');
   act(() => { tree!.update(<CopyButton text="new text" copy={copy} />); });
-  expect(JSON.stringify(tree!.toJSON())).not.toContain('Phone: success');
+  expect(JSON.stringify(tree!.toJSON())).not.toContain('Copied to phone clipboard');
   act(() => { tree!.unmount(); });
 });
 

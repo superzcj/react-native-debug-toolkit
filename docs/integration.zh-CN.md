@@ -2,7 +2,7 @@
 
 [English](integration.md) · [全部配置字段](configuration.zh-CN.md) · [完整示例](examples/integration/App.tsx)
 
-本指南供人和 AI 编程助手使用，适用于版本 4.1.2。先读本页，补充业务数据时再读 configuration.zh-CN.md 和随包示例。无需接入 Skill、内部源码、指定 AI 产品或新的 setup CLI。
+本指南供人和 AI 编程助手使用，适用于版本 4.2.0。先读本页，补充业务数据时再读 configuration.zh-CN.md 和随包示例。无需接入 Skill、内部源码、指定 AI 产品或新的 setup CLI。
 
 ## 1. 找到现有根入口
 

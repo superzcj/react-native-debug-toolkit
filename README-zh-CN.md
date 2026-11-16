@@ -85,7 +85,7 @@ export default withDebugToolkit(App);
 
 ### 连接浏览器与 AI
 
-Hub 默认不自动探测。这需要包含 `withDebugToolkitMetro` 的 Toolkit 构建，已发布的 4.1.2 尚不包含。要在 `hub dev` 运行时自动连接，在 App 的 Metro 配置中包装已有配置并重启 Metro：
+Hub 默认不自动探测。4.2.0 已包含 `withDebugToolkitMetro`；要在 `hub dev` 运行时自动连接，请在 App 的 Metro 配置中包装已有配置并重启 Metro：
 
 ```js
 const { getDefaultConfig } = require('@react-native/metro-config');

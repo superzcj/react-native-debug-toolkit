@@ -1,6 +1,6 @@
 {
   "name": "react-native-debug-toolkit",
-  "version": "4.1.2",
+  "version": "4.2.0",
   "description": "React Native debugging toolkit with an in-app HTTP inspector, console logs, a local Web Console, and runtime diagnostics for AI coding assistants",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",

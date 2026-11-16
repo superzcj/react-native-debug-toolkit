@@ -22,7 +22,8 @@ test('the zero configuration consumer passes only its root component to the HOC'
 test('business buttons generate unique console markers and send the same marker over HTTP', async () => {
   NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true };
   const previousFetch = global.fetch;
-  global.fetch = jest.fn(async () => new Response('{}', { status: 200 }));
+  const fetchMock = jest.fn(async (_input: RequestInfo | URL) => new Response('{}', { status: 200 }));
+  global.fetch = fetchMock;
   const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
   const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
   const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
@@ -35,7 +36,7 @@ test('business buttons generate unique console markers and send the same marker 
     const markers = log.mock.calls.map(([value]) => value).filter(value => /^integration-1000-\d+$/.test(String(value)));
     expect(markers).toHaveLength(2);
     expect(new Set(markers).size).toBe(2);
-    expect(global.fetch).toHaveBeenCalledWith(`http://localhost:3801/health?integration=${markers[1]}`);
+    expect(fetchMock.mock.calls.some(([url]) => url === `http://localhost:3801/health?integration=${markers[1]}`)).toBe(true);
     expect(JSON.stringify(tree.toJSON())).toContain(`200 · ${markers[1]}`);
     expect(debug.getReport().features.environment?.phase).toBe('empty');
     expect(debug.getReport().features.accounts?.phase).toBe('empty');
