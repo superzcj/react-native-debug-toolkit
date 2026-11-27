@@ -17,6 +17,12 @@ const validOptions = {
 };
 
 describe('normalizeConfig', () => {
+  test('view inspector is opt-in and accepts only a boolean', () => {
+    expect(normalizeConfig().viewInspector).toBe(false);
+    expect(normalizeConfig({ viewInspector: true }).viewInspector).toBe(true);
+    expect(normalizeConfig({ viewInspector: 'yes' }).issues[0]?.path).toBe('viewInspector');
+  });
+
   test('empty input enables all feature pages', () => {
     const result = normalizeConfig();
 

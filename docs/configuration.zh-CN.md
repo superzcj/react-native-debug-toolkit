@@ -61,6 +61,26 @@
 | `tabs.enabled` | `true` | boolean；固定自定义页与配置项生命周期。 |
 | `tabs.items` | `[]` | readonly 类型化 DebugTab 元组；每项必填 id/title/component。 |
 
+## 视图检查
+
+`viewInspector: true` 在面板侧栏所有日志通道之后增加「视图检查」入口，默认不显示。建议使用 `viewInspector: __DEV__`；原生依赖只接入 Debug 构建。该功能查看原生视图，React Native 合并的布局节点可能不会单独显示。
+
+Expo 项目在 `app.json` 的 `expo.plugins` 添加 `"react-native-debug-toolkit/expo/view-inspector"`，重新 prebuild 并编译。插件为 iOS 添加 FLEX 5.22.10，为 Android 添加 UETool 1.3.4 和 Jetifier；Android 首次使用需授予悬浮窗权限。iOS 可从 FLEX 的 views 进入 3D；Android 可从 UETool 的 Scalpel 图标切换 3D。Expo Go 不包含这些原生依赖。
+
+React Native CLI 项目在 `ios/Podfile` 中添加以下内容（保留现有的 `post_install` 内容），然后执行 Pod 安装：
+
+```ruby
+require File.join(File.dirname(`node --print "require.resolve('react-native-debug-toolkit/package.json')"`.strip), 'ios', 'patch_flex')
+target 'YourApp' do
+  pod 'FLEX', '5.22.10', :configurations => ['Debug']
+  post_install do |installer|
+    patch_debug_toolkit_flex(installer)
+  end
+end
+```
+
+Android 的项目级 `allprojects.repositories` 添加 `maven { url 'https://jitpack.io' }`，`gradle.properties` 设置 `android.enableJetifier=true`，app 的 `dependencies` 添加 `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` 和 `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")`。改动后重新编译。
+
 ## 快捷操作
 
 `quickActions` 为浮动入口增加最多五个业务操作，不会新增功能页：

@@ -61,6 +61,26 @@ The following parser-default column uses JSON, with `undefined` for an absent va
 | `tabs.enabled` | `true` | boolean; fixed Custom page and configured item lifetimes. |
 | `tabs.items` | `[]` | readonly typed DebugTab tuple; id/title/component required per item. |
 
+## View inspector
+
+Set `viewInspector: true` to add a view inspector entry after the panel's log channels. It is off by default; use `viewInspector: __DEV__` to show it only in development. The inspectors show native views, so layout-only React Native nodes may be merged.
+
+For Expo, add `"react-native-debug-toolkit/expo/view-inspector"` to `expo.plugins`, then prebuild and rebuild. The plugin adds FLEX 5.22.10 on iOS and UETool 1.3.4 with Jetifier on Android, as Debug dependencies. Android requires the display-over-other-apps permission. In FLEX, use views for 3D; in UETool, select Scalpel for 3D. Expo Go does not contain these native dependencies.
+
+For React Native CLI, add the following to `ios/Podfile` while preserving the existing `post_install` contents, then install pods:
+
+```ruby
+require File.join(File.dirname(`node --print "require.resolve('react-native-debug-toolkit/package.json')"`.strip), 'ios', 'patch_flex')
+target 'YourApp' do
+  pod 'FLEX', '5.22.10', :configurations => ['Debug']
+  post_install do |installer|
+    patch_debug_toolkit_flex(installer)
+  end
+end
+```
+
+On Android, add `maven { url 'https://jitpack.io' }` to the project `allprojects.repositories`, set `android.enableJetifier=true` in `gradle.properties`, and add `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` and `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")` to the app `dependencies`. Rebuild after changing native dependencies.
+
 ## Quick actions
 
 Configure up to five business actions on the floating launcher, without adding feature pages:

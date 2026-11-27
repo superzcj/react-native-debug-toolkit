@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  Alert,
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
 import type { DebugQuickAction } from '../../types/config';
@@ -27,6 +28,7 @@ import {
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
 import { t, type TranslationKey } from '../../i18n';
+import { openViewInspector } from '../../utils/viewInspector';
 
 // ─── Error Boundary ────────────────────────────────────
 interface ErrorBoundaryState {
@@ -138,12 +140,13 @@ interface FloatPanelViewProps {
   panelTarget?: string;
   panelRequest?: number;
   quickActions?: readonly DebugQuickAction[];
+  viewInspector?: boolean;
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onClearAll: () => void;
 }
 
-export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
+export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], viewInspector = false, onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [filters, dispatchFilters] = useReducer(
     panelFilterReducer,
@@ -236,6 +239,7 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
     const b = f.badge?.();
     return { id: f.name, label: featureLabel(f), dotColor: b?.color ?? null, count: snapshotCount(f) };
   });
+  if (viewInspector) railItems.push({ id: 'viewInspector', label: t('viewInspector.title') });
 
   const panelConnectionStatus = buildPanelConnectionStatus(features);
 
@@ -289,7 +293,18 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
             syncColor={panelConnectionStatus.color}
           >
             <View style={styles.body}>
-              <FeatureRail items={railItems} activeIndex={activeTab} onSelectTab={switchTab} />
+              <FeatureRail items={railItems} activeIndex={activeTab} onSelectTab={(index) => {
+                if (index < features.length) { switchTab(index); return; }
+                onClosePanel();
+                requestAnimationFrame(() => {
+                  void openViewInspector().then((result) => {
+                    if (result === 'permission_required') Alert.alert(t('viewInspector.title'), t('viewInspector.permission'));
+                    if (result === 'unavailable') Alert.alert(t('viewInspector.title'), t('viewInspector.unavailable'));
+                  }).catch((error: unknown) => {
+                    Alert.alert(t('viewInspector.title'), error instanceof Error ? error.message : String(error));
+                  });
+                });
+              }} />
               <View style={styles.contentColumn}>
                 {activeFeature && activeSummary && (
                   <FeatureIntroCard

@@ -24,6 +24,7 @@
       "types": "./metro.d.ts",
       "default": "./node/metro/index.js"
     },
+    "./expo/view-inspector": "./expo/view-inspector.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -32,6 +33,7 @@
     "metro.d.ts",
     "bin",
     "node",
+    "expo",
     "ios",
     "android",
     "react-native-debug-toolkit.podspec",
@@ -103,12 +105,16 @@
   },
   "peerDependencies": {
     "@react-native-clipboard/clipboard": ">=1.0.0",
+    "expo": ">=58.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.76.6 <=0.85.1 || 0.88.0",
     "react-native-nitro-modules": "0.35.10 || 0.37.1"
   },
   "peerDependenciesMeta": {
     "@react-native-clipboard/clipboard": {
+      "optional": true
+    },
+    "expo": {
       "optional": true
     },
     "react": {

@@ -22,6 +22,7 @@ export type NormalizedFeature = {
 export interface NormalizedConfig {
   enabled: boolean | undefined;
   locale: 'en' | 'zh-CN' | undefined;
+  viewInspector: boolean;
   issues: readonly ConfigIssue[];
   features: Readonly<Record<FeatureKey, NormalizedFeature>>;
   quickActions: {
@@ -334,6 +335,7 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
   const issues: ConfigIssue[] = [];
   let enabled: boolean | undefined;
   let locale: 'en' | 'zh-CN' | undefined;
+  let viewInspector = false;
   let quickActions: unknown;
   let config: Record<string, unknown> = {};
   if (input !== undefined) {
@@ -350,6 +352,9 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
           else {issues.push({ path: field, message: 'Expected en or zh-CN.' });}
         } else if (field === 'logChannels') {
           // Validated with IDs below.
+        } else if (field === 'viewInspector') {
+          if (typeof value === 'boolean') viewInspector = value;
+          else if (value !== undefined) issues.push({ path: field, message: 'Expected a boolean.' });
         } else if (field === 'quickActions') {
           quickActions = value;
         } else if (!FEATURE_KEYS.some((key) => key === field)) {
@@ -384,5 +389,5 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
       });
     }
   }
-  return { enabled, locale, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
+  return { enabled, locale, viewInspector, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
 }
