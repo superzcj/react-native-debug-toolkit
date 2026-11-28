@@ -27,7 +27,6 @@
   "quickActions.error": "Action failed",
   "viewInspector.title": "View inspector",
   "viewInspector.short": "Inspect",
-  "viewInspector.permission": "Allow display over other apps in system settings, then open the inspector again.",
   "viewInspector.unavailable": "The view inspector is not installed. Rebuild the Debug app.",
   "common.bad": "Bad",
   "common.time": "Time",

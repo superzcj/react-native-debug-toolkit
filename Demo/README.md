@@ -67,11 +67,11 @@ Demo 通过声明的 Toolkit 包和标准 autolinking 加载依赖。独立消�
 
 ## 视图检查实验
 
-Demo 的 Debug 构建接入了 iOS FLEX 和 Android UETool。点 Toolkit 悬浮球打开面板，在左侧选择 **视图检查**：
+Demo 的 Debug 构建接入了 iOS FLEX 与 Android 内置 AndroidX 视图检查器。点 Toolkit 悬浮球打开面板，在左侧选择 **视图检查**：
 
 - iOS：在 FLEX 工具栏点 **views** 查看原生视图树，点左上角的分层图标切换 3D 快照；也可以用 **select** 点选页面元素。若先选中了 `RCTDebuggingOverlay`，点 **views**，再从 **Views at Tap** 列表选择下方的实际视图。
-- Android：首次使用时按提示授予悬浮窗权限，返回 App 后再次选择 **视图检查**。在 UETool 悬浮菜单中可点选元素、查看属性，或选择 Scalpel 图标查看 3D 分层；再次点击 Scalpel 图标退出 3D。
+- Android：无需悬浮窗权限、无需 Jetifier，直接挂在当前窗口顶层打开。支持点选高亮与盒模型标注、双视图测距、可搜索的视图树、属性查看与 Visibility/Alpha 实时调试，以及 3D 分层视角（再次点击 **3D** 或按返回键退出）。
 
-这两个工具检查的是原生视图，React Native 可能会合并部分只参与布局的节点。它们只在 Debug 构建中接入；改动原生依赖后需要重新安装 Pod 并重新编译 App。共享的 CocoaPods 补丁会修复 FLEX 5.22.10 在 iOS 26 对零尺寸视图截图时的崩溃。
+这两个工具检查的是原生视图，React Native 可能会合并部分只参与布局的节点。iOS 的 FLEX 仅在 Debug 构建中链接，Android 内置检查器仅在可调试构建中注册启用；改动原生依赖后需要重新安装 Pod 并重新编译 App。共享的 CocoaPods 补丁会修复 FLEX 5.22.10 在 iOS 26 对零尺寸视图截图时的崩溃。
 
 [其他功能](../docs/usage.zh-CN.md) · [构建模式与排障](../docs/setup.zh-CN.md) · [录制说明](../docs/recording.md)

@@ -64,21 +64,13 @@
 
 ## 视图检查
 
-`viewInspector: true` 在面板侧栏所有日志通道之后增加「视图检查」入口，省略时默认关闭。可使用 `viewInspector: __DEV__` 仅在开发环境显示，也可使用 `viewInspector: { enabled: true }`，传入空对象同样会启用。原生依赖只接入 Debug 构建。该功能查看原生视图，React Native 合并的布局节点可能不会单独显示。
+`viewInspector: true` 在面板侧栏所有日志通道之后增加「视图检查」入口，省略时默认关闭。可使用 `viewInspector: __DEV__` 仅在开发环境显示，也可使用 `viewInspector: { enabled: true }`，传入空对象同样会启用。iOS 的 FLEX 仅在 Debug 构建中链接，Android 内置检查器仅在可调试构建中注册启用。该功能查看原生视图，React Native 合并的布局节点可能不会单独显示。
 
-Expo 项目在 `app.json` 的 `expo.plugins` 添加 `"react-native-debug-toolkit/expo/view-inspector"`，执行 `npx expo prebuild` 并重新编译。默认只在 iOS Debug 构建中引入 FLEX 5.22.10。如需在 Android Debug 构建中引入 UETool 1.3.4，显式设置 `android: true`。之前使用无参插件的项目也需要添加此选项才能继续使用 Android 检查器。`enabled: false` 可同时关闭双端。
+Android 端在工具包原生模块中内置了纯 AndroidX 视图检查器，随 React Native autolinking 自动可用，**无需额外 Gradle 依赖、无需 JitPack、无需 `android.enableJetifier`，也不需要悬浮窗权限**。仅在宿主应用可调试（`ApplicationInfo.FLAG_DEBUGGABLE`）时注册检查器原生模块，支持点选高亮与盒模型标注、双视图测距、可搜索的视图树、Visibility/Alpha 实时调试以及交互式 3D 分层视角。
 
-```json
-["react-native-debug-toolkit/expo/view-inspector", { "android": true }]
-```
+iOS 端在 Expo 项目中只需在 `app.json` 的 `expo.plugins` 添加 `"react-native-debug-toolkit/expo/view-inspector"`，执行 `npx expo prebuild` 并重新编译即可在 iOS Debug 构建中接入 FLEX 5.22.10（可用 `enabled: false` 或 `ios: false` 关闭 iOS 插件注入）。对于已生成的原生工程，调整插件开关后执行 `npx expo prebuild --clean` 并重新编译。iOS 可从 FLEX 的 views 进入 3D。Expo Go 不包含原生模块。
 
-开启 Android 集成会在整个工程设置 `android.enableJetifier=true`。Jetifier 可能重写第三方依赖，同时增加 Debug 和 Release 的构建时间。AGP 9 支持此开关且默认关闭，Google 计划在 AGP 10 中移除它。详见 [AndroidX 概览](https://developer.android.com/jetpack/androidx)。
-
-使用默认的 iOS 集成时，可在工具包配置中设置 `viewInspector: __DEV__ && Platform.OS === 'ios'`，使侧栏入口也只在 iOS 显示。
-
-对于已生成的原生工程，调整开关后执行 `npx expo prebuild --clean` 并重新编译，以按新选项重新生成。该命令会替换生成的 `ios` 和 `android` 目录，包括其中的手动修改。Android 首次使用需授予悬浮窗权限。iOS 可从 FLEX 的 views 进入 3D，Android 可从 UETool 的 Scalpel 图标切换 3D。Expo Go 不包含这些原生依赖。
-
-React Native CLI 项目在 `ios/Podfile` 中添加以下内容（保留现有的 `post_install` 内容），然后执行 Pod 安装：
+iOS 端在 React Native CLI 项目中于 `ios/Podfile` 添加以下内容（保留现有的 `post_install` 内容），然后执行 Pod 安装：
 
 ```ruby
 require File.join(File.dirname(`node --print "require.resolve('react-native-debug-toolkit/package.json')"`.strip), 'ios', 'patch_flex')
@@ -89,8 +81,6 @@ target 'YourApp' do
   end
 end
 ```
-
-Android 的项目级 `allprojects.repositories` 添加 `maven { url 'https://jitpack.io' }`，`gradle.properties` 设置 `android.enableJetifier=true`，app 的 `dependencies` 添加 `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` 和 `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")`。宿主应用可调试时会注册检查器原生模块。对于 `staging` 等自定义可调试构建类型，还需为该构建类型添加上述 UETool 依赖，`debugImplementation` 只为 Debug 变体提供依赖。改动后重新编译。
 
 ## 快捷操作
 

@@ -66,19 +66,11 @@ The following parser-default column uses JSON, with `undefined` for an absent va
 
 Set `viewInspector: true` to add a view inspector entry after the panel's log channels. It is off when omitted. Use `viewInspector: __DEV__` to show it only in development, or use `viewInspector: { enabled: true }`. Supplying an empty object also enables it. The inspectors show native views, so layout-only React Native nodes may be merged.
 
-For Expo, add `"react-native-debug-toolkit/expo/view-inspector"` to `expo.plugins`, then run `npx expo prebuild` and rebuild the app. By default the plugin adds FLEX 5.22.10 to iOS Debug builds only. To include UETool 1.3.4 in Android Debug builds as well, set `android: true`. Existing projects that used the plugin without options also need this setting to keep Android support. Use `enabled: false` to disable both platforms.
+On Android, the toolkit bundles a built-in AndroidX view inspector directly inside its autolinked native module—no extra Gradle dependencies, JitPack repository, `android.enableJetifier`, or overlay permission is required. The inspector module is registered at runtime only when the host app is debuggable (`ApplicationInfo.FLAG_DEBUGGABLE`). It supports tap selection with box-model highlights, distance measurement between two views, a searchable view hierarchy tree, live visibility/alpha editing, and an interactive 3D layer view.
 
-```json
-["react-native-debug-toolkit/expo/view-inspector", { "android": true }]
-```
+For iOS on Expo, add `"react-native-debug-toolkit/expo/view-inspector"` to `expo.plugins`, then run `npx expo prebuild` and rebuild the app. The plugin adds FLEX 5.22.10 to iOS Debug builds only. Use `enabled: false` or `ios: false` to skip the iOS FLEX integration. After changing plugin options for a previously generated native project, run `npx expo prebuild --clean` and rebuild. In FLEX, use views for 3D. Expo Go does not contain these native modules.
 
-Enabling Android sets `android.enableJetifier=true` for the entire project. Jetifier can rewrite third-party dependencies and slow both Debug and Release builds. AGP 9 supports this flag and leaves it off by default. Google plans to remove it in AGP 10. See the [AndroidX overview](https://developer.android.com/jetpack/androidx).
-
-With the default iOS-only integration, set `viewInspector: __DEV__ && Platform.OS === 'ios'` in the toolkit configuration to show the sidebar entry on iOS only.
-
-After changing these switches for previously generated native projects, run `npx expo prebuild --clean` and rebuild to regenerate them with the selected options. Clean prebuild replaces the generated `ios` and `android` directories, including manual edits in them. Android requires the display-over-other-apps permission. In FLEX, use views for 3D. In UETool, select Scalpel for 3D. Expo Go does not contain these native dependencies.
-
-For React Native CLI, add the following to `ios/Podfile` while preserving the existing `post_install` contents, then install pods:
+For iOS on React Native CLI, add the following to `ios/Podfile` while preserving the existing `post_install` contents, then install pods:
 
 ```ruby
 require File.join(File.dirname(`node --print "require.resolve('react-native-debug-toolkit/package.json')"`.strip), 'ios', 'patch_flex')
@@ -89,8 +81,6 @@ target 'YourApp' do
   end
 end
 ```
-
-On Android, add `maven { url 'https://jitpack.io' }` to the project `allprojects.repositories`, set `android.enableJetifier=true` in `gradle.properties`, and add `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` and `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")` to the app `dependencies`. The inspector module is registered when the host app is debuggable. For a custom debuggable build type such as `staging`, add these UETool dependencies to that build type as well, because `debugImplementation` only supplies the Debug variant. Rebuild after changing native dependencies.
 
 ## Quick actions
 
