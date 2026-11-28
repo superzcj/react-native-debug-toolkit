@@ -16,7 +16,7 @@ jest.mock('../../features/devConnect/resolveAndApplyHubEndpoint', () => ({
 
 jest.mock('../../utils/hubActivation', () => ({
   getHubActivation: jest.fn(() => ({ enabled: true, port: 3800 })),
-}));
+}), { virtual: true });
 
 jest.mock('../../utils/debugPreferences', () => ({
   ...jest.requireActual('../../utils/debugPreferences'),

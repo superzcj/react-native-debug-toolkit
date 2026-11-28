@@ -107,21 +107,17 @@ test('quick actions expose line glyph elements instead of text placeholders', ()
   expect(demoDebugConfig.quickActions.items.every((item) => typeof item.icon === 'object')).toBe(true);
 });
 
-test('the launcher hides DEV and shows STA when the Staging quick action switches the API', async () => {
-  const launcher = tree!.root.findByProps({ testID: 'debug-toolkit-launcher' });
-  expect(launcher.findAllByProps({ children: 'DEV' })).toHaveLength(0);
+test('the Staging quick action synchronizes the badge and can be switched back from the environment page', async () => {
   await Renderer.act(async () => {
     await demoDebugConfig.quickActions.items.find(item => item.id === 'use-staging')!.onPress();
   });
   expect(getDemoApi()).toBe('http://localhost:3802');
-  expect(launcher.findAllByProps({ children: 'STA' }).length).toBeGreaterThan(0);
+  expect(tree!.root.findByProps({ testID: 'debug-toolkit-launcher' }).findAllByProps({ children: 'STA' }).length).toBeGreaterThan(0);
   await Renderer.act(async () => { debug.open(); });
   await Renderer.act(async () => { tree!.root.findByProps({ testID: 'debug-tab-environment' }).props.onPress(); });
   await Renderer.act(async () => { await press(tree!.root, 'Development'); });
-  await Renderer.act(async () => { debug.close(); });
   expect(getDemoApi()).toBe('http://localhost:3801');
-  expect(launcher.findAllByProps({ children: 'DEV' })).toHaveLength(0);
-  expect(launcher.findAllByProps({ children: 'STA' })).toHaveLength(0);
+  expect(tree!.root.findByProps({ testID: 'debug-toolkit-launcher' }).findAllByProps({ children: 'DEV' }).length).toBeGreaterThan(0);
 });
 
 test('account feedback commits successfully and the checkout uses the selected business account', async () => {

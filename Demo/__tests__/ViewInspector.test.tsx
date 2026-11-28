@@ -1,7 +1,8 @@
 import React from 'react';
-import { NativeModules } from 'react-native';
+import { Animated, NativeModules } from 'react-native';
 import { act, create } from 'react-test-renderer';
 import { debug, withDebugToolkit } from 'react-native-debug-toolkit';
+import { t } from '../../src/i18n';
 
 const mockValues = new Map<string, string>();
 jest.mock('react-native-mmkv', () => ({ createMMKV: () => ({
@@ -145,6 +146,89 @@ test('opening the action by name waits for its feature to initialize', async () 
   } finally {
     await act(async () => { tree?.unmount(); });
     delete NativeModules.DebugToolkitViewInspector;
+  }
+});
+
+test.each(['close', 'press the close button', 'open without a target', 'tap a tab', 'swipe to a tab'])(
+  '%s cancels an inspector request made during initialization', async (interaction) => {
+    jest.useFakeTimers();
+    let finishDetection!: (debugBuild: boolean) => void;
+    NativeModules.DebugToolkitDevConnect = { isDebugBuild: () => new Promise(resolve => { finishDetection = resolve; }) };
+    const show = jest.fn(async () => 'opened');
+    NativeModules.DebugToolkitViewInspector = { show };
+    const Wrapped = withDebugToolkit(() => null, { enabled: true, ...disabledPages, state: {}, track: {}, viewInspector: true });
+    let tree!: ReturnType<typeof create>;
+    try {
+      await act(async () => { tree = create(<Wrapped />); });
+      await act(async () => { debug.open('viewInspector'); });
+      expect(tree.root.findByProps({ testID: 'debug-tab-viewInspector' }).props.disabled).toBe(true);
+      await act(async () => {
+        if (interaction === 'close') debug.close();
+        if (interaction === 'press the close button') {
+          jest.mocked(Animated.parallel).mockReturnValueOnce({
+            start(done) { setTimeout(() => done?.({ finished: true }), 200); },
+            stop() {}, reset() {},
+          });
+          tree.root.findByProps({ accessibilityLabel: t('common.closePanel') }).props.onPress();
+        }
+        if (interaction === 'open without a target') debug.open();
+        if (interaction === 'tap a tab') tree.root.findByProps({ testID: 'debug-tab-track' }).props.onPress();
+        if (interaction === 'swipe to a tab') {
+          const page = tree.root.findByProps({ testID: 'debug-page-state' });
+          page.parent!.props.onPanResponderRelease({}, { dx: -70, dy: 0 });
+        }
+      });
+      await act(async () => { finishDetection(true); await debug.ready(); });
+      if (interaction === 'press the close button') {
+        await act(async () => { jest.advanceTimersByTime(200); });
+      }
+      if (interaction === 'close' || interaction === 'press the close button') {
+        await act(async () => { tree.root.findByProps({ testID: 'debug-toolkit-launcher' }).props.onAccessibilityTap(); });
+      }
+      await act(async () => { jest.advanceTimersByTime(32); });
+      expect(show).not.toHaveBeenCalled();
+      const tab = interaction === 'tap a tab' || interaction === 'swipe to a tab' ? 'track' : 'state';
+      expect(tree.root.findAllByProps({ testID: `debug-page-${tab}` }).length).toBeGreaterThan(0);
+    } finally {
+      await act(async () => { tree?.unmount(); });
+      delete NativeModules.DebugToolkitViewInspector;
+      jest.useRealTimers();
+    }
+  },
+);
+
+test('rapid taps and named requests launch once until the native call settles', async () => {
+  jest.useFakeTimers();
+  NativeModules.DebugToolkitDevConnect = { isDebugBuild: async () => true };
+  let finish!: (result: string) => void;
+  const show = jest.fn(() => new Promise<string>(resolve => { finish = resolve; }));
+  NativeModules.DebugToolkitViewInspector = { show };
+  const Wrapped = withDebugToolkit(() => null, { enabled: true, ...disabledPages, viewInspector: true });
+  let tree!: ReturnType<typeof create>;
+  try {
+    await act(async () => { tree = create(<Wrapped />); });
+    await act(async () => { await debug.ready(); debug.open(); });
+    const { onPress } = tree.root.findByProps({ testID: 'debug-tab-viewInspector' }).props;
+    await act(async () => { onPress(); onPress(); });
+    await act(async () => { debug.open('viewInspector'); });
+    expect(show).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(32); });
+    expect(show).toHaveBeenCalledTimes(1);
+
+    await act(async () => { debug.open('viewInspector'); });
+    await act(async () => { jest.advanceTimersByTime(32); });
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(tree.root.findAllByProps({ testID: 'debug-tab-viewInspector' })).toHaveLength(0);
+
+    await act(async () => { finish('opened'); });
+    await act(async () => { debug.open('viewInspector'); });
+    await act(async () => { jest.advanceTimersByTime(32); });
+    expect(show).toHaveBeenCalledTimes(2);
+    await act(async () => { finish('opened'); });
+  } finally {
+    await act(async () => { tree?.unmount(); });
+    delete NativeModules.DebugToolkitViewInspector;
+    jest.useRealTimers();
   }
 });
 

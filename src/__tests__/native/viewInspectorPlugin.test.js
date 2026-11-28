@@ -40,7 +40,10 @@ async function apply(config) {
 }
 
 test.each([
-  [{}, true, true],
+  [undefined, true, false],
+  [{}, true, false],
+  [{ ios: false }, false, false],
+  [{ android: true }, true, true],
   [{ enabled: true, ios: true, android: true }, true, true],
   [{ enabled: true, ios: false, android: true }, false, true],
   [{ enabled: true, ios: true, android: false }, true, false],
@@ -75,9 +78,9 @@ test.each([
   }
 });
 
-test('default plugin options remain enabled and repeated prebuilds are idempotent', async () => {
+test('explicitly enabling both platforms is idempotent across prebuilds', async () => {
   const config = fixture();
-  withViewInspector(config);
+  withViewInspector(config, { android: true });
   await apply(config);
   const once = JSON.stringify(config.mods);
   await apply(config);
@@ -89,7 +92,7 @@ test.each(['uetool', 'uetool-base'])('completes a partial Android installation c
   const gradle = config.mods.appGradle.modResults;
   const group = 'com.github.eleme.UETool';
   gradle.contents = `dependencies {\n    debugImplementation '${group}:${existing}:1.3.4'\n}\n`;
-  withViewInspector(config, { ios: false });
+  withViewInspector(config, { ios: false, android: true });
   await apply(config);
   for (const artifact of ['uetool', 'uetool-base']) {
     expect(gradle.contents.split(`${group}:${artifact}:1.3.4`)).toHaveLength(2);
@@ -103,7 +106,7 @@ test('commented Android dependencies do not satisfy the debug build', async () =
   const config = fixture();
   const gradle = config.mods.appGradle.modResults;
   gradle.contents = 'dependencies {\n/*\n    debugImplementation("com.github.eleme.UETool:uetool:1.3.4")\n*/\n}\n';
-  withViewInspector(config, { ios: false });
+  withViewInspector(config, { ios: false, android: true });
   await apply(config);
   expect(gradle.contents.split('/*')[0]).toContain('debugImplementation("com.github.eleme.UETool:uetool:1.3.4")');
 });
@@ -129,7 +132,7 @@ test.each([
 ])('adds JitPack to application repositories when it is present elsewhere', async contents => {
   const config = fixture();
   config.mods.projectGradle.modResults.contents = contents;
-  withViewInspector(config, { ios: false });
+  withViewInspector(config, { ios: false, android: true });
   await apply(config);
   expect(config.mods.projectGradle.modResults.contents).toContain(
     "allprojects { repositories {\n    maven { url 'https://jitpack.io' }",
@@ -143,7 +146,7 @@ test('reuses JitPack in the application repositories', async () => {
   const config = fixture();
   const contents = "allprojects { repositories { google()\n    maven { url 'https://www.jitpack.io' }\n} }";
   config.mods.projectGradle.modResults.contents = contents;
-  withViewInspector(config, { ios: false });
+  withViewInspector(config, { ios: false, android: true });
   await apply(config);
   expect(config.mods.projectGradle.modResults.contents).toBe(contents);
 });

@@ -120,8 +120,7 @@ export const createEnvironmentFeature = (
     getCurrentEnvironmentId: () => selection,
     badge() {
       const item = config.items.find(env => env.id === selection);
-      const label = item?.title.slice(0, 3).toUpperCase();
-      return label && label !== 'DEV' ? { label, color: '#FF9500' } : null;
+      return item ? { label: item.title.substring(0, 3).toUpperCase(), color: '#FF9500' } : null;
     },
   };
 };

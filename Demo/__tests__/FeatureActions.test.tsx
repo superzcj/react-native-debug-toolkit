@@ -58,3 +58,35 @@ test.each(['error', 'unavailable'] as const)('an action in %s shows its issue in
     await act(async () => { tree?.unmount(); });
   }
 });
+
+test('unmount cancels queued action and refresh frames', async () => {
+  jest.useFakeTimers();
+  let notify!: () => void;
+  const select = jest.fn();
+  const features = [
+    { ...page('first'), subscribe(listener: () => void) { notify = listener; return () => {}; } },
+    { ...page('launch'), action: true, onSelect: select },
+  ];
+  let tree: ReturnType<typeof create> | undefined;
+  try {
+    await act(async () => {
+      tree = create(<FloatPanelView features={features} panelOpen onOpenPanel={() => {}} onClosePanel={() => {}} onClearAll={() => {}} />);
+    });
+    const frames = jest.spyOn(global, 'requestAnimationFrame');
+    const cancel = jest.spyOn(global, 'cancelAnimationFrame');
+    await act(async () => {
+      notify();
+      notify();
+      tree!.root.findByProps({ testID: 'debug-tab-launch' }).props.onPress();
+    });
+    expect(frames).toHaveBeenCalledTimes(2);
+    await act(async () => { tree!.unmount(); tree = undefined; });
+    for (const frame of frames.mock.results) expect(cancel).toHaveBeenCalledWith(frame.value);
+    await act(async () => { jest.advanceTimersByTime(32); });
+    expect(select).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => { tree?.unmount(); });
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  }
+});

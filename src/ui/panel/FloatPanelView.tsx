@@ -1,4 +1,4 @@
-import React, { Component, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -108,13 +108,14 @@ interface FloatPanelViewProps {
   panelOpen: boolean;
   panelTarget?: string;
   panelRequest?: number;
+  onClearPanelTarget?: () => void;
   quickActions?: readonly DebugQuickAction[];
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onClearAll: () => void;
 }
 
-export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
+export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, onClearPanelTarget, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
   const tabs = useMemo(() => features.filter((feature) => !feature.action
     || feature.status.phase === 'error' || feature.status.phase === 'unavailable'), [features]);
@@ -125,9 +126,28 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
   const { searchQuery, filterBad, searchExpanded } = filters;
   const tabLoaded = useRef(false);
   const handledPanelRequest = useRef<number | undefined>(undefined);
+  const actionFrame = useRef<number | null>(null);
+  const actionRunning = useRef(false);
+  useLayoutEffect(() => () => {
+    if (actionFrame.current !== null) {
+      cancelAnimationFrame(actionFrame.current);
+      actionFrame.current = null;
+    }
+  }, []);
+
   const runAction = useCallback((select: () => void | Promise<void>) => {
+    if (actionFrame.current === null && !actionRunning.current) {
+      actionFrame.current = requestAnimationFrame(async () => {
+        actionFrame.current = null;
+        actionRunning.current = true;
+        try {
+          await select();
+        } finally {
+          actionRunning.current = false;
+        }
+      });
+    }
     onClosePanel();
-    requestAnimationFrame(() => { void select(); });
   }, [onClosePanel]);
 
   // Restore last tab on mount
@@ -150,6 +170,7 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
   const { contentOpacity, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
     activeTab,
     tabCount: tabs.length,
+    onTabSelect: onClearPanelTarget,
     onTabChange: useCallback((index: number) => {
       tabLoaded.current = true;
       changeTabWithFilterReset(dispatchFilters, setActiveTab, index);
@@ -171,27 +192,27 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
     }
     const index = tabs.findIndex(item => item.name === panelTarget);
     if (index >= 0) { handledPanelRequest.current = panelRequest; tabLoaded.current = true; changeTabWithFilterReset(dispatchFilters, setActiveTab, index); }
-    // Explicit open requests win over a pending preference restore and manual tab selection remains local.
   }, [panelTarget, panelRequest, panelOpen, features, tabs, runAction]);
 
   // Feature subscription → re-render on data changes
   const [, setTick] = useState(0);
-  const refreshQueued = useRef(false);
-  const scheduleRefresh = useCallback(() => {
-    if (refreshQueued.current) return;
-    refreshQueued.current = true;
-    requestAnimationFrame(() => {
-      refreshQueued.current = false;
-      setTick((tick) => tick + 1);
-    });
-  }, []);
-
   useEffect(() => {
+    let frame: number | null = null;
+    const scheduleRefresh = () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        setTick((tick) => tick + 1);
+      });
+    };
     const unsubs = features
-      .map((f) => f.subscribe?.(() => scheduleRefresh()))
+      .map((f) => f.subscribe?.(scheduleRefresh))
       .filter((u): u is () => void => typeof u === 'function');
-    return () => unsubs.forEach((u) => u());
-  }, [features, scheduleRefresh]);
+    return () => {
+      unsubs.forEach((u) => u());
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [features]);
 
   // Clamp activeTab if features shrink
   useEffect(() => {
@@ -269,6 +290,7 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
         <FloatIcon visible={!panelOpen} onPress={onOpenPanel} badge={envBadge} streaming={false} quickActions={quickActions} />
         {panelOpen && (
           <DebugPanel
+            onDismissStart={onClearPanelTarget}
             onClose={onClosePanel}
             onClearAll={handleClearAll}
             syncLabel={panelConnectionStatus.label}

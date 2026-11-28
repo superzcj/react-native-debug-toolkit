@@ -8,6 +8,7 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.UiThreadUtil;
+import java.lang.reflect.InvocationTargetException;
 
 public class DebugToolkitViewInspectorModule extends ReactContextBaseJavaModule {
   public DebugToolkitViewInspectorModule(ReactApplicationContext context) { super(context); }
@@ -27,8 +28,13 @@ public class DebugToolkitViewInspectorModule extends ReactContextBaseJavaModule 
         promise.resolve(opened || hasPermission ? "opened" : "permission_required");
       } catch (ClassNotFoundException error) {
         promise.resolve("unavailable");
-      } catch (ReflectiveOperationException error) {
-        promise.reject("E_VIEW_INSPECTOR", error);
+      } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
+        Throwable cause = error;
+        while ((cause instanceof InvocationTargetException || cause instanceof ExceptionInInitializerError)
+            && cause.getCause() != null) {
+          cause = cause.getCause();
+        }
+        promise.reject("E_VIEW_INSPECTOR", cause);
       }
     });
   }

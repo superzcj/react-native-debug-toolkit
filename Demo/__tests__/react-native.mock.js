@@ -3,6 +3,7 @@ const React = require('react');
 global.__DEV__ = true;
 global.IS_REACT_ACT_ENVIRONMENT = true;
 global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+global.cancelAnimationFrame = (frame) => clearTimeout(frame);
 const backHandlers = new Set();
 
 function createComponent(name) {

@@ -13,7 +13,7 @@ function withoutGradleComments(contents) {
     (match, quoted) => quoted || match.replace(/[^\r\n]/g, ' '));
 }
 
-module.exports = function withViewInspector(config, { enabled = true, ios = true, android = true } = {}) {
+module.exports = function withViewInspector(config, { enabled = true, ios = true, android = false } = {}) {
   if (!enabled) return config;
 
   if (ios) {

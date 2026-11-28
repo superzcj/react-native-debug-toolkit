@@ -2141,7 +2141,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   FBLazyVector: ed7eadee1965b0b918ca9d0f2c2328f7eb3fd095
   FLEX: f21ee4f498eed3f8a1eded66b21939fd3b7a22ce
-  hermes-engine: 64c908e6829aab9deb182b749692a86e36fd459c
+  hermes-engine: 08f5e8e60c519f71470ac5738a1c1a593b64f966
   MMKVCore: 3d16ce9f7d411e135020915fde98a056859a1efa
   NitroMmkv: 85a251e15c39d7c95fe58cf40786fa126b8d143c
   NitroModules: 994eaa7fc39d1fb4b76bb61054312c9796c4a649
@@ -2153,7 +2153,7 @@ SPEC CHECKSUMS:
   React: 6dbd7825a18782848e8c62f1feb16b344cb17ac6
   React-callinvoker: 90c70d14c7ca646fdae3e25e8d9fbb0fbb20459c
   React-Core: 9dce76263f670de254e896f317676e7e95369ac2
-  React-Core-prebuilt: ff141d359e65bb68d61a15f2a06ee7fb3519c41c
+  React-Core-prebuilt: 8e551750bc68d22ba73565a9206572bc47c9c097
   React-CoreModules: b9fadb43261b88cb0d3a2d59808603567e995095
   React-cxxreact: 6b36616248fea28ce6dfbffcf09322321eb96186
   React-debug: 8f85c5da52e386c83482e45744f6e61b39b9493d
@@ -2216,7 +2216,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 52da2413bc956c40a4de19ad32a92b87248f7ce8
   ReactCodegen: aac672d7021359dc55fbd6d63f56192651664f09
   ReactCommon: 66763e5bd1b778828ff6cb82d771b7162a5215c2
-  ReactNativeDependencies: 4517104ea17daa540108e4efbaa6ad7eb140047e
+  ReactNativeDependencies: 010675bfb95adf249f818ea3a9e7b96764813c69
   RNCClipboard: 715fa7c6c8366f17d00f05a439ee7488f390fa5f
   Yoga: b1085f68c014785350a2afdc95eaef0d49f23ccb
 
