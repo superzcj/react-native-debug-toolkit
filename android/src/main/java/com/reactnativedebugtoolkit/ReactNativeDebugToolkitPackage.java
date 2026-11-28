@@ -1,5 +1,6 @@
 package com.reactnativedebugtoolkit;
 
+import android.content.pm.ApplicationInfo;
 import androidx.annotation.NonNull;
 
 import com.facebook.react.ReactPackage;
@@ -18,7 +19,7 @@ public class ReactNativeDebugToolkitPackage implements ReactPackage {
     List<NativeModule> modules = new ArrayList<>(Arrays.<NativeModule>asList(
         new DebugToolkitDevConnectModule(reactContext),
         new DebugToolkitNativeLogsModule(reactContext)));
-    if (BuildConfig.DEBUG) modules.add(new DebugToolkitViewInspectorModule(reactContext));
+    if ((reactContext.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) modules.add(new DebugToolkitViewInspectorModule(reactContext));
     return modules;
   }
 

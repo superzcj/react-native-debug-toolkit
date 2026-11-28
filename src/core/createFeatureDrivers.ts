@@ -19,6 +19,7 @@ import { createSessionHistoryFeature } from '../features/sessionHistory';
 import { createEnvironmentFeature } from '../features/environment';
 import { createQuickAccountsFeature } from '../features/quickAccounts/createQuickAccountsFeature';
 import { createTabsFeature } from '../features/tabs';
+import { createViewInspectorFeature } from '../features/viewInspector';
 import { HubClient } from '../utils/HubClient';
 import { copyToComputer, logToComputer, phoneCopyChannel } from '../utils/copyToComputer';
 import type { ConsoleLogEntry } from '../types/logs';
@@ -92,6 +93,7 @@ export function createFeatureDrivers(services: {
         feature = accounts; actions.accounts = accounts.actions; break;
       }
       case 'tabs': feature = createTabsFeature(options); break;
+      case 'viewInspector': feature = createViewInspectorFeature(); break;
       default: {
         if (!isChannelKey(config.key)) throw new Error('Unknown feature');
         const channel = createLogChannelFeature(options as unknown as LogChannelConfig, services.logs);

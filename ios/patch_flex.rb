@@ -1,6 +1,8 @@
 def patch_debug_toolkit_flex(installer)
   # FLEX 5.22.10 crashes on iOS 26 when a view has zero-size bounds.
   snapshot_path = installer.sandbox.root + 'FLEX/Classes/ViewHierarchy/SnapshotExplorer/FHSView.m'
+  return unless File.exist?(snapshot_path)
+
   source = File.read(snapshot_path)
   return if source.include?('if (CGRectIsEmpty(view.bounds)) return nil;')
 

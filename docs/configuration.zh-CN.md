@@ -60,12 +60,21 @@
 | `accounts.closeOnSuccess` | `true` | boolean；成功切换后收起面板。 |
 | `tabs.enabled` | `true` | boolean；固定自定义页与配置项生命周期。 |
 | `tabs.items` | `[]` | readonly 类型化 DebugTab 元组；每项必填 id/title/component。 |
+| `viewInspector.enabled` | `false` | boolean；在面板添加原生视图检查入口，也支持使用布尔值 `viewInspector`。 |
 
 ## 视图检查
 
-`viewInspector: true` 在面板侧栏所有日志通道之后增加「视图检查」入口，默认不显示。建议使用 `viewInspector: __DEV__`；原生依赖只接入 Debug 构建。该功能查看原生视图，React Native 合并的布局节点可能不会单独显示。
+`viewInspector: true` 在面板侧栏所有日志通道之后增加「视图检查」入口，省略时默认关闭。可使用 `viewInspector: __DEV__` 仅在开发环境显示，也可使用 `viewInspector: { enabled: true }`，传入空对象同样会启用。原生依赖只接入 Debug 构建。该功能查看原生视图，React Native 合并的布局节点可能不会单独显示。
 
-Expo 项目在 `app.json` 的 `expo.plugins` 添加 `"react-native-debug-toolkit/expo/view-inspector"`，重新 prebuild 并编译。插件为 iOS 添加 FLEX 5.22.10，为 Android 添加 UETool 1.3.4 和 Jetifier；Android 首次使用需授予悬浮窗权限。iOS 可从 FLEX 的 views 进入 3D；Android 可从 UETool 的 Scalpel 图标切换 3D。Expo Go 不包含这些原生依赖。
+Expo 项目在 `app.json` 的 `expo.plugins` 添加 `"react-native-debug-toolkit/expo/view-inspector"`，执行 `npx expo prebuild` 并重新编译。显式添加插件后，默认双端开启。iOS 的 Debug 包会引入 FLEX 5.22.10，Android 的 Debug 包会引入 UETool 1.3.4。开启 Android 集成还会启用工程级 Jetifier。`enabled: false` 可同时关闭双端。下面的配置仅开启 iOS。
+
+```json
+["react-native-debug-toolkit/expo/view-inspector", { "enabled": true, "ios": true, "android": false }]
+```
+
+如需侧栏入口也只在 iOS 显示，在工具包配置中设置 `viewInspector: __DEV__ && Platform.OS === 'ios'`。
+
+对于已生成的原生工程，调整开关后执行 `npx expo prebuild --clean` 并重新编译，以按新选项重新生成。该命令会替换生成的 `ios` 和 `android` 目录，包括其中的手动修改。Android 首次使用需授予悬浮窗权限。iOS 可从 FLEX 的 views 进入 3D，Android 可从 UETool 的 Scalpel 图标切换 3D。Expo Go 不包含这些原生依赖。
 
 React Native CLI 项目在 `ios/Podfile` 中添加以下内容（保留现有的 `post_install` 内容），然后执行 Pod 安装：
 
@@ -79,7 +88,7 @@ target 'YourApp' do
 end
 ```
 
-Android 的项目级 `allprojects.repositories` 添加 `maven { url 'https://jitpack.io' }`，`gradle.properties` 设置 `android.enableJetifier=true`，app 的 `dependencies` 添加 `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` 和 `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")`。改动后重新编译。
+Android 的项目级 `allprojects.repositories` 添加 `maven { url 'https://jitpack.io' }`，`gradle.properties` 设置 `android.enableJetifier=true`，app 的 `dependencies` 添加 `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` 和 `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")`。宿主应用可调试时会注册检查器原生模块。对于 `staging` 等自定义可调试构建类型，还需为该构建类型添加上述 UETool 依赖，`debugImplementation` 只为 Debug 变体提供依赖。改动后重新编译。
 
 ## 快捷操作
 
@@ -132,7 +141,7 @@ onRollback 可补偿已触发后失败或过期的操作；SDK 无法替业务�
 
 debug.accounts.switchTo(id) 返回 success/error/superseded/disabled/busy/not_configured/not_found。suspend() 禁止新切换并取消当前操作，resume() 恢复，waitForIdle() 等待回调和补偿完成，而非仅等待 abort。非空账号的最近 ID 恢复纳入 ready；空页不等待未来账号数据。
 
-`debug.environment.switchTo(id)` 使用已配置的环境控制器，保证 SDK URL 重写、持久化选择、入口徽章和 `environment.onChange` 保持同步。环境功能不可用或关闭时，该操作保持无效。
+`debug.environment.switchTo(id)` 使用已配置的环境控制器，保证 SDK URL 重写、持久化选择、入口徽章和 `environment.onChange` 保持同步。浮标会隐藏环境缩写 `DEV`。环境功能不可用或关闭时，该操作保持无效。
 
 ## 自定义页与 Context
 

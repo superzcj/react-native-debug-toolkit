@@ -1,10 +1,9 @@
-import React, { Component, useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
-  Alert,
 } from 'react-native';
 import type { AnyDebugFeature } from '../../types';
 import type { DebugQuickAction } from '../../types/config';
@@ -27,8 +26,8 @@ import {
 } from './panelFilterState';
 import { resolveStoredTabIndex } from './tabPersistence';
 import { useTabAnimation } from './useTabAnimation';
-import { t, type TranslationKey } from '../../i18n';
-import { openViewInspector } from '../../utils/viewInspector';
+import { t } from '../../i18n';
+import { FEATURE_LABELS, FEATURE_LABEL_KEYS, type BuiltinFeatureKey } from '../../core/featureCatalog';
 
 // ─── Error Boundary ────────────────────────────────────
 interface ErrorBoundaryState {
@@ -84,36 +83,6 @@ interface DevConnectSnapshot {
   canonicalEndpoint?: string;
 }
 
-const FEATURE_LABEL_KEYS: Record<string, TranslationKey> = {
-  network: 'feature.network',
-  console: 'feature.console',
-  native: 'feature.native',
-  navigation: 'feature.navigation',
-  state: 'feature.state',
-  track: 'feature.track',
-  clipboard: 'feature.clipboard',
-  environment: 'feature.environment',
-  connect: 'feature.connect',
-  history: 'feature.history',
-  accounts: 'feature.accounts',
-  tabs: 'feature.tabs',
-};
-
-const DEFAULT_FEATURE_LABELS: Record<string, string> = {
-  network: 'Network',
-  console: 'Console',
-  native: 'Native',
-  navigation: 'Navigation',
-  state: 'State',
-  track: 'Track',
-  clipboard: 'Clipboard',
-  environment: 'Environment',
-  connect: 'Connect',
-  history: 'History',
-  accounts: 'Accounts',
-  tabs: 'Custom',
-};
-
 function buildPanelConnectionStatus(features: AnyDebugFeature[]): PanelConnectionStatus {
   const devConnect = features.find((f) => f.name === 'connect');
   if (!devConnect) {
@@ -140,14 +109,15 @@ interface FloatPanelViewProps {
   panelTarget?: string;
   panelRequest?: number;
   quickActions?: readonly DebugQuickAction[];
-  viewInspector?: boolean;
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onClearAll: () => void;
 }
 
-export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], viewInspector = false, onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
+export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest, quickActions = [], onOpenPanel, onClosePanel, onClearAll }: FloatPanelViewProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const tabs = useMemo(() => features.filter((feature) => !feature.action
+    || feature.status.phase === 'error' || feature.status.phase === 'unavailable'), [features]);
   const [filters, dispatchFilters] = useReducer(
     panelFilterReducer,
     INITIAL_PANEL_FILTER_STATE,
@@ -155,43 +125,54 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
   const { searchQuery, filterBad, searchExpanded } = filters;
   const tabLoaded = useRef(false);
   const handledPanelRequest = useRef<number | undefined>(undefined);
+  const runAction = useCallback((select: () => void | Promise<void>) => {
+    onClosePanel();
+    requestAnimationFrame(() => { void select(); });
+  }, [onClosePanel]);
 
   // Restore last tab on mount
   useEffect(() => {
-    if (tabLoaded.current || features.length === 0) return;
+    if (tabLoaded.current || tabs.length === 0) return;
     let mounted = true;
     getPreference(KEYS.lastTab).then((val) => {
       if (!mounted || tabLoaded.current) return;
-      const idx = resolveStoredTabIndex(features, val);
+      const idx = resolveStoredTabIndex(tabs, val);
       setActiveTab(idx);
-      const featureName = features[idx]?.name;
+      const featureName = tabs[idx]?.name;
       if (featureName && featureName !== val) {
         void persistPreference(KEYS.lastTab, featureName);
       }
       tabLoaded.current = true;
     });
     return () => { mounted = false; };
-  }, [features]);
+  }, [tabs]);
 
   const { contentOpacity, contentTranslateX, panHandlers, switchTab } = useTabAnimation({
     activeTab,
-    tabCount: features.length,
+    tabCount: tabs.length,
     onTabChange: useCallback((index: number) => {
       tabLoaded.current = true;
       changeTabWithFilterReset(dispatchFilters, setActiveTab, index);
-      const featureName = features[index]?.name;
+      const featureName = tabs[index]?.name;
       if (featureName) {
         void persistPreference(KEYS.lastTab, featureName);
       }
-    }, [features]),
+    }, [tabs]),
   });
 
   useEffect(() => {
     if (!panelTarget || !panelOpen || panelRequest === handledPanelRequest.current) return;
-    const index = features.findIndex(feature => feature.name === panelTarget);
+    const feature = features.find(item => item.name === panelTarget);
+    if (feature?.action && !tabs.includes(feature)) {
+      if (!feature.onSelect || feature.status.phase === 'initializing') return;
+      handledPanelRequest.current = panelRequest;
+      runAction(feature.onSelect);
+      return;
+    }
+    const index = tabs.findIndex(item => item.name === panelTarget);
     if (index >= 0) { handledPanelRequest.current = panelRequest; tabLoaded.current = true; changeTabWithFilterReset(dispatchFilters, setActiveTab, index); }
     // Explicit open requests win over a pending preference restore and manual tab selection remains local.
-  }, [panelTarget, panelRequest, panelOpen, features]);
+  }, [panelTarget, panelRequest, panelOpen, features, tabs, runAction]);
 
   // Feature subscription → re-render on data changes
   const [, setTick] = useState(0);
@@ -214,32 +195,32 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
 
   // Clamp activeTab if features shrink
   useEffect(() => {
-    if (features.length > 0 && activeTab >= features.length) {
+    if (tabs.length > 0 && activeTab >= tabs.length) {
       tabLoaded.current = true;
       setActiveTab(0);
-      const featureName = features[0]?.name;
+      const featureName = tabs[0]?.name;
       if (featureName) {
         void persistPreference(KEYS.lastTab, featureName);
       }
     }
-  }, [features, activeTab]);
+  }, [tabs, activeTab]);
 
   // Badge (first feature that returns one)
   const envBadge = features.map((f) => f.badge?.()).find((b) => b != null) ?? null;
 
   // Rail items with counts
   const featureLabel = (feature: AnyDebugFeature): string => {
-    const key = FEATURE_LABEL_KEYS[feature.name];
-    return key && feature.label === DEFAULT_FEATURE_LABELS[feature.name]
+    const name = feature.name as BuiltinFeatureKey;
+    const key = FEATURE_LABEL_KEYS[name];
+    return key && feature.label === FEATURE_LABELS[name]
       ? t(key)
       : feature.label;
   };
 
   const railItems: RailItem[] = features.map((f) => {
     const b = f.badge?.();
-    return { id: f.name, label: featureLabel(f), dotColor: b?.color ?? null, count: snapshotCount(f) };
+    return { id: f.name, label: featureLabel(f), dotColor: b?.color ?? null, count: snapshotCount(f), disabled: !!f.action && !tabs.includes(f) && (!f.onSelect || f.status.phase === 'initializing') };
   });
-  if (viewInspector) railItems.push({ id: 'viewInspector', label: t('viewInspector.title') });
 
   const panelConnectionStatus = buildPanelConnectionStatus(features);
 
@@ -248,14 +229,14 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
   }, [onClearAll]);
 
   // Active feature + summary
-  const activeFeature = features[activeTab];
+  const activeFeature = tabs[activeTab];
   let activeSnapshot: unknown;
   let snapshotIssue: { path: string; message: string } | undefined;
   try { activeSnapshot = activeFeature?.getSnapshot(); }
   catch (error) {
     snapshotIssue = { path: `${activeFeature?.name}.snapshot`, message: error instanceof Error ? error.message : String(error) };
   }
-  const activeSummary = activeFeature && !snapshotIssue ? buildFeatureSummary(activeFeature, activeSnapshot) : null;
+  const activeSummary = activeFeature && !activeFeature.action && !snapshotIssue ? buildFeatureSummary(activeFeature, activeSnapshot) : null;
 
   // Filtered snapshot — reuse activeSnapshot to avoid double getSnapshot()
   const filteredSnapshot = activeFeature && !snapshotIssue
@@ -264,11 +245,12 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
 
   // Render active feature content
   const renderFeatureContent = () => {
-    if (features.length === 0) {
-      return <Text style={styles.emptyText}>{t('panel.noFeatures')}</Text>;
+    if (tabs.length === 0) {
+      return <Text style={styles.emptyText}>{t(features.length ? 'panel.selectAction' : 'panel.noFeatures')}</Text>;
     }
-    const feature = features[activeTab];
+    const feature = tabs[activeTab];
     if (!feature) return <Text style={styles.emptyText}>{t('panel.featureNotFound')}</Text>;
+    if (feature.action) { return null; }
     const snapshot = filteredSnapshot;
     const TabComponent = feature.renderContent;
     if (TabComponent) return <TabComponent snapshot={snapshot} feature={feature} searchQuery={searchQuery} />;
@@ -293,17 +275,15 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
             syncColor={panelConnectionStatus.color}
           >
             <View style={styles.body}>
-              <FeatureRail items={railItems} activeIndex={activeTab} onSelectTab={(index) => {
-                if (index < features.length) { switchTab(index); return; }
-                onClosePanel();
-                requestAnimationFrame(() => {
-                  void openViewInspector().then((result) => {
-                    if (result === 'permission_required') Alert.alert(t('viewInspector.title'), t('viewInspector.permission'));
-                    if (result === 'unavailable') Alert.alert(t('viewInspector.title'), t('viewInspector.unavailable'));
-                  }).catch((error: unknown) => {
-                    Alert.alert(t('viewInspector.title'), error instanceof Error ? error.message : String(error));
-                  });
-                });
+              <FeatureRail items={railItems} activeIndex={activeFeature ? features.indexOf(activeFeature) : -1} onSelectTab={(index) => {
+                const feature = features[index];
+                if (!feature) return;
+                if (feature.action && !tabs.includes(feature)) {
+                  if (!feature.onSelect || feature.status.phase === 'initializing') return;
+                  runAction(feature.onSelect);
+                } else {
+                  switchTab(tabs.indexOf(feature));
+                }
               }} />
               <View style={styles.contentColumn}>
                 {activeFeature && activeSummary && (
@@ -328,13 +308,13 @@ export function FloatPanelView({ features, panelOpen, panelTarget, panelRequest,
                   ]}
                   {...panHandlers}
                 >
-                  {activeFeature && <View testID={`debug-page-${activeFeature.name}`} style={styles.contentContainer}>
+                  {activeFeature ? <View testID={`debug-page-${activeFeature.name}`} style={styles.contentContainer}>
                     <DebugErrorBoundary key={activeFeature.name} name={activeFeature.name}>
                       <FeatureStatusView name={activeFeature.name} status={snapshotIssue
                         ? { phase: 'error', issues: [snapshotIssue] } : activeFeature.status} />
                       {!snapshotIssue && renderFeatureContent()}
                     </DebugErrorBoundary>
-                  </View>}
+                  </View> : renderFeatureContent()}
                 </Animated.View>
               </View>
             </View>

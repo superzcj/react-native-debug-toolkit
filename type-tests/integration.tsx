@@ -5,6 +5,11 @@ import initializeDebugToolkit from '../src';
 // @ts-expect-error Old factories, Provider, hooks and utility exports were removed.
 import { DebugView, DebugToolkitProvider, useDebugToolkit, createNetworkFeature, createDebugTab, addTrackLog, copyToComputer } from '../src';
 const empty = { accounts: {}, environment: {}, tabs: {} } satisfies DebugToolkitConfig;
+const inspectorBoolean = { viewInspector: true } satisfies DebugToolkitConfig;
+const inspectorFeature = { viewInspector: { enabled: false } } satisfies DebugToolkitConfig;
+// @ts-expect-error The inspector accepts only a boolean or feature configuration.
+const badInspector = { viewInspector: 'yes' } satisfies DebugToolkitConfig;
+void [inspectorBoolean, inspectorFeature, badInspector];
 const disabled = { accounts: { enabled: false } } satisfies DebugToolkitConfig;
 declare const someBoolean: boolean;
 const toggled = { accounts: { enabled: someBoolean } } satisfies DebugToolkitConfig;

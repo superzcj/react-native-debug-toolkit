@@ -23,7 +23,6 @@ export interface ToolkitHostSnapshot {
   panelTarget?: FeatureKey;
   panelRequest?: number;
   quickActions: readonly DebugQuickAction[];
-  viewInspector?: boolean;
 }
 export interface ToolkitHost extends ToolkitRuntime, FeatureDataProvider {
   readonly actions: DebugActions;
@@ -102,11 +101,12 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
           page = {
             name: key, label: isChannelKey(key) ? String(config.features[key]!.options.title) : FEATURE_LABELS[key], get status() { return states[key]!; },
             setup() {}, cleanup() {}, getSnapshot: () => [],
+            ...(config.features[key]!.action ? { action: true } : {}),
           };
           pages.set(key, page);
         }
         return page;
-      }), quickActions: config.quickActions.enabled ? config.quickActions.items : [], viewInspector: config.viewInspector };
+      }), quickActions: config.quickActions.enabled ? config.quickActions.items : [] };
       emit();
     },
     createDriver(feature) {

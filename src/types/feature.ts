@@ -31,4 +31,6 @@ export interface DebugFeature<TSnapshot = unknown> {
   subscribe?: (listener: DebugFeatureListener) => () => void;
   renderContent?: ComponentType<DebugFeatureRenderProps<TSnapshot>>;
   badge?: () => { label: string; color: string } | null;
+  action?: boolean;
+  onSelect?: () => void | Promise<void>;
 }

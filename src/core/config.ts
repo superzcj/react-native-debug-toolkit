@@ -17,12 +17,12 @@ export type NormalizedFeature = {
   enabled: boolean;
   options: Readonly<Record<string, unknown>>;
   issues: readonly ConfigIssue[];
+  action?: boolean;
 };
 
 export interface NormalizedConfig {
   enabled: boolean | undefined;
   locale: 'en' | 'zh-CN' | undefined;
-  viewInspector: boolean;
   issues: readonly ConfigIssue[];
   features: Readonly<Record<FeatureKey, NormalizedFeature>>;
   quickActions: {
@@ -47,6 +47,7 @@ export const FEATURE_FIELDS: Readonly<Record<BuiltinFeatureKey, readonly string[
   accounts: ['items', 'currentId', 'scopeKey', 'contextLabel', 'isAuthenticated',
     'currentDetails', 'source', 'onSwitch', 'onRollback', 'onSuccess', 'onError', 'closeOnSuccess'],
   tabs: ['items'],
+  viewInspector: [],
 };
 
 export const FEATURE_DEFAULTS: Readonly<Record<BuiltinFeatureKey, Readonly<Record<string, unknown>>>> = {
@@ -62,6 +63,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<BuiltinFeatureKey, Readonly<Recor
   environment: { items: [], defaultId: null },
   accounts: { items: [], scopeKey: 'default', closeOnSuccess: true },
   tabs: { items: [] },
+  viewInspector: { enabled: false },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -232,6 +234,7 @@ function normalizeQuickActions(input: unknown, issues: ConfigIssue[]): {
 }
 
 function normalizeFeature(key: BuiltinFeatureKey, input: unknown): NormalizedFeature {
+  if (key === 'viewInspector' && typeof input === 'boolean') input = { enabled: input };
   if (key === 'environment') {
     const parsed = normalizeEnvironment(input);
     return {
@@ -242,13 +245,16 @@ function normalizeFeature(key: BuiltinFeatureKey, input: unknown): NormalizedFea
     };
   }
   const issues: ConfigIssue[] = [];
+  const { enabled: defaultEnabled, ...defaults } = FEATURE_DEFAULTS[key];
   const options: Record<string, unknown> = Object.fromEntries(
-    Object.entries(FEATURE_DEFAULTS[key]).map(([field, value]) => [field, snapshotValue(value)]),
+    Object.entries(defaults).map(([field, value]) => [field, snapshotValue(value)]),
   );
-  let enabled = true;
+  let enabled = input !== undefined || defaultEnabled !== false;
   if (input !== undefined) {
     if (!isConfigObject(input)) {
-      issues.push({ path: key, message: 'Expected a feature configuration object.' });
+      issues.push({ path: key, message: key === 'viewInspector'
+        ? 'Expected a boolean or feature configuration object.'
+        : 'Expected a feature configuration object.' });
     } else {
       for (const [field, value] of Object.entries(input)) {
         const path = `${key}.${field}`;
@@ -328,14 +334,13 @@ function normalizeFeature(key: BuiltinFeatureKey, input: unknown): NormalizedFea
       }
     }
   }
-  return { key, enabled, options: Object.freeze(options), issues };
+  return { key, enabled, options: Object.freeze(options), issues, ...(key === 'viewInspector' ? { action: true } : {}) };
 }
 
 export function normalizeConfig(input?: unknown): NormalizedConfig {
   const issues: ConfigIssue[] = [];
   let enabled: boolean | undefined;
   let locale: 'en' | 'zh-CN' | undefined;
-  let viewInspector = false;
   let quickActions: unknown;
   let config: Record<string, unknown> = {};
   if (input !== undefined) {
@@ -352,9 +357,6 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
           else {issues.push({ path: field, message: 'Expected en or zh-CN.' });}
         } else if (field === 'logChannels') {
           // Validated with IDs below.
-        } else if (field === 'viewInspector') {
-          if (typeof value === 'boolean') viewInspector = value;
-          else if (value !== undefined) issues.push({ path: field, message: 'Expected a boolean.' });
         } else if (field === 'quickActions') {
           quickActions = value;
         } else if (!FEATURE_KEYS.some((key) => key === field)) {
@@ -364,7 +366,9 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
     }
   }
   // The fixed catalog supplies every key, including invalid or disabled features.
-  const features = Object.fromEntries(FEATURE_KEYS.map((key) => [key, normalizeFeature(key, config[key])])) as Record<FeatureKey, NormalizedFeature>;
+  const features = Object.fromEntries(
+    FEATURE_KEYS.filter(key => key !== 'viewInspector').map(key => [key, normalizeFeature(key, config[key])]),
+  ) as Record<FeatureKey, NormalizedFeature>;
   if (config.logChannels !== undefined) {
     if (!Array.isArray(config.logChannels) || config.logChannels.length > 16) issues.push({ path: 'logChannels', message: 'Expected an array.' });
     else {
@@ -389,5 +393,6 @@ export function normalizeConfig(input?: unknown): NormalizedConfig {
       });
     }
   }
-  return { enabled, locale, viewInspector, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
+  features.viewInspector = normalizeFeature('viewInspector', config.viewInspector);
+  return { enabled, locale, issues, features, quickActions: normalizeQuickActions(quickActions, issues) };
 }

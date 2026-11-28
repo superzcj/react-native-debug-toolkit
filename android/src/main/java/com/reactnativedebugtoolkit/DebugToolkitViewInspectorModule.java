@@ -1,5 +1,7 @@
 package com.reactnativedebugtoolkit;
 
+import android.os.Build;
+import android.provider.Settings;
 import androidx.annotation.NonNull;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -20,7 +22,9 @@ public class DebugToolkitViewInspectorModule extends ReactContextBaseJavaModule 
       try {
         Class<?> tool = Class.forName("me.ele.uetool.UETool");
         boolean opened = (Boolean) tool.getMethod("showUETMenu").invoke(null);
-        promise.resolve(opened ? "opened" : "permission_required");
+        boolean hasPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+            || Settings.canDrawOverlays(getReactApplicationContext());
+        promise.resolve(opened || hasPermission ? "opened" : "permission_required");
       } catch (ClassNotFoundException error) {
         promise.resolve("unavailable");
       } catch (ReflectiveOperationException error) {

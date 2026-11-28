@@ -75,7 +75,7 @@ test('default registration preserves every page and records only after readiness
   mount();
   debug.track('early');
   await debug.ready();
-  expect(Object.keys(debug.getReport().features)).toEqual(FEATURE_KEYS);
+  expect(Object.keys(debug.getReport().features)).toEqual(FEATURE_KEYS.filter(key => key !== 'viewInspector'));
   expect(debug.getReport().logs.track).toEqual([]);
   debug.track('purchase', { amount: 5 });
   debug.state('cart', { action: 'add', before: 0, after: 1 });

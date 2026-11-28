@@ -11,6 +11,7 @@ test('derives defaults and all feature fields from the parser definitions', () =
   assert.equal(contract.get('network.maxLogs'), '200');
   assert.equal(contract.get('accounts.source'), 'undefined');
   assert.equal(contract.get('clipboard.enabled'), 'true');
+  assert.equal(contract.get('viewInspector.enabled'), 'false');
   assert.deepEqual(checkConfigurationDocument(complete, contract), []);
 });
 test('rejects omitted fields, changed defaults, duplicates and invented fields', () => {

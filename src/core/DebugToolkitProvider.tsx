@@ -18,7 +18,7 @@ export function DebugToolkitProvider({ host, children }: { host: ToolkitHost | n
       {children}
       {!!host && (state.features.length > 0 || state.quickActions.length > 0) && (
         <FloatPanelView features={state.features} panelOpen={state.panelOpen}
-          quickActions={state.quickActions} viewInspector={state.viewInspector} panelTarget={state.panelTarget} panelRequest={state.panelRequest}
+          quickActions={state.quickActions} panelTarget={state.panelTarget} panelRequest={state.panelRequest}
           onOpenPanel={host.actions.open} onClosePanel={host.actions.close} onClearAll={() => host.actions.clear()} />
       )}
     </CopyActionContext.Provider>

@@ -1,6 +1,8 @@
 import { normalizeConfig } from '../../core/config';
 import { FEATURE_KEYS } from '../../core/featureCatalog';
 
+const OBJECT_FEATURE_KEYS = FEATURE_KEYS.filter((key): key is Exclude<typeof key, 'viewInspector'> => key !== 'viewInspector');
+
 const validOptions = {
   network: { maxLogs: 20, excludeUrls: [/health/, '/ping'] },
   console: { maxLogs: 20 },
@@ -17,17 +19,29 @@ const validOptions = {
 };
 
 describe('normalizeConfig', () => {
-  test('view inspector is opt-in and accepts only a boolean', () => {
-    expect(normalizeConfig().viewInspector).toBe(false);
-    expect(normalizeConfig({ viewInspector: true }).viewInspector).toBe(true);
-    expect(normalizeConfig({ viewInspector: 'yes' }).issues[0]?.path).toBe('viewInspector');
+  test('view inspector is opt-in and accepts boolean and feature configuration', () => {
+    expect(normalizeConfig().features.viewInspector.enabled).toBe(false);
+    expect(normalizeConfig({ viewInspector: false }).features.viewInspector.enabled).toBe(false);
+    expect(normalizeConfig({ viewInspector: true }).features.viewInspector).toMatchObject({ enabled: true, action: true, issues: [] });
+    expect(normalizeConfig({ viewInspector: {} }).features.viewInspector.enabled).toBe(true);
+    expect(normalizeConfig({ viewInspector: { enabled: true } }).features.viewInspector.enabled).toBe(true);
+    expect(normalizeConfig({ viewInspector: { enabled: false } }).features.viewInspector.enabled).toBe(false);
+    expect(normalizeConfig({ viewInspector: { enabled: 'yes' } }).features.viewInspector.issues[0]?.path).toBe('viewInspector.enabled');
+    expect(normalizeConfig({ viewInspector: { unknown: true } }).features.viewInspector.issues[0]?.path).toBe('viewInspector.unknown');
+    for (const value of [null, 'yes', []]) {
+      const invalid = normalizeConfig({ viewInspector: value });
+      expect(invalid.issues).toEqual([]);
+      expect(invalid.features.viewInspector).toMatchObject({
+        enabled: true, action: true, issues: [{ path: 'viewInspector' }],
+      });
+    }
   });
 
   test('empty input enables all feature pages', () => {
     const result = normalizeConfig();
 
     expect(result.issues).toEqual([]);
-    expect(FEATURE_KEYS.filter((key) => result.features[key].enabled)).toEqual(FEATURE_KEYS);
+    expect(FEATURE_KEYS.filter((key) => result.features[key].enabled)).toEqual(OBJECT_FEATURE_KEYS);
     expect(result.features.accounts.issues).toEqual([]);
     expect(result.features.tabs.issues).toEqual([]);
   });
@@ -40,7 +54,7 @@ describe('normalizeConfig', () => {
     expect(result.features.accounts.issues).toEqual([]);
   });
 
-  test.each(FEATURE_KEYS)('%s accepts an omitted config, an empty object, and explicit disable', (key) => {
+  test.each(OBJECT_FEATURE_KEYS)('%s accepts an omitted config, an empty object, and explicit disable', (key) => {
     expect(normalizeConfig().features[key].issues).toEqual([]);
     expect(normalizeConfig({ [key]: {} }).features[key].issues).toEqual([]);
     expect(normalizeConfig({ [key]: { enabled: false } }).features[key]).toMatchObject({
@@ -50,7 +64,7 @@ describe('normalizeConfig', () => {
     });
   });
 
-  test.each(FEATURE_KEYS)('%s rejects boolean, array, and unknown fields', (key) => {
+  test.each(OBJECT_FEATURE_KEYS)('%s rejects boolean, array, and unknown fields', (key) => {
     expect(normalizeConfig({ [key]: true }).features[key].issues[0]?.path).toBe(key);
     expect(normalizeConfig({ [key]: [] }).features[key].issues[0]?.path).toBe(key);
     expect(normalizeConfig({ [key]: { unknown: true } }).features[key].issues[0]?.path).toBe(
@@ -58,7 +72,7 @@ describe('normalizeConfig', () => {
     );
   });
 
-  test.each(FEATURE_KEYS)('%s accepts a valid supply and undefined as omission', (key) => {
+  test.each(OBJECT_FEATURE_KEYS)('%s accepts a valid supply and undefined as omission', (key) => {
     expect(normalizeConfig({ [key]: validOptions[key] }).features[key].issues).toEqual([]);
     expect(normalizeConfig({ [key]: undefined }).features[key]).toEqual(normalizeConfig().features[key]);
     expect(normalizeConfig({ [key]: null }).features[key].issues[0]?.path).toBe(key);
@@ -185,7 +199,7 @@ describe('normalizeConfig', () => {
       expect.objectContaining({ id: 'refresh', closeOnPress: false }),
     ]);
     expect(result.quickActions.items[0]?.onPress).toBe(first.onPress);
-    expect(FEATURE_KEYS).toHaveLength(12);
+    expect(FEATURE_KEYS).toHaveLength(13);
   });
 
   test('rejects missing, duplicate, and over-limit quick action definitions', () => {

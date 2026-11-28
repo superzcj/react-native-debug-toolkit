@@ -60,12 +60,21 @@ The following parser-default column uses JSON, with `undefined` for an absent va
 | `accounts.closeOnSuccess` | `true` | boolean; close panel after successful switching. |
 | `tabs.enabled` | `true` | boolean; fixed Custom page and configured item lifetimes. |
 | `tabs.items` | `[]` | readonly typed DebugTab tuple; id/title/component required per item. |
+| `viewInspector.enabled` | `false` | boolean; add the native inspector action to the panel. A boolean `viewInspector` is also accepted. |
 
 ## View inspector
 
-Set `viewInspector: true` to add a view inspector entry after the panel's log channels. It is off by default; use `viewInspector: __DEV__` to show it only in development. The inspectors show native views, so layout-only React Native nodes may be merged.
+Set `viewInspector: true` to add a view inspector entry after the panel's log channels. It is off when omitted. Use `viewInspector: __DEV__` to show it only in development, or use `viewInspector: { enabled: true }`. Supplying an empty object also enables it. The inspectors show native views, so layout-only React Native nodes may be merged.
 
-For Expo, add `"react-native-debug-toolkit/expo/view-inspector"` to `expo.plugins`, then prebuild and rebuild. The plugin adds FLEX 5.22.10 on iOS and UETool 1.3.4 with Jetifier on Android, as Debug dependencies. Android requires the display-over-other-apps permission. In FLEX, use views for 3D; in UETool, select Scalpel for 3D. Expo Go does not contain these native dependencies.
+For Expo, add `"react-native-debug-toolkit/expo/view-inspector"` to `expo.plugins`, then run `npx expo prebuild` and rebuild the app. Adding the plugin enables both platforms by default. It adds FLEX 5.22.10 to iOS Debug builds and UETool 1.3.4 to Android Debug builds. Enabling Android also turns on project-wide Jetifier. Use `enabled: false` to skip both integrations. This example enables only iOS.
+
+```json
+["react-native-debug-toolkit/expo/view-inspector", { "enabled": true, "ios": true, "android": false }]
+```
+
+To show the sidebar entry on iOS only, set `viewInspector: __DEV__ && Platform.OS === 'ios'` in the toolkit configuration.
+
+After changing these switches for previously generated native projects, run `npx expo prebuild --clean` and rebuild to regenerate them with the selected options. Clean prebuild replaces the generated `ios` and `android` directories, including manual edits in them. Android requires the display-over-other-apps permission. In FLEX, use views for 3D. In UETool, select Scalpel for 3D. Expo Go does not contain these native dependencies.
 
 For React Native CLI, add the following to `ios/Podfile` while preserving the existing `post_install` contents, then install pods:
 
@@ -79,7 +88,7 @@ target 'YourApp' do
 end
 ```
 
-On Android, add `maven { url 'https://jitpack.io' }` to the project `allprojects.repositories`, set `android.enableJetifier=true` in `gradle.properties`, and add `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` and `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")` to the app `dependencies`. Rebuild after changing native dependencies.
+On Android, add `maven { url 'https://jitpack.io' }` to the project `allprojects.repositories`, set `android.enableJetifier=true` in `gradle.properties`, and add `debugImplementation("com.github.eleme.UETool:uetool:1.3.4")` and `debugImplementation("com.github.eleme.UETool:uetool-base:1.3.4")` to the app `dependencies`. The inspector module is registered when the host app is debuggable. For a custom debuggable build type such as `staging`, add these UETool dependencies to that build type as well, because `debugImplementation` only supplies the Debug variant. Rebuild after changing native dependencies.
 
 ## Quick actions
 
@@ -134,7 +143,7 @@ onRollback can compensate a started operation that fails or becomes superseded; 
 
 `debug.accounts.switchTo(id)` returns success/error/superseded/disabled/busy/not_configured/not_found. `suspend()` blocks new switches and cancels the current one; `resume()` permits new switches; `waitForIdle()` waits for callbacks and compensation, not just signal abortion. Recent-ID hydration for nonempty accounts participates in ready; an empty page does not wait for future accounts.
 
-`debug.environment.switchTo(id)` uses the configured environment controller, so SDK URL rewriting, persisted selection, the launcher badge, and `environment.onChange` stay in sync. An unavailable or disabled environment feature leaves the action inert.
+`debug.environment.switchTo(id)` uses the configured environment controller, so SDK URL rewriting, persisted selection, the launcher badge, and `environment.onChange` stay in sync. The launcher hides the `DEV` environment abbreviation. An unavailable or disabled environment feature leaves the action inert.
 
 ## Custom pages and Context
 
