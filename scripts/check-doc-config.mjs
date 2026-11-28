@@ -33,9 +33,9 @@ export function configurationContract(source) {
   const contract = new Map();
   for (const [feature, names] of Object.entries(fields)) {
     if (!Object.hasOwn(defaults, feature)) throw new Error(`Missing parser defaults for ${feature}`);
-    contract.set(`${feature}.enabled`, 'true');
+    contract.set(`${feature}.enabled`, JSON.stringify(defaults[feature].enabled ?? true));
     for (const name of names) contract.set(`${feature}.${name}`, Object.hasOwn(defaults[feature], name) ? JSON.stringify(defaults[feature][name]) : 'undefined');
-    for (const name of Object.keys(defaults[feature])) if (!names.includes(name)) throw new Error(`Undeclared parser default ${feature}.${name}`);
+    for (const name of Object.keys(defaults[feature])) if (name !== 'enabled' && !names.includes(name)) throw new Error(`Undeclared parser default ${feature}.${name}`);
   }
   return contract;
 }

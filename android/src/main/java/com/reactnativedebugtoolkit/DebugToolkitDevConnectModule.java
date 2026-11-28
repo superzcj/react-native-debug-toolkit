@@ -2,6 +2,7 @@ package com.reactnativedebugtoolkit;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.preference.PreferenceManager;
@@ -9,7 +10,6 @@ import android.preference.PreferenceManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.reactnativedebugtoolkit.BuildConfig;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -52,7 +52,7 @@ public class DebugToolkitDevConnectModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void isDebugBuild(Promise promise) {
-    promise.resolve("debug".equals(BuildConfig.BUILD_TYPE));
+    promise.resolve((getReactApplicationContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
   }
 
   @ReactMethod

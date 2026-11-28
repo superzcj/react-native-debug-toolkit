@@ -4,6 +4,7 @@ require Pod::Executable.execute_command('node', ['-p',
     "react-native/scripts/react_native_pods.rb",
     {paths: [process.argv[1]]},
   )', __dir__]).strip
+require_relative '../../ios/patch_flex'
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
@@ -15,6 +16,8 @@ if linkage != nil
 end
 
 target 'Demo' do
+  pod 'FLEX', '5.22.10', :configurations => ['Debug']
+
   config = use_native_modules!
 
   use_react_native!(
@@ -24,6 +27,8 @@ target 'Demo' do
   )
 
   post_install do |installer|
+    patch_debug_toolkit_flex(installer)
+
     react_native_post_install(
       installer,
       config[:reactNativePath],

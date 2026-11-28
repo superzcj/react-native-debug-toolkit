@@ -143,8 +143,10 @@ test('opens the complete showcase directly with a single active root host', asyn
   try {
     await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<RootApp />); });
     await ReactTestRenderer.act(async () => { await debug.ready(); });
-    expect(debug.getReport().features.accounts?.phase).toBe('ready');
-    expect(Object.keys(debug.getReport().features)).toHaveLength(12);
+    const { features } = debug.getReport();
+    expect(features.accounts?.phase).toBe('ready');
+    expect(features.viewInspector?.phase).toBe('ready');
+    expect(Object.keys(features)).toHaveLength(13);
     expect(renderer.root.findAllByProps({ title: '零配置' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ title: '完整 Showcase' })).toHaveLength(0);
   } finally { await ReactTestRenderer.act(async () => { renderer?.unmount(); }); }

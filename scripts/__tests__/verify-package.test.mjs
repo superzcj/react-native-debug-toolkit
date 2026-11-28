@@ -15,8 +15,8 @@ async function archive(t, change = () => {}) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'toolkit-package-test-'));
   t.after(() => rm(dir, {recursive: true, force: true}));
   const entry = name => ({types: `./lib/typescript/src/${name}.d.ts`, 'react-native': `./src/${name}.ts`, import: `./lib/module/${name}.js`, require: `./lib/commonjs/${name}.js`, default: `./lib/commonjs/${name}.js`});
-  const manifest = {name: 'react-native-debug-toolkit', version: '5.0.0', main: 'lib/commonjs/index.js', module: 'lib/module/index.js', types: 'lib/typescript/src/index.d.ts', 'react-native': 'src/index.ts', exports: {'.': entry('index'), './adapters/zustand': entry('adapters/zustand'), './metro': {types: './metro.d.ts', default: './node/metro/index.js'}, './package.json': './package.json'}, dependencies: {'react-native-mmkv': '4.3.2'}, peerDependencies: {react: '>=18', 'react-native': '>=0.76.6 <=0.85.1', 'react-native-nitro-modules': '0.35.10'}};
-  const files = Object.fromEntries(['README.md', 'README-zh-CN.md', 'docs/integration.md', 'docs/integration.zh-CN.md', 'docs/configuration.md', 'docs/configuration.zh-CN.md', 'docs/examples/integration/App.tsx', 'react-native-debug-toolkit.podspec', 'android/build.gradle', 'android/src/main/java/Test.java', 'ios/Test.mm', 'node/metro/index.js', 'node/metro/activation.js', 'src/utils/hubActivation.ts', 'src/utils/defaultHubActivation.ts'].map(f => [f, 'fixture']));
+  const manifest = {name: 'react-native-debug-toolkit', version: '5.0.0', main: 'lib/commonjs/index.js', module: 'lib/module/index.js', types: 'lib/typescript/src/index.d.ts', 'react-native': 'src/index.ts', exports: {'.': entry('index'), './adapters/zustand': entry('adapters/zustand'), './metro': {types: './metro.d.ts', default: './node/metro/index.js'}, './expo/view-inspector': './expo/view-inspector.js', './package.json': './package.json'}, dependencies: {'react-native-mmkv': '4.3.2'}, peerDependencies: {react: '>=18', 'react-native': '>=0.76.6 <=0.85.1', 'react-native-nitro-modules': '0.35.10'}};
+  const files = Object.fromEntries(['README.md', 'README-zh-CN.md', 'docs/integration.md', 'docs/integration.zh-CN.md', 'docs/configuration.md', 'docs/configuration.zh-CN.md', 'docs/examples/integration/App.tsx', 'react-native-debug-toolkit.podspec', 'android/build.gradle', 'android/src/main/java/Test.java', 'ios/Test.mm', 'ios/patch_flex.rb', 'expo/view-inspector.js', 'node/metro/index.js', 'node/metro/activation.js', 'src/utils/hubActivation.ts', 'src/utils/defaultHubActivation.ts'].map(f => [f, 'fixture']));
   files['metro.d.ts'] = await readFile(new URL('../../metro.d.ts', import.meta.url), 'utf8');
   for (const name of ['index', 'adapters/zustand']) for (const target of Object.values(entry(name))) files[target.slice(2)] = 'export {};';
   change({files, manifest});
@@ -33,7 +33,7 @@ async function archive(t, change = () => {}) {
 test('accepts complete public and native package entries', async t => {
   assert.equal((await verifyPackage(await archive(t))).name, 'react-native-debug-toolkit');
 });
-for (const file of ['lib/typescript/src/index.d.ts', 'android/build.gradle', 'ios/Test.mm', 'README-zh-CN.md', 'docs/configuration.md', 'docs/examples/integration/App.tsx', 'node/metro/index.js', 'metro.d.ts', 'node/metro/activation.js']) {
+for (const file of ['lib/typescript/src/index.d.ts', 'android/build.gradle', 'ios/Test.mm', 'ios/patch_flex.rb', 'expo/view-inspector.js', 'README-zh-CN.md', 'docs/configuration.md', 'docs/examples/integration/App.tsx', 'node/metro/index.js', 'metro.d.ts', 'node/metro/activation.js']) {
   test(`rejects missing ${file}`, async t => {
     await assert.rejects(verifyPackage(await archive(t, ({files}) => {delete files[file];})), /missing/i);
   });

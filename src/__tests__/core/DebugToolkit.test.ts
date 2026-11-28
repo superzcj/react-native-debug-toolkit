@@ -57,8 +57,21 @@ test('actions-only configuration publishes quick actions without creating featur
 test('configuration errors keep their page while the other eleven start', async () => {
   const value = host({ network: { maxLogs: 0 } }); value.start();
   expect((await value.ready).status).toBe('partial');
-  expect(value.features.map(feature => feature.name)).toEqual(FEATURE_KEYS);
+  expect(value.features.map(feature => feature.name)).toEqual(FEATURE_KEYS.filter(key => key !== 'viewInspector'));
   expect(value.features[0]!.status).toEqual({ phase: 'error', issues: [expect.objectContaining({ path: 'network.maxLogs' })] });
+  value.actions.track('still-works');
+  expect(value.actions.getReport().logs.track).toHaveLength(1);
+});
+
+test.each([null, 'yes'])('invalid inspector configuration %s leaves other features usable', async (viewInspector) => {
+  const value = host({ enabled: true, viewInspector });
+  value.start();
+  const result = await value.ready;
+  expect(result.status).toBe('partial');
+  expect(result.features.viewInspector).toEqual({
+    phase: 'error', issues: [expect.objectContaining({ path: 'viewInspector' })],
+  });
+  expect(value.features.find(feature => feature.name === 'viewInspector')?.status).toEqual(result.features.viewInspector);
   value.actions.track('still-works');
   expect(value.actions.getReport().logs.track).toHaveLength(1);
 });
@@ -152,4 +165,22 @@ test('configured channel is a first-level page and raw report/clear/open address
  const rows=value.actions.getReport().logs['channel.ble'];expect(rows).toEqual([expect.objectContaining({message:'raw frame',data:{plaintext:'00 ff'}})]);
  value.actions.open('channel.ble');expect(value.getSnapshot()).toMatchObject({panelOpen:true,panelTarget:'channel.ble'});
  value.actions.clear('channel.ble');expect(value.actions.getReport().logs['channel.ble']).toEqual([]);
+});
+
+test('an inspector-only host respects global disable and non-debuggable defaults', async () => {
+  const disabledPages = Object.fromEntries(
+    FEATURE_KEYS.filter(key => key !== 'viewInspector').map(key => [key, { enabled: false }]),
+  );
+  const disabled = host({ ...disabledPages, enabled: false, viewInspector: true });
+  disabled.start();
+  expect((await disabled.ready).status).toBe('disabled');
+  expect(disabled.features).toEqual([]);
+  disabled.actions.open('viewInspector');
+  expect(disabled.getSnapshot().panelOpen).toBe(false);
+
+  NativeModules.DebugToolkitDevConnect.isDebugBuild = async () => false;
+  const release = host({ ...disabledPages, viewInspector: { enabled: true } });
+  release.start();
+  expect((await release.ready).status).toBe('disabled');
+  expect(release.features).toEqual([]);
 });

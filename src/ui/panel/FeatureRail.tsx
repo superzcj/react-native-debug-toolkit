@@ -1,59 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import { Colors } from '../theme/colors';
 import { FontSize, FontWeight, Radius, Spacing, RAIL_WIDTH } from '../theme/layout';
-import { t, type TranslationKey } from '../../i18n';
-
-const LABEL_MAP: Record<string, TranslationKey> = {
-  network: 'feature.short.network',
-  console: 'feature.short.console',
-  native: 'feature.short.native',
-  navigation: 'feature.short.navigation',
-  state: 'feature.short.state',
-  track: 'feature.short.track',
-  clipboard: 'feature.short.clipboard',
-  environment: 'feature.short.environment',
-  connect: 'feature.short.connect',
-  history: 'feature.short.history',
-  accounts: 'feature.short.accounts',
-  tabs: 'feature.short.tabs',
-};
-
-const DEFAULT_LABELS: Record<string, string> = {
-  network: 'Network',
-  console: 'Console',
-  native: 'Native',
-  navigation: 'Navigation',
-  state: 'State',
-  track: 'Track',
-  clipboard: 'Clipboard',
-  environment: 'Environment',
-  connect: 'Connect',
-  history: 'History',
-  accounts: 'Accounts',
-  tabs: 'Custom',
-};
-
-const FULL_LABEL_KEYS: Record<string, TranslationKey> = {
-  network: 'feature.network',
-  console: 'feature.console',
-  native: 'feature.native',
-  navigation: 'feature.navigation',
-  state: 'feature.state',
-  track: 'feature.track',
-  clipboard: 'feature.clipboard',
-  environment: 'feature.environment',
-  connect: 'feature.connect',
-  history: 'feature.history',
-  accounts: 'feature.accounts',
-  tabs: 'feature.tabs',
-};
+import { t } from '../../i18n';
+import { FEATURE_LABELS, FEATURE_LABEL_KEYS, FEATURE_SHORT_LABEL_KEYS, type BuiltinFeatureKey } from '../../core/featureCatalog';
 
 export function shortLabelForFeature(label: string, id: string): string {
-  const mapped = LABEL_MAP[id];
-  const fullKey = FULL_LABEL_KEYS[id];
+  const name = id as BuiltinFeatureKey;
+  const mapped = FEATURE_SHORT_LABEL_KEYS[name];
+  const fullKey = FEATURE_LABEL_KEYS[name];
   if (mapped && (
-    label.trim() === DEFAULT_LABELS[id]
+    label.trim() === FEATURE_LABELS[name]
     || (fullKey && label.trim() === t(fullKey))
   )) {
     return t(mapped);
@@ -66,6 +23,7 @@ export interface RailItem {
   label: string;
   dotColor?: string | null;
   count?: number;
+  disabled?: boolean;
 }
 
 interface FeatureRailProps {
@@ -94,10 +52,11 @@ export function FeatureRail({ items, activeIndex, onSelectTab }: FeatureRailProp
               key={item.id}
               testID={`debug-tab-${item.id}`}
               onPress={() => onSelectTab(index)}
-              style={[styles.item, isActive && styles.activeItem]}
+              disabled={item.disabled}
+              style={[styles.item, isActive && styles.activeItem, item.disabled && styles.disabledItem]}
               accessibilityRole="tab"
               accessibilityLabel={item.label}
-              accessibilityState={{ selected: isActive }}
+              accessibilityState={{ selected: isActive, disabled: item.disabled }}
             >
               {isActive && <View style={styles.activeBar} />}
               <Text style={[styles.itemText, isActive && styles.activeItemText]} numberOfLines={1}>
@@ -144,6 +103,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: Spacing.SM,
     paddingHorizontal: Spacing.XS,
+    // Let the last item scroll above LogBox and the Android navigation bar.
+    paddingBottom: 80 + (Platform.OS === 'android' ? 48 : 0),
     gap: 2,
   },
   item: {
@@ -155,6 +116,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  disabledItem: { opacity: 0.5 },
   activeItem: {
     backgroundColor: Colors.railActiveBg,
   },

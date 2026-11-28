@@ -27,6 +27,7 @@ export interface ToolkitHostSnapshot {
 export interface ToolkitHost extends ToolkitRuntime, FeatureDataProvider {
   readonly actions: DebugActions;
   getSnapshot(): ToolkitHostSnapshot;
+  clearPanelTarget(): void;
 }
 
 /** Internal assembly entry. It allocates no storage, collectors or native work until start. */
@@ -63,13 +64,21 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
   };
   const panel = {
     open(target?: FeatureKey) {
-      if (disposed || !snapshot.features.length || !target && snapshot.panelOpen) { return; }
+      if (disposed || !snapshot.features.length) return;
+      if (!target && snapshot.panelOpen && !snapshot.panelTarget) return;
       if (target && !snapshot.features.some(feature => feature.name === target)) return;
-      snapshot = { ...snapshot, panelOpen: true, ...(target ? {panelTarget:target,panelRequest:(snapshot.panelRequest ?? 0)+1} : {}) }; emit();
+      snapshot = {
+        ...snapshot,
+        panelOpen: true,
+        panelTarget: target,
+        panelRequest: target ? (snapshot.panelRequest ?? 0) + 1 : snapshot.panelRequest,
+      };
+      emit();
     },
     close() {
       if (!snapshot.panelOpen) { return; }
-      snapshot = { ...snapshot, panelOpen: false }; emit();
+      snapshot = { ...snapshot, panelOpen: false, panelTarget: undefined };
+      emit();
     },
   };
   const startServices = () => {
@@ -101,6 +110,7 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
           page = {
             name: key, label: isChannelKey(key) ? String(config.features[key]!.options.title) : FEATURE_LABELS[key], get status() { return states[key]!; },
             setup() {}, cleanup() {}, getSnapshot: () => [],
+            ...(config.features[key]!.action ? { action: true } : {}),
           };
           pages.set(key, page);
         }
@@ -181,6 +191,11 @@ export function createToolkitHost(input?: unknown): ToolkitHost {
     actions,
     get features() { return snapshot.features; },
     getSnapshot: () => snapshot,
+    clearPanelTarget() {
+      if (!snapshot.panelTarget) return;
+      snapshot = { ...snapshot, panelTarget: undefined };
+      emit();
+    },
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     get ready() { return ready ?? runtime.ready; },
     start() {

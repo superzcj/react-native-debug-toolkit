@@ -116,6 +116,7 @@ function FlowDebugTab({ snapshot }: { snapshot: FlowTabSnapshot }) {
 
 export const demoDebugConfig = {
   locale: 'zh-CN',
+  viewInspector: __DEV__,
   // No explicit endpoint: Debug builds discover the local Hub.
   connect: { appId: 'com.reactnativedebugtoolkit.demo' },
   environment: {

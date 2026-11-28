@@ -14,6 +14,7 @@ describe('shortLabelForFeature', () => {
     expect(shortLabelForFeature('History', 'history')).toBe('History');
     expect(shortLabelForFeature('Custom', 'tabs')).toBe('Custom');
     expect(shortLabelForFeature('Accounts', 'accounts')).toBe('Accounts');
+    expect(shortLabelForFeature('View inspector', 'viewInspector')).toBe('Inspect');
   });
 
   it('trims unknown label to readable tab label', () => {

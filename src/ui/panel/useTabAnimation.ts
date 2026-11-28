@@ -4,10 +4,11 @@ import { Animated, PanResponder, Easing } from 'react-native';
 interface UseTabAnimationOptions {
   activeTab: number;
   tabCount: number;
+  onTabSelect?: () => void;
   onTabChange: (index: number) => void;
 }
 
-export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnimationOptions) {
+export function useTabAnimation({ activeTab, tabCount, onTabSelect, onTabChange }: UseTabAnimationOptions) {
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const contentTranslateX = useRef(new Animated.Value(0)).current;
   const isSwitchingTab = useRef(false);
@@ -36,6 +37,7 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
 
   const switchTab = useCallback(
     (index: number) => {
+      onTabSelect?.();
       if (isSwitchingTab.current || index === activeTabRef.current) return;
       isSwitchingTab.current = true;
       const direction = index > activeTabRef.current ? 1 : -1;
@@ -63,7 +65,7 @@ export function useTabAnimation({ activeTab, tabCount, onTabChange }: UseTabAnim
         });
       });
     },
-    [contentOpacity, contentTranslateX, onTabChange],
+    [contentOpacity, contentTranslateX, onTabSelect, onTabChange],
   );
 
   switchTabRef.current = switchTab;

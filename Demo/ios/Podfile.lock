@@ -1,5 +1,6 @@
 PODS:
   - FBLazyVector (0.85.1)
+  - FLEX (5.22.10)
   - hermes-engine (250829098.0.10):
     - hermes-engine/Pre-built (= 250829098.0.10)
   - hermes-engine/Pre-built (250829098.0.10)
@@ -1893,6 +1894,7 @@ PODS:
 
 DEPENDENCIES:
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
+  - FLEX (= 5.22.10)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - NitroMmkv (from `../node_modules/react-native-mmkv`)
   - NitroModules (from `../node_modules/react-native-nitro-modules`)
@@ -1974,6 +1976,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - FLEX
     - MMKVCore
 
 EXTERNAL SOURCES:
@@ -2137,6 +2140,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   FBLazyVector: ed7eadee1965b0b918ca9d0f2c2328f7eb3fd095
+  FLEX: f21ee4f498eed3f8a1eded66b21939fd3b7a22ce
   hermes-engine: 08f5e8e60c519f71470ac5738a1c1a593b64f966
   MMKVCore: 3d16ce9f7d411e135020915fde98a056859a1efa
   NitroMmkv: 85a251e15c39d7c95fe58cf40786fa126b8d143c
@@ -2216,6 +2220,6 @@ SPEC CHECKSUMS:
   RNCClipboard: 715fa7c6c8366f17d00f05a439ee7488f390fa5f
   Yoga: b1085f68c014785350a2afdc95eaef0d49f23ccb
 
-PODFILE CHECKSUM: dbdad812f326742f93f0b95b6bb214cbb4fe94f0
+PODFILE CHECKSUM: f386fcde01bee70160df4a46ec790facd0111875
 
 COCOAPODS: 1.17.0

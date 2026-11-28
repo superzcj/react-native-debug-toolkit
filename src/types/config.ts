@@ -66,6 +66,8 @@ export interface DebugToolkitConfig<
 > {
   enabled?: boolean;
   logChannels?: readonly LogChannelConfig[];
+  /** Show the native view inspector in the panel. Requires the optional native integration. */
+  viewInspector?: boolean | FeatureConfig<{}>;
   locale?: 'en' | 'zh-CN';
   network?: FeatureConfig<{ maxLogs?: number; excludeUrls?: readonly (string | RegExp)[] }>;
   console?: FeatureConfig<{ maxLogs?: number }>;

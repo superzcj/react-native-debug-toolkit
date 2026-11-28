@@ -13,6 +13,7 @@ import { FontSize, FontWeight, Radius, Spacing } from '../theme/layout';
 import { t } from '../../i18n';
 
 interface DebugPanelProps {
+  onDismissStart?: () => void;
   onClose: () => void;
   onClearAll: () => void;
   syncLabel?: string;
@@ -20,13 +21,13 @@ interface DebugPanelProps {
   children: React.ReactNode;
 }
 
-export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
+export function DebugPanel({ onDismissStart, onClose, onClearAll, syncLabel, syncColor, children }: DebugPanelProps) {
   const { height: screenHeight } = useWindowDimensions();
   const panelTranslateY = useRef(new Animated.Value(screenHeight)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    requestAnimationFrame(() => {
+    const frame = requestAnimationFrame(() => {
       Animated.parallel([
         Animated.spring(panelTranslateY, {
           toValue: 0,
@@ -41,9 +42,11 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         }),
       ]).start();
     });
+    return () => cancelAnimationFrame(frame);
   }, [panelTranslateY, backdropOpacity]);
 
   const closePanel = useCallback(() => {
+    onDismissStart?.();
     Animated.parallel([
       Animated.spring(panelTranslateY, {
         toValue: screenHeight,
@@ -57,7 +60,7 @@ export function DebugPanel({ onClose, onClearAll, syncLabel, syncColor, children
         useNativeDriver: true,
       }),
     ]).start(() => onClose());
-  }, [panelTranslateY, backdropOpacity, onClose, screenHeight]);
+  }, [panelTranslateY, backdropOpacity, onDismissStart, onClose, screenHeight]);
 
   const panelResponder = useRef(
     PanResponder.create({
