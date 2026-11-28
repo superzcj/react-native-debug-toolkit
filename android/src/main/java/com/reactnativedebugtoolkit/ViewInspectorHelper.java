@@ -12,7 +12,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
-import com.facebook.react.uimanager.ReactZIndexedViewGroup;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,6 +47,9 @@ final class ViewInspectorHelper {
   private static int cachedNativeIdTagKey = Integer.MIN_VALUE;
   private static boolean bgStyleApplicatorResolved = false;
   private static Method bgStyleApplicatorGetColor;
+  private static boolean reactZIndexedResolved = false;
+  private static Class<?> reactZIndexedClass;
+  private static Method reactZIndexedGetMappedIndex;
 
   private ViewInspectorHelper() {}
 
@@ -221,6 +223,30 @@ final class ViewInspectorHelper {
     }
   }
 
+  private static int getReactZIndexMappedChildIndex(ViewGroup group, int index) {
+    if (!reactZIndexedResolved) {
+      reactZIndexedResolved = true;
+      try {
+        reactZIndexedClass = Class.forName("com.facebook.react.uimanager.ReactZIndexedViewGroup");
+        reactZIndexedGetMappedIndex = reactZIndexedClass.getMethod("getZIndexMappedChildIndex", int.class);
+      } catch (ReflectiveOperationException ignored) {
+        reactZIndexedClass = null;
+        reactZIndexedGetMappedIndex = null;
+      }
+    }
+    if (reactZIndexedClass != null && reactZIndexedGetMappedIndex != null && reactZIndexedClass.isInstance(group)) {
+      try {
+        Object mapped = reactZIndexedGetMappedIndex.invoke(group, index);
+        if (mapped instanceof Integer) {
+          return (Integer) mapped;
+        }
+      } catch (ReflectiveOperationException | RuntimeException ignored) {
+        return -1;
+      }
+    }
+    return -1;
+  }
+
   private static List<View> getChildrenInDrawOrder(ViewGroup group) {
     int count = group.getChildCount();
     List<View> children = new ArrayList<>(count);
@@ -228,11 +254,9 @@ final class ViewInspectorHelper {
     float firstZ = 0f;
     for (int i = 0; i < count; i++) {
       int childIndex = i;
-      if (group instanceof ReactZIndexedViewGroup) {
-        int mapped = ((ReactZIndexedViewGroup) group).getZIndexMappedChildIndex(i);
-        if (mapped >= 0 && mapped < count) {
-          childIndex = mapped;
-        }
+      int reactMapped = getReactZIndexMappedChildIndex(group, i);
+      if (reactMapped >= 0 && reactMapped < count) {
+        childIndex = reactMapped;
       } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         try {
           int mapped = group.getChildDrawingOrder(i);
