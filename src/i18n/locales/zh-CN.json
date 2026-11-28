@@ -27,7 +27,6 @@
   "quickActions.error": "操作失败",
   "viewInspector.title": "视图检查",
   "viewInspector.short": "视图检查",
-  "viewInspector.permission": "请在系统设置中授予悬浮窗权限，然后重新打开视图检查。",
   "viewInspector.unavailable": "视图检查未安装，请重新构建 Debug 应用。",
   "common.bad": "异常",
   "common.time": "时间",

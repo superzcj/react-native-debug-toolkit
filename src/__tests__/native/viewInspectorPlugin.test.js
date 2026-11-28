@@ -12,9 +12,6 @@ jest.mock('expo/config-plugins', () => {
       return config;
     },
     withPodfile: hook('podfile'),
-    withProjectBuildGradle: hook('projectGradle'),
-    withAppBuildGradle: hook('appGradle'),
-    withGradleProperties: hook('gradleProperties'),
   };
 }, { virtual: true });
 
@@ -26,9 +23,6 @@ function fixture() {
     mods: {
       podfileProperties: { modResults: { 'apple.extraPods': '[{"name":"Other"}]' } },
       podfile: { modResults: { contents: 'post_install do |installer|\nend\n' } },
-      projectGradle: { modResults: { contents: 'allprojects { repositories {\n} }' } },
-      appGradle: { modResults: { language: 'groovy', contents: 'dependencies {\n}\n' } },
-      gradleProperties: { modResults: [{ type: 'property', key: 'android.enableJetifier', value: 'false' }] },
     },
   };
 }
@@ -40,23 +34,24 @@ async function apply(config) {
 }
 
 test.each([
-  [undefined, true, false],
-  [{}, true, false],
-  [{ ios: false }, false, false],
-  [{ android: true }, true, true],
-  [{ enabled: true, ios: true, android: true }, true, true],
-  [{ enabled: true, ios: false, android: true }, false, true],
-  [{ enabled: true, ios: true, android: false }, true, false],
-  [{ enabled: true, ios: false, android: false }, false, false],
-  [{ enabled: false, ios: true, android: true }, false, false],
-  [{ enabled: false, ios: false, android: true }, false, false],
-  [{ enabled: false, ios: true, android: false }, false, false],
-  [{ enabled: false, ios: false, android: false }, false, false],
-])('applies options %j only to selected platforms', async (options, ios, android) => {
+  [undefined, true],
+  [{}, true],
+  [{ ios: false }, false],
+  [{ android: true }, true],
+  [{ enabled: true, ios: true, android: true }, true],
+  [{ enabled: true, ios: false, android: true }, false],
+  [{ enabled: true, ios: true, android: false }, true],
+  [{ enabled: true, ios: false, android: false }, false],
+  [{ enabled: false, ios: true, android: true }, false],
+  [{ enabled: false, ios: false, android: true }, false],
+  [{ enabled: false, ios: true, android: false }, false],
+  [{ enabled: false, ios: false, android: false }, false],
+])('applies options %j to iOS FLEX only without touching Android Gradle', async (options, ios) => {
   const config = fixture();
   const before = JSON.parse(JSON.stringify(config.mods));
   expect(withViewInspector(config, options)).toBe(config);
   await apply(config);
+  expect(Object.keys(config.hooks).sort()).toEqual(ios ? ['podfile', 'podfileProperties'] : []);
   if (ios) {
     expect(JSON.parse(config.mods.podfileProperties.modResults['apple.extraPods'])).toEqual([
       { name: 'Other' },
@@ -67,48 +62,15 @@ test.each([
     expect(config.mods.podfileProperties).toEqual(before.podfileProperties);
     expect(config.mods.podfile).toEqual(before.podfile);
   }
-  if (android) {
-    expect(config.mods.projectGradle.modResults.contents).toContain('jitpack.io');
-    expect(config.mods.appGradle.modResults.contents).toContain('debugImplementation("com.github.eleme.UETool:uetool:1.3.4")');
-    expect(config.mods.gradleProperties.modResults[0].value).toBe('true');
-  } else {
-    expect(config.mods.projectGradle).toEqual(before.projectGradle);
-    expect(config.mods.appGradle).toEqual(before.appGradle);
-    expect(config.mods.gradleProperties).toEqual(before.gradleProperties);
-  }
 });
 
-test('explicitly enabling both platforms is idempotent across prebuilds', async () => {
+test('applying the plugin repeatedly is idempotent across prebuilds', async () => {
   const config = fixture();
-  withViewInspector(config, { android: true });
+  withViewInspector(config);
   await apply(config);
   const once = JSON.stringify(config.mods);
   await apply(config);
   expect(JSON.stringify(config.mods)).toBe(once);
-});
-
-test.each(['uetool', 'uetool-base'])('completes a partial Android installation containing %s', async existing => {
-  const config = fixture();
-  const gradle = config.mods.appGradle.modResults;
-  const group = 'com.github.eleme.UETool';
-  gradle.contents = `dependencies {\n    debugImplementation '${group}:${existing}:1.3.4'\n}\n`;
-  withViewInspector(config, { ios: false, android: true });
-  await apply(config);
-  for (const artifact of ['uetool', 'uetool-base']) {
-    expect(gradle.contents.split(`${group}:${artifact}:1.3.4`)).toHaveLength(2);
-  }
-  const once = gradle.contents;
-  await apply(config);
-  expect(gradle.contents).toBe(once);
-});
-
-test('commented Android dependencies do not satisfy the debug build', async () => {
-  const config = fixture();
-  const gradle = config.mods.appGradle.modResults;
-  gradle.contents = 'dependencies {\n/*\n    debugImplementation("com.github.eleme.UETool:uetool:1.3.4")\n*/\n}\n';
-  withViewInspector(config, { ios: false, android: true });
-  await apply(config);
-  expect(gradle.contents.split('/*')[0]).toContain('debugImplementation("com.github.eleme.UETool:uetool:1.3.4")');
 });
 
 test('retains other pods when another property mod overwrites the pod list', async () => {
@@ -117,7 +79,7 @@ test('retains other pods when another property mod overwrites the pod list', asy
     mod.modResults['apple.extraPods'] = JSON.stringify([{ name: 'Other' }]);
     return mod;
   };
-  withViewInspector(config, { android: false });
+  withViewInspector(config);
   await apply(config);
   expect(JSON.parse(config.mods.podfileProperties.modResults['apple.extraPods'])).toEqual([
     { name: 'Other' },
@@ -125,28 +87,12 @@ test('retains other pods when another property mod overwrites the pod list', asy
   ]);
 });
 
-test.each([
-  "buildscript { repositories { maven { url 'https://jitpack.io' } } }\nallprojects { repositories { google() } }",
-  "// maven { url 'https://jitpack.io' }\nallprojects { repositories { google() } }",
-  "allprojects { repositories { /* maven { url 'https://jitpack.io' } */ google() } }",
-])('adds JitPack to application repositories when it is present elsewhere', async contents => {
+test('handles empty string apple.extraPods without failing JSON parsing', async () => {
   const config = fixture();
-  config.mods.projectGradle.modResults.contents = contents;
-  withViewInspector(config, { ios: false, android: true });
+  config.mods.podfileProperties.modResults['apple.extraPods'] = '';
+  withViewInspector(config);
   await apply(config);
-  expect(config.mods.projectGradle.modResults.contents).toContain(
-    "allprojects { repositories {\n    maven { url 'https://jitpack.io' }",
-  );
-  const once = config.mods.projectGradle.modResults.contents;
-  await apply(config);
-  expect(config.mods.projectGradle.modResults.contents).toBe(once);
-});
-
-test('reuses JitPack in the application repositories', async () => {
-  const config = fixture();
-  const contents = "allprojects { repositories { google()\n    maven { url 'https://www.jitpack.io' }\n} }";
-  config.mods.projectGradle.modResults.contents = contents;
-  withViewInspector(config, { ios: false, android: true });
-  await apply(config);
-  expect(config.mods.projectGradle.modResults.contents).toBe(contents);
+  expect(JSON.parse(config.mods.podfileProperties.modResults['apple.extraPods'])).toEqual([
+    { name: 'FLEX', version: '5.22.10', configurations: ['Debug'] },
+  ]);
 });

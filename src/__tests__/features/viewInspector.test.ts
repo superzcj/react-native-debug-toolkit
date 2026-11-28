@@ -9,10 +9,9 @@ beforeEach(() => {
 
 afterEach(() => { delete NativeModules.DebugToolkitViewInspector; });
 
-test('opens the inspector and reports permission, unavailable, and native errors', async () => {
+test('opens the inspector and reports unavailable and native errors', async () => {
   const show = jest.fn()
     .mockResolvedValueOnce('opened')
-    .mockResolvedValueOnce('permission_required')
     .mockResolvedValueOnce('unavailable')
     .mockRejectedValueOnce(new Error('native failure'));
   NativeModules.DebugToolkitViewInspector = { show };
@@ -21,8 +20,6 @@ test('opens the inspector and reports permission, unavailable, and native errors
 
   await feature.onSelect!();
   expect(Alert.alert).not.toHaveBeenCalled();
-  await feature.onSelect!();
-  expect(Alert.alert).toHaveBeenLastCalledWith('View inspector', expect.stringContaining('display over other apps'));
   await feature.onSelect!();
   expect(Alert.alert).toHaveBeenLastCalledWith('View inspector', expect.stringContaining('not installed'));
   await feature.onSelect!();

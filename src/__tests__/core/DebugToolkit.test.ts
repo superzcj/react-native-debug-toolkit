@@ -40,7 +40,7 @@ test('panel open, close and subscriptions are idempotent and owner-scoped', asyn
 
 test('actions-only configuration publishes quick actions without creating feature pages', async () => {
   const onPress = jest.fn();
-  const disabledFeatures = Object.fromEntries(FEATURE_KEYS.map((key) => [key, { enabled: false }]));
+  const disabledFeatures = Object.fromEntries(FEATURE_KEYS.filter(key => key !== 'viewInspector').map((key) => [key, { enabled: false }]));
   const value = host({
     enabled: true,
     ...disabledFeatures,
@@ -148,7 +148,7 @@ test('actions-only hosts apply their explicit locale without starting feature se
   configureLocale('en');
   const value = host({
     enabled: true, locale: 'zh-CN',
-    ...Object.fromEntries(FEATURE_KEYS.map(key => [key, { enabled: false }])),
+    ...Object.fromEntries(FEATURE_KEYS.filter(key => key !== 'viewInspector').map(key => [key, { enabled: false }])),
     quickActions: { items: [{ id: 'run', title: '执行', onPress: () => {} }] },
   });
   value.start();
